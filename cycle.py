@@ -25,21 +25,22 @@ from bot_db import (
     write_status,
 )
 from bot_logic import open_lots
-from bot_market import candidate_symbols, update_quotes
+from bot_market import SESSION_SIZE, candidate_symbols, symbols_due, update_quotes
 
 log = get_logger()
 
 
 def symbols_to_refresh(conn, prefs):
-    chosen = candidate_symbols(prefs["universe_size"])
+    """Un giro scarica al massimo 100 titoli ancora indietro, su tutto l'elenco."""
+    universe = candidate_symbols(500)
     lots, _unmatched = open_lots(fetch_transactions(conn))
-    merged = []
+    ordered = []
     seen = set()
-    for symbol in chosen + [lot.asset for lot in lots] + [prefs["focus_asset"]]:
+    for symbol in [lot.asset for lot in lots] + [prefs["focus_asset"]] + universe:
         if symbol and symbol not in seen:
             seen.add(symbol)
-            merged.append(symbol)
-    return merged
+            ordered.append(symbol)
+    return symbols_due(conn, ordered)[:SESSION_SIZE]
 
 
 def main():
@@ -56,7 +57,7 @@ def main():
         seed_preferences(conn)
         prefs = load_preferences(conn)
         symbols = symbols_to_refresh(conn, prefs)
-        write_status("running", f"Titoli nell'aggiornamento: {len(symbols)}.")
+        write_status("running", f"Questo giro: {len(symbols)} titoli. Ogni giro ne prende al massimo 100, fra quelli ancora indietro.")
         log.info("ciclo su %s titoli", len(symbols))
 
         def progress(message):

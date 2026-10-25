@@ -24,6 +24,7 @@ DEFAULTS = {
     "return_days": "20",
     "focus_asset": "AAPL",
     "max_price_age_hours": "120",
+    "notice_seconds": "8",
 }
 
 PREF_LABELS = {
@@ -38,6 +39,7 @@ PREF_LABELS = {
     "return_days": "Sedute per misurare il rendimento",
     "focus_asset": "Titolo del grafico storico",
     "max_price_age_hours": "Età massima del prezzo per vendere (ore)",
+    "notice_seconds": "Secondi del messaggio",
 }
 
 
@@ -112,6 +114,7 @@ def interpret(raw):
         "return_days": _int_between(raw.get("return_days"), 1, 120, 20),
         "focus_asset": normalize_ticker(raw.get("focus_asset") or "AAPL") or "AAPL",
         "max_price_age_hours": _int_between(raw.get("max_price_age_hours"), 1, 720, 120),
+        "notice_seconds": _int_between(raw.get("notice_seconds"), 3, 30, 8),
     }
     return prefs
 
@@ -127,6 +130,7 @@ def validate_preferences(form):
         history_days = int(form["history_days"])
         return_days = int(form["return_days"])
         age = int(form["max_price_age_hours"])
+        notice = int(form["notice_seconds"])
         universe = int(form["universe_size"])
     except (KeyError, ValueError, ArithmeticError):
         return None, "Uno dei valori numerici non è leggibile."
@@ -150,6 +154,8 @@ def validate_preferences(form):
         return None, "Il titolo del grafico non è valido."
     if not (30 <= history_days <= 1825 and 1 <= return_days <= 120 and 1 <= age <= 720):
         return None, "Giorni di storico, sedute o età del prezzo fuori dai limiti."
+    if not 3 <= notice <= 30:
+        return None, "I secondi del messaggio devono stare tra 3 e 30."
     values = {
         "profit_threshold": format(profit.normalize(), "f"),
         "max_investment": format(investment.normalize(), "f"),
@@ -162,6 +168,7 @@ def validate_preferences(form):
         "return_days": str(return_days),
         "focus_asset": focus,
         "max_price_age_hours": str(age),
+        "notice_seconds": str(notice),
     }
     return values, None
 

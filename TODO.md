@@ -9,31 +9,37 @@ testo non è una pagina del sito.
 
 ## Già costruito
 
-- Accesso con utente e password. La password è cifrata. Si esce solo con **Esci**.
-- Pagina: messaggio di stato, due pulsanti, grafico Volume e stato, storico, posizioni, acquisto, transazioni, preferenze.
-- Volume e stato: dimensione = volume dell’ultima seduta, colore = movimento del giorno (verde su, rosso giù, blu stabile).
-- Storico a linea del titolo scelto. Il disegno a candele c’è nel codice e si attiva dalla preferenza, non ha ancora una vista sua.
+- Accesso con utente e password. La password è cifrata. Si esce solo con **Esci**. La pagina di accesso è una card di Bootstrap.
+- Barra blu fissa: nome, aggiorna prezzi, solo controllo vendite, menu con Preferenze ed Esci. Icone Lucide in `icons/`.
+- Due schede Bootstrap, Volume e Storico. Il cambio di scheda non ricarica la pagina. Sotto restano posizioni, acquisto e transazioni.
+- Volume: dimensione = volume dell’ultima seduta, colore = movimento del giorno (verde su, rosso giù, blu stabile). Sul riquadro c’è la sigla, oppure il nome della società se la sigla è di una o due lettere o se il riquadro è largo. Il `title` è sigla, società e percentuale, senza virgola: `ACN — Accenture -3.6%`.
+- Storico: select dei titoli in archivio con il nome della società, periodi `1G` `1S` `1M` `3M` `6M` `YTD` (il `title` spiega Giorno, Settimana, Mese, Tre mesi, Sei mesi, Da inizio anno), linea o candele. Cambiare titolo, periodo o tipo sostituisce solo l’immagine.
+- Il messaggio esce da sotto la barra, arrotondato e trasparente. Compare quando un aggiornamento parte e quando finisce, per i secondi della preferenza. Non compare a ogni apertura della pagina. Durante l’aggiornamento resta.
+- Preferenze in una finestra Bootstrap, dal menu.
 - Acquisto manuale. Vendita automatica del lotto quando il profitto netto, tolte commissione e imposta, raggiunge la soglia.
-- Prezzi da Yahoo, a blocchi. Se un blocco non risponde, il giro continua e al giro dopo riprende i titoli rimasti indietro.
+- Prezzi da Yahoo, a blocchi da 10. L’elenco è tutti i 500 dell’S&P 500, nell’ordine della tabella Wikipedia: è un ordine, non una classifica. Ogni giro ne scarica al massimo 100, solo quelli ancora indietro. Prima passano gli acquisti aperti e il titolo delle preferenze. Se un blocco torna senza barre, si attende 45 secondi, si riprova una volta, poi si continua. Il giro dopo riprende i rimasti.
+- La prima volta un titolo riceve circa sei mesi. Poi si chiedono solo le ultime cinque sedute e si aggiungono. Le barre vecchie restano: lo storico si allunga in avanti, non all’indietro.
 - Nel fine settimana la seduta di venerdì già salvata non viene riscaricata.
+- Il grafico del volume, tra le barre in archivio con volume sopra zero, tiene i più redditizi sulle sedute della preferenza (20), fino al numero scelto (100, 200 o 500).
+- `6M` chiede sempre 180 giorni. `YTD` chiede dal 1° gennaio dell’anno in corso e disegna solo i giorni presenti. Un anno di archivio non fa comparire da solo il pulsante di un anno.
 - Cron nei giorni feriali, dall’apertura americana.
-- Ultimo scarico utile: storico di sei mesi, ultima seduta venerdì 23 ottobre 2026, 100 titoli nel grafico.
+- Bootstrap 5.3 è in `static/`, non da una rete esterna. Favicon: il robot nell’indirizzo `data:` della pagina.
+- Ultimo scarico completo: sei mesi, seduta di venerdì 23 ottobre 2026, circa 100 titoli. La sera del 25 ottobre il giro successivo ha avuto da Yahoo «troppe richieste» e ha scritto 0 barre.
 
-## Da costruire, in quest’ordine
+## Da costruire
 
-La landing di adesso è un banco di prova: le sezioni stanno nell’ordine in cui sono state scritte. Si riordina così.
+1. Fatto. Due schede, una sola visibile: **Volume** e **Storico**. Il cambio non ricarica la pagina.
+2. Fatto. Barra con titolo, icone e menu.
+3. Fatto. Cinque icone Lucide in `icons/`, con la licenza accanto.
+4. Fatto. Il messaggio del ciclo compare all’avvio e alla fine, per i secondi della preferenza. Non a ogni apertura. Durante un aggiornamento resta.
+5. Fatto. Preferenze in una finestra, aperte dal menu.
+6. Fatto. Sotto il grafico: posizioni aperte e registra acquisto.
+7. Fatto. Nello Storico, l’elenco dei titoli che hanno barre in archivio, con il nome della società.
+8. Fatto. Intervalli `1G` `1S` `1M` `3M` `6M` `YTD`, con il significato nel `title`. Linea o candele, nella stessa scheda.
+9. Uno, due, cinque, dieci anni e «sempre»: i pulsanti non crescono da soli con l’archivio. Prima serve uno scarico più lungo, poi i pulsanti.
+10. Fatto. Sigla o nome sul riquadro. Nel `title`, sigla, società e percentuale.
 
-1. Due schede, una sola visibile: **Volume** e **Storico**. Il grafico occupa la pagina intera. Niente affiancamento: stretto, i nomi diventano illeggibili.
-2. Barra in alto. A sinistra il titolo **Trading bot**. A destra due icone, aggiorna prezzi e controlla vendite, poi il menu con Preferenze e, in fondo, Esci. La frase lunga sta nel titolo del pulsante, quello che compare al passaggio del mouse.
-3. Icone sul server, poche, non un catalogo esterno. La pagina rifiuta gli stili che arrivano da fuori.
-4. Il messaggio di stato fa capolino e resta per i secondi indicati nelle preferenze, poi se ne va.
-5. Preferenze in una finestra, aperte dal menu.
-6. Sotto il grafico, sulla stessa pagina: posizioni aperte e registra acquisto. Restano visibili, non in una finestra.
-7. Nello Storico, un elenco dei titoli che hanno barre in archivio (oggi un centinaio, non i cinquecento dell’elenco S&P 500).
-8. Intervalli che i dati reggono già: settimana, mese, tre mesi, sei mesi, da inizio anno. Con barre giornaliere il giorno è un punto solo.
-9. Uno, due, cinque, dieci anni e «sempre»: prima serve uno scarico più lungo, poi i pulsanti.
-10. Le fettine sottili di Volume restano senza nome anche a piena pagina, perché il nome si omette se il rettangolo è troppo piccolo. Dopo: nome al passaggio del mouse o al clic.
-11. Candele dentro la scheda Storico, come altro disegno dello stesso titolo.
+11. Da vedere il 26 ottobre 2026, nei log: se il giro dei 100 titoli ancora indietro passa, o se Yahoo risponde di nuovo «troppe richieste». Da lì si decide come distanziare le chiamate.
 
 ## Decisioni già prese
 
@@ -42,6 +48,8 @@ La landing di adesso è un banco di prova: le sezioni stanno nell’ordine in cu
 - Il giro dei prezzi e la regola di vendita restano codice deterministico.
 - Broker, rischio, calendario di borsa e controllo database-contro-conto vengono dopo, quando la simulazione regge. Sono il passo professionale, non questo riordino.
 - Quattro o cinque icone nostre. Non si installano qui altri trading bot presi da GitHub per copiarne la pagina.
+- Si scaricano tutti i 500, a giri da 100. Il grafico è ciò che riduce l’elenco. L’ordine alfabetico della tabella non è un criterio di scelta.
+- I periodi restano `1G` `1S` `1M` `3M` `6M` `YTD` finché non c’è uno scarico più lungo.
 
 ## Backup e git
 
