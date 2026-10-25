@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Trading bot</title>
+	{% if running %}<meta http-equiv="refresh" content="20">{% endif %}
+	<style>
+		:root { color-scheme: light; }
+		* { box-sizing: border-box; }
+		body { margin: 0; font: 16px/1.45 system-ui, sans-serif; color: #1c1c1c; background: #f4f6f8; }
+		main { max-width: 1180px; margin: 0 auto; padding: 1.25rem; }
+		h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+		h2 { font-size: 1.05rem; margin: 0 0 0.6rem; }
+		p { margin: 0.3rem 0; }
+		.lead { color: #444; max-width: 70rem; }
+		.banner { padding: 0.7rem 0.9rem; border-radius: 8px; margin: 0.8rem 0; }
+		.ok { background: #e8f5e9; }
+		.err { background: #ffebee; }
+		.info { background: #e3f2fd; }
+		.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+		.card { background: #fff; border: 1px solid #e1e4e8; border-radius: 10px; padding: 0.9rem; }
+		img.chart { width: 100%; height: auto; display: block; }
+		.legend { display: flex; gap: 1rem; font-size: 0.9rem; margin-top: 0.4rem; }
+		.swatch { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 2px; margin-right: 0.3rem; vertical-align: -1px; }
+		table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+		th, td { text-align: left; padding: 0.4rem 0.35rem; border-bottom: 1px solid #eee; vertical-align: top; }
+		th { color: #555; font-weight: 600; }
+		.ready { background: #e8f5e9; }
+		form.inline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+		label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: #333; }
+		input, select, button { font: inherit; padding: 0.35rem 0.5rem; }
+		button { background: #1565c0; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+		button.secondary { background: #455a64; }
+		.grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.7rem; }
+		.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0 1rem; }
+		.top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+		.top h1 { margin: 0; }
+		@media (max-width: 900px) { .charts { grid-template-columns: 1fr; } }
+	</style>
+</head>
+<body>
+<main>
+	<div class="top">
+		<h1>Trading bot</h1>
+		<form method="post" action="{{ url_for('logout') }}">
+			<input type="hidden" name="csrf" value="{{ csrf }}">
+			<button class="secondary" type="submit">Esci</button>
+		</form>
+	</div>
+	<p class="lead">I blocchi a sinistra sono i titoli dell'universo: la dimensione è il volume dell'ultima seduta, il colore è lo stato. A destra lo storico del titolo scelto. Gli acquisti si registrano qui. Quando il prezzo sale abbastanza da coprire commissioni, imposta e la soglia di profitto, il controllo vende quel lotto e lo scrive in <em>transactions</em>. Nessun ordine parte verso un broker: i prezzi arrivano da Yahoo Finance.</p>
+
+	{% if ok %}<p class="banner ok">{{ ok }}</p>{% endif %}
+	{% if err %}<p class="banner err">{{ err }}</p>{% endif %}
+	<p class="banner {{ 'err' if status.state == 'error' else 'ok' if status.state == 'ok' else 'info' }}">{{ status.message }}{% if status.updated %} — {{ status.updated }}{% endif %}</p>
+
+	<div class="actions">
+		<form method="post" action="{{ url_for('refresh') }}">
+			<input type="hidden" name="csrf" value="{{ csrf }}">
+			<button {% if running %}disabled{% endif %}>Aggiorna prezzi e controlla vendite</button>
+		</form>
+		<form method="post" action="{{ url_for('cycle_sells') }}">
+			<input type="hidden" name="csrf" value="{{ csrf }}">
+			<button class="secondary" {% if running %}disabled{% endif %}>Solo controllo vendite</button>
+		</form>
+	</div>
+
+	<section class="charts">
+		<article class="card">
+			<h2>Volume e stato</h2>
+			<img class="chart" src="{{ url_for('chart_blocks') }}" alt="Blocchi dei titoli per volume">
+			<p class="legend">
+				<span><i class="swatch" style="background:#2e7d32"></i>in crescita</span>
+				<span><i class="swatch" style="background:#c62828"></i>in perdita</span>
+				<span><i class="swatch" style="background:#1565c0"></i>stabile (± {{ prefs.stable_band|pct }})</span>
+			</p>
+			<p>Si prendono i primi {{ prefs.universe_size }} titoli dell'elenco S&amp;P 500 e, tra quelli scaricati, restano i più redditizi sulle ultime {{ prefs.return_days }} sedute. In grafico ora: {{ blocks|length }}. La dimensione del blocco è il volume.</p>
+		</article>
+		<article class="card">
+			<h2>Storico</h2>
+			<form class="inline" method="get">
+				<label>Titolo
+					<input name="asset" list="titoli" value="{{ asset }}" required>
+				</label>
+				<button class="secondary" type="submit">Mostra</button>
+			</form>
+			<datalist id="titoli">
+				{% for name in assets %}<option value="{{ name }}">{% endfor %}
+			</datalist>
+			<img class="chart" src="{{ url_for('chart_history', asset=asset) }}" alt="Andamento di {{ asset }}">
+		</article>
+	</section>
+
+	<section class="card">
+		<h2>Posizioni aperte</h2>
+		<p>Il profitto è netto: dal ricavo si tolgono la commissione di vendita e l'imposta sul guadagno, e si confronta con il costo di acquisto (prezzo più commissioni e tasse già registrate). Soglia attuale: {{ prefs.profit_threshold|pct }}.</p>
+		{% if positions %}
+		<table>
+			<thead>
+				<tr>
+					<th>Titolo</th>
+					<th>Quantità</th>
+					<th>Prezzo di carico</th>
+					<th>Prezzo ora</th>
+					<th>Profitto netto</th>
+					<th>Esito</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in positions %}
+				<tr class="{{ 'ready' if row.ready else '' }}">
+					<td>{{ row.asset }}<br><small>{{ row.bought_at|when }}</small></td>
+					<td>{{ row.amount|qty }}</td>
+					<td>{{ row.buy_price|px }}</td>
+					<td>{{ row.market_price|px }}<br><small>{{ row.market_time|when }}</small></td>
+					<td>{{ row.ratio|pct }}</td>
+					<td>{{ row.outcome }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+		{% else %}
+		<p>Nessun acquisto aperto.</p>
+		{% endif %}
+	</section>
+
+	<section class="card" style="margin-top:1rem">
+		<h2>Registra un acquisto</h2>
+		<p>È il record iniziale del lotto. Se lasci vuoti prezzo e commissioni, il bot usa l'ultimo prezzo in archivio e la commissione delle preferenze. Le tasse in acquisto, se non le indichi, restano zero: l'imposta sul guadagno si calcola in vendita.</p>
+		<form class="inline" method="post" action="{{ url_for('buy') }}">
+			<input type="hidden" name="csrf" value="{{ csrf }}">
+			<label>Titolo <input name="asset" value="{{ asset }}" required></label>
+			<label>Quantità <input name="amount" inputmode="decimal" required></label>
+			<label>Prezzo <input name="price" inputmode="decimal" placeholder="ultimo prezzo"></label>
+			<label>Commissioni <input name="fees" inputmode="decimal" placeholder="automatiche"></label>
+			<label>Tasse <input name="taxes" inputmode="decimal" placeholder="0"></label>
+			<button type="submit">Registra acquisto</button>
+		</form>
+	</section>
+
+	<section class="card" style="margin-top:1rem">
+		<h2>Ultime transazioni</h2>
+		{% if transactions %}
+		<table>
+			<thead>
+				<tr><th>Data</th><th>Tipo</th><th>Titolo</th><th>Quantità</th><th>Prezzo</th><th>Commissioni</th><th>Tasse</th></tr>
+			</thead>
+			<tbody>
+				{% for tx in transactions %}
+				<tr>
+					<td>{{ tx.timestamp|when }}</td>
+					<td>{{ tx.type }}</td>
+					<td>{{ tx.asset_name }}</td>
+					<td>{{ tx.amount|qty }}</td>
+					<td>{{ tx.price|px }}</td>
+					<td>{{ tx.fees|px }}</td>
+					<td>{{ tx.taxes|px }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+		{% else %}
+		<p>Ancora nessuna transazione.</p>
+		{% endif %}
+	</section>
+
+	<section class="card" style="margin-top:1rem">
+		<h2>Preferenze</h2>
+		<form method="post" action="{{ url_for('save_prefs') }}">
+			<input type="hidden" name="csrf" value="{{ csrf }}">
+			<div class="grid-form">
+				<label>{{ labels.profit_threshold }}
+					<input name="profit_threshold" value="{{ prefs.profit_threshold }}" required>
+				</label>
+				<label>{{ labels.max_investment }}
+					<input name="max_investment" value="{{ prefs.max_investment }}" required>
+				</label>
+				<label>{{ labels.fee_rate }}
+					<input name="fee_rate" value="{{ prefs.fee_rate }}" required>
+				</label>
+				<label>{{ labels.tax_rate }}
+					<input name="tax_rate" value="{{ prefs.tax_rate }}" required>
+				</label>
+				<label>{{ labels.stable_band }}
+					<input name="stable_band" value="{{ prefs.stable_band }}" required>
+				</label>
+				<label>{{ labels.universe_size }}
+					<select name="universe_size">
+						{% for size in (100, 200, 500) %}
+						<option value="{{ size }}" {% if prefs.universe_size == size %}selected{% endif %}>{{ size }}</option>
+						{% endfor %}
+					</select>
+				</label>
+				<label>{{ labels.chart_type }}
+					<select name="chart_type">
+						<option value="line" {% if prefs.chart_type == 'line' %}selected{% endif %}>Lineare</option>
+						<option value="candle" {% if prefs.chart_type == 'candle' %}selected{% endif %}>Candele</option>
+					</select>
+				</label>
+				<label>{{ labels.history_days }}
+					<input name="history_days" value="{{ prefs.history_days }}" required>
+				</label>
+				<label>{{ labels.return_days }}
+					<input name="return_days" value="{{ prefs.return_days }}" required>
+				</label>
+				<label>{{ labels.focus_asset }}
+					<input name="focus_asset" value="{{ prefs.focus_asset }}" required>
+				</label>
+				<label>{{ labels.max_price_age_hours }}
+					<input name="max_price_age_hours" value="{{ prefs.max_price_age_hours }}" required>
+				</label>
+			</div>
+			<p><button type="submit">Salva preferenze</button></p>
+		</form>
+		<p>La commissione iniziale è 0,1% e l'imposta 26% del guadagno, come l'imposta sostitutiva italiana sulle plusvalenze. Cambiale se i tuoi costi sono diversi. Con 100 titoli l'aggiornamento è più corto; 500 scarica mezzo listino e può richiedere diversi minuti.</p>
+	</section>
+</main>
+</body>
+</html>
