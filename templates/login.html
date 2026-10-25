@@ -4,33 +4,30 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Accesso — Trading bot</title>
-	<style>
-		:root { color-scheme: light; }
-		* { box-sizing: border-box; }
-		body { margin: 0; font: 16px/1.45 system-ui, sans-serif; color: #1c1c1c; background: #f4f6f8; }
-		main { max-width: 26rem; margin: 8vh auto; padding: 1.25rem; }
-		h1 { font-size: 1.5rem; margin: 0 0 0.4rem; }
-		.card { background: #fff; border: 1px solid #e1e4e8; border-radius: 10px; padding: 1.1rem; }
-		label { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.7rem 0; font-size: 0.9rem; }
-		input, button { font: inherit; padding: 0.45rem 0.55rem; }
-		button { background: #1565c0; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
-		.err { background: #ffebee; padding: 0.6rem 0.75rem; border-radius: 8px; }
-		p { color: #444; margin: 0.3rem 0 0.6rem; }
-	</style>
+	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+	<link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
 </head>
-<body>
-<main>
-	<div class="card">
-		<h1>Accesso</h1>
-		<p>Trading bot</p>
-		{% if error %}<p class="err">{{ error }}</p>{% endif %}
-		<form method="post" action="{{ url_for('login') }}">
-			<input type="hidden" name="csrf" value="{{ csrf }}">
-			<input type="hidden" name="next" value="{{ next }}">
-			<label>Utente <input name="username" autocomplete="username" required></label>
-			<label>Password <input name="password" type="password" autocomplete="current-password" required></label>
-			<button type="submit">Entra</button>
-		</form>
+<body class="bg-light">
+<main class="container py-5" style="max-width: 26rem">
+	<div class="card shadow-sm">
+		<div class="card-body p-4">
+			<h1 class="h4 mb-1">Accesso</h1>
+			<p class="text-secondary">Trading bot</p>
+			{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+			<form method="post" action="{{ url_for('login') }}">
+				<input type="hidden" name="csrf" value="{{ csrf }}">
+				<input type="hidden" name="next" value="{{ next }}">
+				<div class="mb-3">
+					<label class="form-label" for="username">Utente</label>
+					<input class="form-control" id="username" name="username" autocomplete="username" required>
+				</div>
+				<div class="mb-3">
+					<label class="form-label" for="password">Password</label>
+					<input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required>
+				</div>
+				<button class="btn btn-primary" type="submit">Entra</button>
+			</form>
+		</div>
 	</div>
 </main>
 </body>

@@ -1,5 +1,6 @@
 """Elenco titoli e scarico prezzi da Yahoo Finance."""
 
+import html
 import re
 import time
 import urllib.request
@@ -8,7 +9,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import yfinance as yf
 
-from bot_config import UNIVERSE_CACHE, get_logger
+from bot_config import NAMES_CACHE, UNIVERSE_CACHE, get_logger
 from bot_db import history_coverage, quantize_volume, upsert_bars
 from bot_logic import money
 
@@ -65,6 +66,9 @@ FALLBACK = (
 )
 
 
+SESSION_SIZE = 100
+
+
 def candidate_symbols(limit):
     symbols = _load_sp500() or list(dict.fromkeys(FALLBACK))
     unique = []
@@ -106,6 +110,37 @@ def _read_cache():
 
 
 def _fetch_sp500():
+    return [symbol for symbol, _name in _fetch_constituents()]
+
+
+def security_names():
+    """Simbolo → nome della società. La cache dura una settimana, come l'elenco."""
+    cached = _read_names()
+    if NAMES_CACHE.exists() and len(cached) >= 100:
+        age = datetime.now().timestamp() - NAMES_CACHE.stat().st_mtime
+        if age < 7 * 24 * 3600:
+            return cached
+    fresh = {symbol: name for symbol, name in _fetch_constituents() if name}
+    if len(fresh) >= 100:
+        lines = [f"{symbol}\t{name}" for symbol, name in fresh.items()]
+        NAMES_CACHE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return fresh
+    return cached
+
+
+def _read_names():
+    if not NAMES_CACHE.exists():
+        return {}
+    names = {}
+    for line in NAMES_CACHE.read_text(encoding="utf-8").splitlines():
+        symbol, sep, name = line.partition("\t")
+        symbol = symbol.strip().upper().replace(".", "-")
+        if sep and symbol and name.strip():
+            names[symbol] = name.strip()
+    return names
+
+
+def _fetch_constituents():
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     request = urllib.request.Request(
         url,
@@ -113,25 +148,30 @@ def _fetch_sp500():
     )
     try:
         with urllib.request.urlopen(request, timeout=25) as response:
-            html = response.read().decode("utf-8", "replace")
+            page = response.read().decode("utf-8", "replace")
     except OSError as exc:
         log.warning("elenco S&P 500 non scaricato: %s", exc)
         return []
-    start = html.find('id="constituents"')
-    end = html.find("<h2", start + 1) if start != -1 else -1
-    chunk = html[start:end] if start != -1 and end != -1 else html
-    symbols = []
-    # La prima colonna di ogni riga è il simbolo, dentro un link.
+    start = page.find('id="constituents"')
+    end = page.find("<h2", start + 1) if start != -1 else -1
+    chunk = page[start:end] if start != -1 and end != -1 else page
+    rows = []
     for piece in chunk.split("<tr")[1:]:
-        cell_end = piece.find("</td>")
-        cell = piece[:cell_end] if cell_end != -1 else ""
-        symbol = _symbol_from_cell(cell)
-        if symbol:
-            symbols.append(symbol)
-        if len(symbols) >= 500:
+        cells = piece.split("</td>")
+        symbol = _symbol_from_cell(cells[0]) if cells else None
+        if not symbol:
+            continue
+        name = _plain_cell(cells[1]) if len(cells) > 1 else ""
+        rows.append((symbol, name))
+        if len(rows) >= 500:
             break
-    log.info("elenco S&P 500: %s simboli", len(symbols))
-    return symbols
+    log.info("elenco S&P 500: %s simboli", len(rows))
+    return rows
+
+
+def _plain_cell(cell):
+    text = re.sub(r"<[^>]+>", " ", cell)
+    return html.unescape(re.sub(r"\s+", " ", text)).strip()
 
 
 def _symbol_from_cell(cell):
@@ -153,6 +193,19 @@ def session_current(latest, now):
         friday = day - timedelta(days=day.weekday() - 4)
         return latest.date() >= friday
     return (now - latest).total_seconds() < 36 * 3600
+
+
+def symbols_due(conn, symbols, now=None):
+    """Titoli senza storico abbastanza lungo, o senza la seduta ancora valida."""
+    now = now or datetime.now()
+    coverage = history_coverage(conn, symbols)
+    due = []
+    for symbol in symbols:
+        count, latest = coverage.get(symbol, (0, None))
+        if count >= 60 and session_current(latest, now):
+            continue
+        due.append(symbol)
+    return due
 
 
 def update_quotes(conn, symbols, on_progress):
@@ -184,7 +237,7 @@ def update_quotes(conn, symbols, on_progress):
             on_progress(f"Scarico {label}, blocco {done}/{planned} ({len(batch)} titoli)")
             rows = _download_batch(batch, period)
             if not rows and not waited:
-                on_progress("Yahoo non ha risposto. Attendo e riprovo una volta.")
+                on_progress("Yahoo ha chiuso la chiamata senza barre. Attendo 45 secondi e riprovo una volta.")
                 log.warning("blocco vuoto, attendo: %s", ",".join(batch))
                 time.sleep(45)
                 waited = True

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import Flask, Response, abort, redirect, render_template, request, session, url_for
+from jinja2 import ChoiceLoader, FileSystemLoader
 from werkzeug.exceptions import HTTPException
 
 SITE = "/var/www/clients/client0/web5/home/default_botmanager/.local/lib/python3.10/site-packages"
@@ -14,7 +15,8 @@ if SITE not in sys.path:
     sys.path.insert(0, SITE)
 
 from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_session
-from bot_charts import history_png, treemap_png
+from bot_charts import history_png, treemap_layout, treemap_png
+from bot_market import security_names
 from bot_config import (
     FLASK_SECRET_PATH,
     LOG_PATH,
@@ -49,6 +51,10 @@ from bot_logic import money
 
 log = get_logger()
 app = Flask(__name__)
+app.jinja_loader = ChoiceLoader([
+    FileSystemLoader(str(WEB / "templates")),
+    FileSystemLoader(str(WEB / "icons")),
+])
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Strict"
@@ -132,7 +138,7 @@ def harden(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
         "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
     )
     if response.mimetype == "text/html":
@@ -215,6 +221,26 @@ def format_when(value):
     return str(value)
 
 
+PERIODS = (
+    ("1", "1G", "Giorno"),
+    ("7", "1S", "Settimana"),
+    ("30", "1M", "Mese"),
+    ("90", "3M", "Tre mesi"),
+    ("180", "6M", "Sei mesi"),
+    ("ytd", "YTD", "Da inizio anno"),
+)
+
+
+def _span(value):
+    today = datetime.now()
+    if value == "ytd":
+        start = today.replace(month=1, day=1)
+        return "ytd", max(1, (today.date() - start.date()).days)
+    if value in ("1", "7", "30", "90", "180"):
+        return value, int(value)
+    return "180", 180
+
+
 def _page_status(status, running, now):
     """Il processo compare un attimo dopo il clic: in quel momento è partito, non morto."""
     if status.get("state") != "running" or running:
@@ -233,6 +259,31 @@ def _page_status(status, running, now):
     }, False, True
 
 
+def _sync_notice(status, running, now):
+    """Il messaggio del ciclo compare all'avvio e alla fine, non a ogni apertura della pagina."""
+    stamp = status.get("updated") or ""
+    seen = session.get("sync_seen") or ""
+    watching = session.get("sync_watch") or ""
+    if running:
+        session["sync_watch"] = stamp or "running"
+        return True
+    if watching and stamp and stamp != watching:
+        session["sync_watch"] = ""
+        session["sync_seen"] = stamp
+        return True
+    if not stamp or stamp == seen:
+        return False
+    try:
+        when = datetime.fromisoformat(stamp)
+    except ValueError:
+        return False
+    if (now - when).total_seconds() > 20:
+        session["sync_seen"] = stamp
+        return False
+    session["sync_seen"] = stamp
+    return True
+
+
 @app.route("/")
 def home():
     asset = normalize_ticker(request.args.get("asset", "")) 
@@ -242,33 +293,55 @@ def home():
         asset = asset or prefs["focus_asset"]
         window_days = max(prefs["history_days"], prefs["return_days"] * 3, 40)
         blocks = build_blocks(load_bars_since(conn, window_days), prefs)
+        catalog = security_names()
+        tiles = treemap_layout(blocks, catalog)
         positions = position_rows(conn, prefs)
         transactions = recent_transactions(conn)
         assets = list_assets(conn)
+        asset_options = [
+            {"symbol": symbol, "label": f"{symbol} — {catalog[symbol]}" if catalog.get(symbol) else symbol}
+            for symbol in assets
+        ]
         status = read_status()
         running = cycle_running()
     finally:
         conn.close()
-    status, running, stale = _page_status(status, running, datetime.now())
+    now = datetime.now()
+    status, running, stale = _page_status(status, running, now)
+    sync_notice = _sync_notice(status, running, now)
     if stale:
         write_status(status["state"], status["message"])
     ok = (request.args.get("ok") or "")[:300]
     if ok.startswith("Aggiornamento avviato"):
         ok = ""
+    vista = request.args.get("vista")
+    if vista not in ("volume", "storico"):
+        vista = "volume"
+    grafico = request.args.get("grafico")
+    if grafico not in ("line", "candle"):
+        grafico = prefs["chart_type"]
+    period, _days = _span(request.args.get("periodo"))
     return render_template(
         "index.html",
         prefs=prefs,
         labels=PREF_LABELS,
         asset=asset,
         blocks=blocks,
+        tiles=tiles,
         positions=positions,
         transactions=transactions,
         assets=assets,
+        asset_options=asset_options,
         status=status,
         running=running,
+        sync_notice=sync_notice,
         csrf=session.get("csrf", ""),
         ok=ok,
         err=(request.args.get("err") or "")[:300],
+        vista=vista,
+        grafico=grafico,
+        period=period,
+        periods=PERIODS,
     )
 
 
@@ -290,8 +363,11 @@ def chart_history():
     try:
         prefs = load_preferences(conn)
         asset = normalize_ticker(request.args.get("asset", "")) or prefs["focus_asset"]
-        series = load_asset_history(conn, asset, prefs["history_days"])
-        chart_type = prefs["chart_type"]
+        _period, days = _span(request.args.get("periodo"))
+        series = load_asset_history(conn, asset, days)
+        chart_type = request.args.get("grafico")
+        if chart_type not in ("line", "candle"):
+            chart_type = prefs["chart_type"]
     finally:
         conn.close()
     return _png(history_png(series, asset, chart_type))

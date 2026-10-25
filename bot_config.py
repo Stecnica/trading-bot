@@ -13,6 +13,7 @@ LOCK_PATH = PRIVATE / "cycle.lock"
 UI_PASSWORD_PATH = PRIVATE / "ui_password"
 FLASK_SECRET_PATH = PRIVATE / "flask_secret"
 UNIVERSE_CACHE = PRIVATE / "sp500_symbols.txt"
+NAMES_CACHE = PRIVATE / "sp500_names.tsv"
 MPLCONFIG = PRIVATE / "mplconfig"
 
 SITE_PACKAGES = (

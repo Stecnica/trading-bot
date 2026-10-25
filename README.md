@@ -22,11 +22,13 @@ Gli acquisti partono da un record inserito da chi usa il bot. La vendita è il g
 
 I prezzi arrivano da Yahoo Finance, per uso personale, a blocchi. Se un blocco non risponde, il giro salva quello che ha e al passaggio successivo riprende i titoli rimasti indietro. Nel fine settimana una seduta di venerdì già in archivio non si riscarica.
 
-L'universo è l'elenco S&P 500. In grafico restano i più mossi nel periodo scelto, tra quelli scaricati, fino al numero indicato nelle preferenze.
+L'universo da scaricare è l'elenco S&P 500, tutti i 500, nell'ordine della tabella: è la coda di scarico, non una classifica. Ogni giro ne prende al massimo 100 fra quelli ancora senza storico aggiornato. In grafico restano i più redditizi sulle sedute scelte nelle preferenze, fra quelli già in archivio, fino al numero indicato.
+
+La prima richiesta di un titolo è di circa sei mesi. Gli aggiornamenti aggiungono le sedute nuove e non cancellano le vecchie. `6M` mostra sempre gli ultimi 180 giorni. `YTD` mostra dal 1° gennaio, solo per i giorni presenti. I pulsanti di uno, due, cinque e dieci anni non compaiono da soli quando l'archivio si allunga.
 
 L'accesso alla pagina è una sessione. La password è cifrata. Si esce solo con Esci. I tentativi falliti li conta anche il filtro del server.
 
-La pagina di adesso è ancora un banco di prova: le sezioni stanno nell'ordine in cui sono state scritte. Il riordino deciso, e quello che manca, è in `TODO.md`.
+La pagina è una barra e due schede, Volume e Storico, con Bootstrap tenuto in `static/`. Il cambio di scheda e dei controlli dello storico non ricarica la pagina. Siamo ancora in debug: messaggio, grafico e archivio devono coincidere. Il dettaglio di ciò che è fatto e di ciò che manca è in `TODO.md`.
 
 ## Cosa non fa
 

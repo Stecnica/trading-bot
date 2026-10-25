@@ -19,12 +19,57 @@ COLORS = {
 }
 
 
+def treemap_layout(blocks, names=None):
+    """Rettangoli in percentuale. Il title è sigla e società, non il testo già disegnato."""
+    if not blocks:
+        return []
+    sizes = [float(block["volume"]) for block in blocks]
+    laid = []
+    for (x, y, width, height), block in zip(_squarify(sizes), blocks):
+        daily = float(block["daily"])
+        sign = "+" if daily > 0 else ""
+        change = f"{sign}{daily * 100:.1f}%"
+        if width >= 0.07 and height >= 0.055:
+            kind = "big"
+        elif width >= 0.028 and height >= 0.028:
+            kind = "mid"
+        else:
+            kind = "tiny"
+        company = (names or {}).get(block["asset"], "")
+        title = f"{block['asset']} — {company} {change}" if company else f"{block['asset']} {change}"
+        laid.append(
+            {
+                "asset": block["asset"],
+                "x": round(x * 100, 3),
+                "y": round(y * 100, 3),
+                "w": round(width * 100, 3),
+                "h": round(height * 100, 3),
+                "color": COLORS[block["state"]],
+                "change": change,
+                "label": _tile_label(block["asset"], company, kind, width),
+                "title": title,
+                "kind": kind,
+            }
+        )
+    return laid
+
+
+def _tile_label(symbol, company, kind, width):
+    """Sul riquadro non basta una lettera: T è AT&T."""
+    if not company:
+        return symbol
+    if len(symbol) <= 2:
+        return company
+    if kind == "big" and len(company) <= max(10, int(width / 0.012)):
+        return company
+    return symbol
+
+
 def treemap_png(blocks):
     if not blocks:
         return _message_png("Nessun titolo con volume. Aggiorna i prezzi.")
     sizes = [float(block["volume"]) for block in blocks]
-    fig, ax = plt.subplots(figsize=(8.2, 5.6), dpi=110)
-    fig.patch.set_facecolor("#ffffff")
+    fig, ax = _figure()
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.invert_yaxis()
@@ -66,7 +111,7 @@ def history_png(series, asset, chart_type):
 
 
 def _line_png(series, asset, missing_ohlc):
-    fig, ax = plt.subplots(figsize=(8.2, 5.6), dpi=110)
+    fig, ax = _figure()
     dates = [row["timestamp"] for row in series]
     prices = [float(row["price"]) for row in series]
     low, high = min(prices), max(prices)
@@ -79,12 +124,15 @@ def _line_png(series, asset, missing_ohlc):
         title += " (lineare: mancano i prezzi per le candele)"
     _decorate(ax, title)
     fig.autofmt_xdate()
+    for label in ax.get_xticklabels():
+        label.set_fontsize(16)
+        label.set_fontweight("medium")
     fig.tight_layout()
     return _png(fig)
 
 
 def _candle_png(series, asset):
-    fig, ax = plt.subplots(figsize=(8.2, 5.6), dpi=110)
+    fig, ax = _figure()
     for index, row in enumerate(series):
         open_price = float(row["open_price"])
         close = float(row["price"])
@@ -105,16 +153,24 @@ def _candle_png(series, asset):
 
 
 def _decorate(ax, title):
-    ax.set_title(title, loc="left", fontsize=12, color="#1a1a1a", pad=10)
+    ax.set_title(title, loc="left", fontsize=18, color="#1a1a1a", pad=12)
     ax.grid(True, axis="y", color="#e6e6e6", linewidth=0.8)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.tick_params(colors="#444444", labelsize=8)
+    ax.tick_params(axis="both", colors="#222222", labelsize=16, width=1.1, length=6)
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+        label.set_fontweight("medium")
     ax.set_facecolor("#ffffff")
 
 
+def _figure():
+    fig, ax = plt.subplots(figsize=(14.5, 8.2), dpi=200)
+    fig.patch.set_facecolor("#ffffff")
+    return fig, ax
+
+
 def _message_png(text):
-    fig, ax = plt.subplots(figsize=(8.2, 5.6), dpi=110)
+    fig, ax = _figure()
     ax.axis("off")
     ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=12, color="#333333", wrap=True)
     fig.tight_layout()
