@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
+import yfinance.shared as yf_shared
 
 from bot_config import NAMES_CACHE, UNIVERSE_CACHE, get_logger
 from bot_db import history_coverage, quantize_volume, upsert_bars
@@ -208,11 +209,15 @@ def symbols_due(conn, symbols, now=None):
     return due
 
 
-def update_quotes(conn, symbols, on_progress):
+def update_quotes(conn, symbols, on_progress, force_recent=()):
     coverage = history_coverage(conn, symbols)
+    force_recent = set(force_recent)
     full, recent = [], []
     now = datetime.now()
     for symbol in symbols:
+        if symbol in force_recent:
+            recent.append(symbol)
+            continue
         count, latest = coverage.get(symbol, (0, None))
         fresh = session_current(latest, now)
         if count >= 60 and fresh:
@@ -221,7 +226,8 @@ def update_quotes(conn, symbols, on_progress):
             recent.append(symbol)
         else:
             full.append(symbol)
-    batches = [("storico 6 mesi", full, "6mo"), ("ultime sedute", recent, "5d")]
+    log.info("da scaricare: ultime sedute %s, storico 6 mesi %s", len(recent), len(full))
+    batches = [("ultime sedute", recent, "5d"), ("storico 6 mesi", full, "6mo")]
     planned = sum((len(group) + 9) // 10 for _label, group, _period in batches if group)
     done = 0
     stored = 0
@@ -261,6 +267,8 @@ def update_quotes(conn, symbols, on_progress):
 
 
 def _download_batch(batch, period):
+    yf_shared._ERRORS = {}
+    started = time.perf_counter()
     try:
         frame = yf.download(
             batch,
@@ -275,7 +283,35 @@ def _download_batch(batch, period):
     except Exception:
         log.exception("blocco non scaricato: %s", ",".join(batch))
         return []
-    return bars_from_download(frame, batch)
+    elapsed = time.perf_counter() - started
+    kept = bars_from_download(frame, batch)
+    filled = _tickers_with_close(frame, batch)
+    shape = None if frame is None else tuple(frame.shape)
+    log.info(
+        "blocco %s %s in %.1fs forma=%s con_prezzo=%s barre=%s errori=%s",
+        period,
+        ",".join(batch),
+        elapsed,
+        shape,
+        ",".join(filled) or "-",
+        len(kept),
+        dict(yf_shared._ERRORS) or "-",
+    )
+    return kept
+
+
+def _tickers_with_close(frame, tickers):
+    found = []
+    if frame is None or not isinstance(frame, pd.DataFrame) or frame.empty:
+        return found
+    for ticker in tickers:
+        sub = _slice_ticker(frame, ticker)
+        if sub is None or sub.empty or "Close" not in sub.columns:
+            continue
+        if sub["Close"].dropna().empty:
+            continue
+        found.append(ticker)
+    return found
 
 
 def bars_from_download(frame, tickers):
