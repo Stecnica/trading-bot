@@ -3,7 +3,6 @@
 
 import os
 import sys
-
 SITE = "/var/www/clients/client0/web5/home/default_botmanager/.local/lib/python3.10/site-packages"
 if SITE not in sys.path:
     sys.path.insert(0, SITE)
@@ -18,33 +17,18 @@ from bot_db import (
     connect,
     cycle_running,
     ensure_schema,
-    fetch_transactions,
     load_preferences,
     seed_preferences,
     sell_ready_lots,
     write_status,
 )
-from bot_logic import open_lots
-from bot_market import SESSION_SIZE, candidate_symbols, symbols_due, update_quotes
+from bot_massive import update_from_massive
 
 log = get_logger()
 
 
-def symbols_to_refresh(conn, prefs):
-    """Un giro scarica al massimo 100 titoli ancora indietro, su tutto l'elenco."""
-    universe = candidate_symbols(500)
-    lots, _unmatched = open_lots(fetch_transactions(conn))
-    ordered = []
-    seen = set()
-    for symbol in [lot.asset for lot in lots] + [prefs["focus_asset"]] + universe:
-        if symbol and symbol not in seen:
-            seen.add(symbol)
-            ordered.append(symbol)
-    return symbols_due(conn, ordered)[:SESSION_SIZE]
-
-
 def main():
-    socket.setdefaulttimeout(60)
+    socket.setdefaulttimeout(90)
     if cycle_running():
         log.info("ciclo già in esecuzione")
         return 0
@@ -56,15 +40,13 @@ def main():
         ensure_schema(conn)
         seed_preferences(conn)
         prefs = load_preferences(conn)
-        symbols = symbols_to_refresh(conn, prefs)
-        write_status("running", f"Questo giro: {len(symbols)} titoli. Ogni giro ne prende al massimo 100, fra quelli ancora indietro.")
-        log.info("ciclo su %s titoli", len(symbols))
+        log.info("ciclo prezzi da Massive")
 
         def progress(message):
             write_status("running", message)
             log.info(message)
 
-        stored, warning = update_quotes(conn, symbols, progress)
+        stored, warning = update_from_massive(conn, progress)
         sold = sell_ready_lots(conn, prefs)
         if warning:
             write_status("error", warning)
