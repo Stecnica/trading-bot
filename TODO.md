@@ -10,8 +10,8 @@ testo non è una pagina del sito.
 ## Già costruito
 
 - Accesso con utente e password. La password è cifrata. Si esce solo con **Esci**. La pagina di accesso è una card di Bootstrap.
-- Barra blu fissa: nome, aggiorna prezzi, solo controllo vendite, menu con Preferenze ed Esci. Icone Lucide in `icons/`.
-- Due schede Bootstrap, Volume e Storico. Il cambio di scheda non ricarica la pagina. Sotto restano posizioni, acquisto e transazioni.
+- Barra blu fissa: nome, poi Posizioni, Acquisto e Transazioni, poi aggiorna prezzi, solo controllo vendite, menu con Preferenze ed Esci. I pulsanti della barra sono alti 2rem. Icone Lucide in `icons/`.
+- Due schede Bootstrap, Volume e Storico. Il cambio di scheda non ricarica la pagina. Posizioni, acquisto e transazioni sono tre pannelli della barra, aperti dal proprio pulsante.
 - Volume: dimensione = volume dell’ultima seduta, colore = movimento del giorno (verde su, rosso giù, blu stabile). Sul riquadro c’è la sigla, oppure il nome della società se la sigla è di una o due lettere o se il riquadro è largo. Il `title` è sigla, società e percentuale, senza virgola: `ACN — Accenture -3.6%`.
 - Storico: select dei titoli in archivio con il nome della società, periodi `1G` `1S` `1M` `3M` `6M` `YTD` `1A` `2A` (il `title` spiega Giorno, Settimana, Mese, Tre mesi, Sei mesi, Da inizio anno, Un anno, Due anni), linea o candele. Cambiare titolo, periodo o tipo sostituisce solo l’immagine.
 - Il messaggio esce da sotto la barra, arrotondato e trasparente. Compare quando un aggiornamento parte e quando finisce, per i secondi della preferenza. Non compare a ogni apertura della pagina. Durante l’aggiornamento resta. `?anteprima=messaggi` lo tiene acceso e fa girare ogni 4 secondi i quattro stati, su tre righe: message, success, warning, alert. Serve a controllare testo, bordo, fondo e opacità.
@@ -32,7 +32,7 @@ testo non è una pagina del sito.
 3. Fatto. Cinque icone Lucide in `icons/`, con la licenza accanto.
 4. Fatto. Il messaggio del ciclo compare all’avvio e alla fine, per i secondi della preferenza. Non a ogni apertura. Durante un aggiornamento resta.
 5. Fatto. Preferenze in una finestra, aperte dal menu.
-6. Fatto. Sotto il grafico: posizioni aperte e registra acquisto.
+6. Fatto. Posizioni aperte, registra un acquisto e ultime transazioni stanno nei pannelli della barra. L'esito dell'acquisto compare in cima al pannello Acquisto. Il messaggio del ciclo resta sotto la barra e il pannello parte sotto di lui.
 7. Fatto. Nello Storico, l’elenco dei titoli che hanno barre in archivio, con il nome della società.
 8. Fatto. Intervalli `1G` `1S` `1M` `3M` `6M` `YTD`, con il significato nel `title`. Linea o candele, nella stessa scheda.
 9. Fatti `1A` e `2A`: l’archivio copre dal 28 ottobre 2024. Cinque anni, dieci anni e «sempre» restano fuori finché un piano non consegna quelle barre.
