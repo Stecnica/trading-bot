@@ -24,7 +24,7 @@ testo non è una pagina del sito.
 - `6M` chiede sempre 180 giorni. `YTD` chiede dal 1° gennaio dell’anno in corso e disegna solo i giorni presenti. Un anno di archivio non fa comparire da solo il pulsante di un anno.
 - Cron nei giorni feriali, dall’apertura americana.
 - Bootstrap 5.3 è in `static/`, non da una rete esterna. Favicon: il robot nell’indirizzo `data:` della pagina.
-- Ultimo scarico completo: sei mesi, seduta di venerdì 23 ottobre 2026, circa 100 titoli. La sera del 25 ottobre il giro successivo ha avuto da Yahoo «troppe richieste» e ha scritto 0 barre.
+- Ultimo scarico Yahoo che ha scritto barre: 26 ottobre 2026 alle 22:16, a borsa chiusa. Archivio a 331 titoli. I cinque giri precedenti di quella sera hanno scritto zero. Tesla non c'è.
 
 ## Da costruire
 
@@ -39,12 +39,13 @@ testo non è una pagina del sito.
 9. Uno, due, cinque, dieci anni e «sempre»: i pulsanti non crescono da soli con l’archivio. Prima serve uno scarico più lungo, poi i pulsanti.
 10. Fatto. Sigla o nome sul riquadro. Nel `title`, sigla, società e percentuale.
 
-11. Da vedere il 26 ottobre 2026, nei log: se il giro dei 100 titoli ancora indietro passa, o se Yahoo risponde di nuovo «troppe richieste». Da lì si decide come distanziare le chiamate.
+11. Visto il 26 ottobre 2026. Yahoo ha risposto «troppe richieste» per quasi tutta la sera. Distanziare ancora le chiamate non è la strada.
+12. Collegare Massive al posto di Yahoo. Prima il REST del piano gratuito: una chiamata per il riepilogo di un giorno intero, filtrata sui 500. Poi Stocks Starter mensile, prima di giudicare la seduta. I file S3 restano chiusi finché il piano non li include.
 
 ## Decisioni già prese
 
 - L’ingresso resta manuale finché il comportamento non è affidabile.
-- Polygon si aggancia solo quando lo chiediamo noi, perché la simulazione è piena e Yahoo non basta.
+- Massive (prima Polygon) è il fornitore successivo. Account gratuito aperto il 27 ottobre 2026. Il codice non lo chiama ancora. Starter si prende mese per mese quando il tubo funziona; l'annuale e Advanced no, per ora.
 - Il giro dei prezzi e la regola di vendita restano codice deterministico.
 - Broker, rischio, calendario di borsa e controllo database-contro-conto vengono dopo, quando la simulazione regge. Sono il passo professionale, non questo riordino.
 - Quattro o cinque icone nostre. Non si installano qui altri trading bot presi da GitHub per copiarne la pagina.
