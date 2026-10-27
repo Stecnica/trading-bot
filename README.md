@@ -20,7 +20,14 @@ Gli acquisti partono da un record inserito da chi usa il bot. La vendita è il g
 
 ## Scelte fatte dopo
 
-I prezzi arrivano da Yahoo Finance, per uso personale, a blocchi. Se un blocco non risponde, il giro salva quello che ha e al passaggio successivo riprende i titoli rimasti indietro. Nel fine settimana una seduta di venerdì già in archivio non si riscarica.
+I prezzi arrivano ancora da Yahoo Finance, per uso personale, a blocchi. Se un blocco non risponde, il giro salva quello che ha e al passaggio successivo riprende i titoli rimasti indietro. Nel fine settimana una seduta di venerdì già in archivio non si riscarica. Il 26 ottobre 2026 quei blocchi sono stati rifiutati per quasi tutta la sera: una chiamata su sei ha scritto barre, e l'unica riuscita è arrivata a borsa chiusa. Spezzare le chiamate non aggira quel limite.
+
+Il passo successivo è Massive (prima Polygon). L'account gratuito, Stocks Basic, è stato aperto il 27 ottobre 2026 con l'utenza GitHub. Le chiavi stanno in `private/massive_api.env`, fuori dal repository. Due accessi, due porte:
+
+- REST, con la chiave dell'API. Il tetto del piano gratuito è di cinque richieste HTTP al minuto: conta la chiamata, non il titolo. Il riepilogo giornaliero `GET /v2/aggs/grouped/locale/us/market/stocks/{data}` restituisce apertura, massimo, minimo, chiusura e volume di tutte le azioni USA di un giorno in una sola risposta. Le barre di un singolo titolo restano una chiamata per simbolo. Sul gratuito i dati del giorno in corso non ci sono: arrivano a fine seduta, e lo storico delle barre è di due anni.
+- File piatti su S3, un CSV compresso per giorno di borsa. Il piano gratuito non li include. Le coordinate sono già nel file delle chiavi, per quando si passerà a Stocks Starter.
+
+Starter, pagato mese per mese, è il piano previsto per la seduta: chiamate senza quel tetto, barre con quindici minuti di ritardo, cinque anni e i file giornalieri. L'annuale si decide dopo che il bot disegna quelle barre. Advanced non serve a questo passo.
 
 L'universo da scaricare è l'elenco S&P 500, tutti i 500, nell'ordine della tabella: è la coda di scarico, non una classifica. Ogni giro ne prende al massimo 100 fra quelli ancora senza storico aggiornato. In grafico restano i più redditizi sulle sedute scelte nelle preferenze, fra quelli già in archivio, fino al numero indicato.
 
@@ -32,7 +39,7 @@ La pagina è una barra e due schede, Volume e Storico, con Bootstrap tenuto in `
 
 ## Cosa non fa
 
-Non compra da solo. Non parla con un broker. Non ha un tetto di perdita, un calendario di borsa, né un controllo fra le quantità nel database e quelle su un conto. Un fornitore di prezzi a pagamento si aggancia solo quando la simulazione è piena e la fonte gratuita non basta. La regola di vendita resta codice deterministico.
+Non compra da solo. Non parla con un broker. Non ha un tetto di perdita, un calendario di borsa, né un controllo fra le quantità nel database e quelle su un conto. Yahoo resta il motore dei prezzi finché il collegamento a Massive non è nel codice. La regola di vendita resta codice deterministico.
 
 ## Avvio
 
