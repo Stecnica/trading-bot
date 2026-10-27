@@ -230,6 +230,8 @@ PERIODS = (
     ("90", "3M", "Tre mesi"),
     ("180", "6M", "Sei mesi"),
     ("ytd", "YTD", "Da inizio anno"),
+    ("365", "1A", "Un anno"),
+    ("730", "2A", "Due anni"),
 )
 
 
@@ -238,7 +240,7 @@ def _span(value):
     if value == "ytd":
         start = today.replace(month=1, day=1)
         return "ytd", max(1, (today.date() - start.date()).days)
-    if value in ("1", "7", "30", "90", "180"):
+    if value in ("1", "7", "30", "90", "180", "365", "730"):
         return value, int(value)
     return "180", 180
 

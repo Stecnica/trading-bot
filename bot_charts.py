@@ -12,11 +12,20 @@ matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-COLORS = {
-    "stabile": "#1565c0",
-    "crescita": "#2e7d32",
-    "perdita": "#c62828",
+TONES = {
+    "stabile": "bg-primary",
+    "crescita": "bg-success",
+    "perdita": "bg-danger",
 }
+# PNG: matplotlib non applica le classi. I valori sono i token Bootstrap 5.3.
+COLORS = {
+    "stabile": "#0d6efd",
+    "crescita": "#198754",
+    "perdita": "#dc3545",
+}
+INK = "#212529"
+RULE = "#dee2e6"
+PAPER = "#ffffff"
 
 
 def treemap_layout(blocks, names=None):
@@ -44,7 +53,7 @@ def treemap_layout(blocks, names=None):
                 "y": round(y * 100, 3),
                 "w": round(width * 100, 3),
                 "h": round(height * 100, 3),
-                "color": COLORS[block["state"]],
+                "tone": TONES[block["state"]],
                 "change": change,
                 "label": _tile_label(block["asset"], company, kind, width),
                 "title": title,
@@ -81,7 +90,7 @@ def treemap_png(blocks):
                 w,
                 h,
                 facecolor=COLORS[block["state"]],
-                edgecolor="#ffffff",
+                edgecolor=PAPER,
                 linewidth=1.2,
             )
         )
@@ -117,9 +126,9 @@ def _line_png(series, asset, missing_ohlc, width, height):
     low, high = min(prices), max(prices)
     span = high - low
     pad = span * 0.22 or high * 0.012
-    style = dict(color="#1565c0", linewidth=_pt(2.25))
+    style = dict(color=COLORS["stabile"], linewidth=_pt(2.25))
     if len(series) <= 40:
-        style.update(marker="o", markersize=_pt(8), markerfacecolor="#1565c0", markeredgecolor="#ffffff", markeredgewidth=_pt(1.4))
+        style.update(marker="o", markersize=_pt(8), markerfacecolor=COLORS["stabile"], markeredgecolor=PAPER, markeredgewidth=_pt(1.4))
     ax.plot(dates, prices, **style)
     ax.set_ylim(low - pad, high + pad)
     ax.margins(x=0.03)
@@ -149,7 +158,7 @@ def _candle_png(series, asset, width, height):
         close = float(row["price"])
         high = float(row["high_price"])
         low = float(row["low_price"])
-        color = "#2e7d32" if close >= open_price else "#c62828"
+        color = COLORS["crescita"] if close >= open_price else COLORS["perdita"]
         ax.vlines(index, low, high, color=color, linewidth=_pt(1.25))
         body_low = min(open_price, close)
         body = abs(close - open_price) or (close * 0.0005)
@@ -164,14 +173,14 @@ def _candle_png(series, asset, width, height):
 
 
 def _decorate(ax, title, tick, title_px):
-    ax.set_title(title, loc="left", fontsize=_pt(title_px), color="#1a1a1a", pad=_pt(8))
-    ax.grid(True, axis="y", color="#e6e6e6", linewidth=_pt(1))
+    ax.set_title(title, loc="left", fontsize=_pt(title_px), color=INK, pad=_pt(8))
+    ax.grid(True, axis="y", color=RULE, linewidth=_pt(1))
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.tick_params(axis="both", colors="#222222", labelsize=_pt(tick), width=_pt(1), length=_pt(6))
+    ax.tick_params(axis="both", colors=INK, labelsize=_pt(tick), width=_pt(1), length=_pt(6))
     for label in ax.get_xticklabels() + ax.get_yticklabels():
         label.set_fontweight("medium")
-    ax.set_facecolor("#ffffff")
+    ax.set_facecolor(PAPER)
 
 
 def _metrics(width, height):
@@ -197,14 +206,14 @@ def _pt(px):
 def _figure(width=1280, height=720):
     width, height, tick, title = _metrics(width, height)
     fig, ax = plt.subplots(figsize=(width / 100, height / 100), dpi=200)
-    fig.patch.set_facecolor("#ffffff")
+    fig.patch.set_facecolor(PAPER)
     return fig, ax, tick, title
 
 
 def _message_png(text, width=1280, height=720):
     fig, ax, tick, _title = _figure(width, height)
     ax.axis("off")
-    ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=_pt(tick), color="#333333", wrap=True)
+    ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=_pt(tick), color=INK, wrap=True)
     fig.tight_layout()
     return _png(fig)
 

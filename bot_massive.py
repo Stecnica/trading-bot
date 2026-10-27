@@ -48,6 +48,11 @@ def update_from_massive(conn, on_progress, max_dates=None):
         except (AuthError, BadResponse, OSError) as exc:
             kind = _kind(exc, secret)
             log.warning("massive seduta %s rifiutata: %s", day.isoformat(), _quiet(exc, secret))
+            if kind == "plan" and day < end:
+                _remember(CLOSED_PATH, day)
+                log.info("massive seduta %s fuori dal piano, segnata chiusa", day.isoformat())
+                on_progress(f"La seduta {day.isoformat()} è fuori dalla storia del piano. Non la richiedo più.")
+                continue
             if kind == "auth":
                 return stored, "Massive ha rifiutato la chiave. Le barre già scritte restano."
             if kind == "rate":
@@ -212,6 +217,8 @@ def _remember(path, day):
 
 def _kind(exc, secret):
     text = _quiet(exc, secret).lower()
+    if "historical entitlement" in text or "past historical" in text:
+        return "plan"
     if any(word in text for word in ("unknown api key", "not_authorized", "unauthorized", "invalid api")):
         return "auth"
     if any(word in text for word in ("too many", "rate limit", "429")):

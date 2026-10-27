@@ -29,11 +29,13 @@ Starter, pagato mese per mese, è il piano previsto per la seduta aperta: chiama
 
 L'universo è l'elenco S&P 500, tutti i 500. Non è più una coda di titoli: una seduta porta il mercato intero e si tengono solo quelli dell'elenco. In grafico restano i più redditizi sulle sedute scelte nelle preferenze, fra quelli già in archivio, fino al numero indicato.
 
-Le sedute nuove si aggiungono e non cancellano le vecchie. Lo storico si allunga all'indietro, una seduta alla volta, fino a due anni. `6M` mostra sempre gli ultimi 180 giorni. `YTD` mostra dal 1° gennaio, solo per i giorni presenti. I pulsanti di uno, due, cinque e dieci anni non compaiono da soli quando l'archivio si allunga.
+Le sedute nuove si aggiungono e non cancellano le vecchie. Lo storico arriva al 28 ottobre 2024. `6M` mostra sempre gli ultimi 180 giorni. `YTD` mostra dal 1° gennaio, solo per i giorni presenti. `1A` e `2A` mostrano gli ultimi 365 e 730 giorni, solo per i giorni presenti. Cinque anni, dieci anni e «sempre» non hanno un pulsante: quelle barre non sono nel piano gratuito.
 
 L'accesso alla pagina è una sessione. La password è cifrata. Si esce solo con Esci. I tentativi falliti li conta anche il filtro del server.
 
 La pagina è una barra e due schede, Volume e Storico, con Bootstrap tenuto in `static/`. Il cambio di scheda e dei controlli dello storico non ricarica la pagina. Siamo ancora in debug: messaggio, grafico e archivio devono coincidere. Il dettaglio di ciò che è fatto e di ciò che manca è in `TODO.md`.
+
+`?anteprima=messaggi` accende il riquadro sotto la barra e fa girare ogni 4 secondi quattro stati su tre righe: message, success, warning e alert. Serve a controllare testo, bordo, fondo e opacità. Senza quel parametro il riquadro compare solo all’avvio e alla fine di un aggiornamento.
 
 ## Cosa non fa
 
