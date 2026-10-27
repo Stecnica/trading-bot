@@ -113,6 +113,8 @@ def _safe_next(value):
 @app.before_request
 def guard():
     ensure_password_hash()
+    if request.endpoint == "static":
+        return None
     if request.endpoint == "login":
         if request.method == "POST" and not _csrf_ok():
             abort(400, "Richiesta non valida. Ricarica la pagina.")
@@ -368,9 +370,11 @@ def chart_history():
         chart_type = request.args.get("grafico")
         if chart_type not in ("line", "candle"):
             chart_type = prefs["chart_type"]
+        width = _chart_px("w", 1280, 480, 4096)
+        height = _chart_px("h", 720, 280, 2160)
     finally:
         conn.close()
-    return _png(history_png(series, asset, chart_type))
+    return _png(history_png(series, asset, chart_type, width, height))
 
 
 @app.route("/preferenze", methods=["POST"])
@@ -486,6 +490,14 @@ def _optional_money(value):
     if amount is None:
         raise ValueError(text)
     return amount
+
+
+def _chart_px(name, default, low, high):
+    try:
+        value = int(request.args.get(name, ""))
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(value, high))
 
 
 def _png(buffer):

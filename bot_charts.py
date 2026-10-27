@@ -69,7 +69,7 @@ def treemap_png(blocks):
     if not blocks:
         return _message_png("Nessun titolo con volume. Aggiorna i prezzi.")
     sizes = [float(block["volume"]) for block in blocks]
-    fig, ax = _figure()
+    fig, ax, _tick, _title = _figure()
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.invert_yaxis()
@@ -101,78 +101,110 @@ def treemap_png(blocks):
     return _png(fig)
 
 
-def history_png(series, asset, chart_type):
+def history_png(series, asset, chart_type, width=1280, height=720):
     if not series:
-        return _message_png(f"Nessuno storico per {asset}.")
+        return _message_png(f"Nessuno storico per {asset}.", width, height)
     has_ohlc = all(row.get("open_price") and row.get("high_price") and row.get("low_price") for row in series)
     if chart_type == "candle" and has_ohlc:
-        return _candle_png(series, asset)
-    return _line_png(series, asset, missing_ohlc=chart_type == "candle" and not has_ohlc)
+        return _candle_png(series, asset, width, height)
+    return _line_png(series, asset, chart_type == "candle" and not has_ohlc, width, height)
 
 
-def _line_png(series, asset, missing_ohlc):
-    fig, ax = _figure()
+def _line_png(series, asset, missing_ohlc, width, height):
+    fig, ax, tick, title_px = _figure(width, height)
     dates = [row["timestamp"] for row in series]
     prices = [float(row["price"]) for row in series]
     low, high = min(prices), max(prices)
-    pad = (high - low) * 0.12 or high * 0.02
-    ax.plot(dates, prices, color="#1565c0", linewidth=1.6)
-    ax.fill_between(dates, prices, low - pad, color="#1565c0", alpha=0.08)
+    span = high - low
+    pad = span * 0.22 or high * 0.012
+    style = dict(color="#1565c0", linewidth=_pt(2.25))
+    if len(series) <= 40:
+        style.update(marker="o", markersize=_pt(8), markerfacecolor="#1565c0", markeredgecolor="#ffffff", markeredgewidth=_pt(1.4))
+    ax.plot(dates, prices, **style)
     ax.set_ylim(low - pad, high + pad)
-    title = asset + " — chiusura"
+    ax.margins(x=0.03)
+    title = asset + " — chiusure giornaliere"
     if missing_ohlc:
-        title += " (lineare: mancano i prezzi per le candele)"
-    _decorate(ax, title)
-    fig.autofmt_xdate()
-    for label in ax.get_xticklabels():
-        label.set_fontsize(16)
-        label.set_fontweight("medium")
+        title += " (mancano i prezzi per le candele)"
+    _decorate(ax, title, tick, title_px)
+    if len(series) <= 12:
+        ax.set_xticks(dates)
+        ax.set_xticklabels([day.strftime("%d/%m") for day in dates])
+        for label in ax.get_xticklabels():
+            label.set_fontsize(_pt(tick))
+            label.set_fontweight("medium")
+    else:
+        fig.autofmt_xdate()
+        for label in ax.get_xticklabels():
+            label.set_fontsize(_pt(tick))
+            label.set_fontweight("medium")
     fig.tight_layout()
     return _png(fig)
 
 
-def _candle_png(series, asset):
-    fig, ax = _figure()
+def _candle_png(series, asset, width, height):
+    fig, ax, tick, title_px = _figure(width, height)
     for index, row in enumerate(series):
         open_price = float(row["open_price"])
         close = float(row["price"])
         high = float(row["high_price"])
         low = float(row["low_price"])
         color = "#2e7d32" if close >= open_price else "#c62828"
-        ax.vlines(index, low, high, color=color, linewidth=1)
+        ax.vlines(index, low, high, color=color, linewidth=_pt(1.25))
         body_low = min(open_price, close)
-        height = abs(close - open_price) or (close * 0.0005)
-        ax.add_patch(Rectangle((index - 0.3, body_low), 0.6, height, facecolor=color, edgecolor=color))
+        body = abs(close - open_price) or (close * 0.0005)
+        ax.add_patch(Rectangle((index - 0.3, body_low), 0.6, body, facecolor=color, edgecolor=color))
     step = max(1, len(series) // 8)
     ticks = list(range(0, len(series), step))
     ax.set_xticks(ticks)
     ax.set_xticklabels([series[i]["timestamp"].strftime("%d/%m") for i in ticks])
-    _decorate(ax, asset + " — candele")
+    _decorate(ax, asset + " — candele", tick, title_px)
     fig.tight_layout()
     return _png(fig)
 
 
-def _decorate(ax, title):
-    ax.set_title(title, loc="left", fontsize=18, color="#1a1a1a", pad=12)
-    ax.grid(True, axis="y", color="#e6e6e6", linewidth=0.8)
+def _decorate(ax, title, tick, title_px):
+    ax.set_title(title, loc="left", fontsize=_pt(title_px), color="#1a1a1a", pad=_pt(8))
+    ax.grid(True, axis="y", color="#e6e6e6", linewidth=_pt(1))
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.tick_params(axis="both", colors="#222222", labelsize=16, width=1.1, length=6)
+    ax.tick_params(axis="both", colors="#222222", labelsize=_pt(tick), width=_pt(1), length=_pt(6))
     for label in ax.get_xticklabels() + ax.get_yticklabels():
         label.set_fontweight("medium")
     ax.set_facecolor("#ffffff")
 
 
-def _figure():
-    fig, ax = plt.subplots(figsize=(14.5, 8.2), dpi=200)
+def _metrics(width, height):
+    """Pixel di pagina. Il carattere cresce col riquadro e si ferma prima di diventare un titolo da manifesto."""
+    try:
+        width = int(width)
+        height = int(height)
+    except (TypeError, ValueError):
+        width, height = 1280, 720
+    width = max(480, min(width, 4096))
+    height = max(280, min(height, 2160))
+    span = (width * height) ** 0.5
+    tick = 13 + (span - 640) * (6 / 1000)
+    tick = max(12, min(19, tick))
+    return width, height, tick, tick + 2
+
+
+def _pt(px):
+    """Punti matplotlib che, a 200 dpi su una figura in centesimi di pollice, restano px sullo schermo."""
+    return px * 72 / 100
+
+
+def _figure(width=1280, height=720):
+    width, height, tick, title = _metrics(width, height)
+    fig, ax = plt.subplots(figsize=(width / 100, height / 100), dpi=200)
     fig.patch.set_facecolor("#ffffff")
-    return fig, ax
+    return fig, ax, tick, title
 
 
-def _message_png(text):
-    fig, ax = _figure()
+def _message_png(text, width=1280, height=720):
+    fig, ax, tick, _title = _figure(width, height)
     ax.axis("off")
-    ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=12, color="#333333", wrap=True)
+    ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=_pt(tick), color="#333333", wrap=True)
     fig.tight_layout()
     return _png(fig)
 

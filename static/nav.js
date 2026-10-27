@@ -10,11 +10,31 @@
     return button ? button.getAttribute("data-" + name) : "";
   }
 
-  function chartUrl() {
+  function frame() {
+    var width = img.clientWidth;
+    if (width < 200 && img.parentElement) {
+      width = img.parentElement.clientWidth;
+    }
+    width = Math.round(width);
+    var top = img.getBoundingClientRect().top;
+    var room = Math.round(window.innerHeight - top - 28);
+    if (room < 280) {
+      room = 280;
+    }
+    var height = Math.min(Math.round(width * 8.2 / 14.5), room);
+    if (height < 280) {
+      height = 280;
+    }
+    return { w: width, h: height };
+  }
+
+  function chartUrl(box) {
     var url = new URL(img.dataset.chart, location.origin);
     url.searchParams.set("asset", select.value);
     url.searchParams.set("periodo", chosen("periodo"));
     url.searchParams.set("grafico", chosen("grafico"));
+    url.searchParams.set("w", String(box.w));
+    url.searchParams.set("h", String(box.h));
     return url.pathname + url.search;
   }
 
@@ -29,9 +49,16 @@
     history.replaceState(null, "", location.pathname + "?" + params.toString());
   }
 
+  var drawn = "";
+
   function paint() {
-    var next = chartUrl();
-    if (!img.src.endsWith(next)) {
+    var box = frame();
+    if (box.w < 200) {
+      return;
+    }
+    var next = chartUrl(box);
+    if (next !== drawn) {
+      drawn = next;
       img.src = next;
     }
     img.alt = "Andamento di " + select.value;
@@ -62,5 +89,18 @@
     storicoTab.addEventListener("shown.bs.tab", function () {
       paint();
     });
+  }
+
+  var timer = 0;
+  function schedule() {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(paint, 150);
+  }
+  window.addEventListener("resize", schedule);
+  if (window.ResizeObserver && img.parentElement) {
+    new ResizeObserver(schedule).observe(img.parentElement);
+  }
+  if (img.closest(".tab-pane.active") || img.offsetParent !== null) {
+    paint();
   }
 })();
