@@ -1,4 +1,44 @@
 (function () {
+  function place(button) {
+    var menu = button.nextElementSibling;
+    if (!menu) {
+      return;
+    }
+    var drop = button.parentElement.getBoundingClientRect();
+    var note = document.querySelector(".slide-note");
+    var target = note ? note.getBoundingClientRect().bottom + 8 : drop.bottom + 2;
+    menu.style.marginTop = Math.max(2, Math.round(target - drop.bottom)) + "px";
+    menu.style.transform = "";
+    if (!menu.classList.contains("nav-panel")) {
+      return;
+    }
+    var width = Math.min(menu.classList.contains("nav-panel-wide") ? 832 : 576, document.documentElement.clientWidth - 16);
+    var leftEdge = drop.right - width;
+    if (leftEdge < 8) {
+      menu.style.transform = "translateX(" + Math.round(8 - leftEdge) + "px)";
+    }
+  }
+
+  document.querySelectorAll(".navbar [data-bs-toggle='dropdown']").forEach(function (button) {
+    button.addEventListener("show.bs.dropdown", place.bind(null, button));
+    button.addEventListener("hidden.bs.dropdown", function () {
+      var menu = button.nextElementSibling;
+      if (!menu) {
+        return;
+      }
+      menu.style.marginTop = "";
+      menu.style.transform = "";
+    });
+  });
+
+  var openPanel = document.body.dataset.pannello;
+  if (openPanel) {
+    var toggle = document.getElementById(openPanel + "-toggle");
+    if (toggle) {
+      bootstrap.Dropdown.getOrCreateInstance(toggle).show();
+    }
+  }
+
   var img = document.getElementById("grafico");
   var select = document.getElementById("titolo");
   if (!img || !select) {

@@ -393,20 +393,25 @@ def save_prefs():
     return redirect(url_for("home", ok="Preferenze salvate.", asset=values["focus_asset"]))
 
 
+def _buy_back(**extra):
+    extra["pannello"] = "acquisto"
+    return redirect(url_for("home", **extra))
+
+
 @app.route("/acquisto", methods=["POST"])
 def buy():
     asset = normalize_ticker(request.form.get("asset", ""))
     if not asset:
-        return redirect(url_for("home", err="Titolo non valido."))
+        return _buy_back(err="Titolo non valido.")
     try:
         amount = _required_money(request.form.get("amount"))
         price = _optional_money(request.form.get("price"))
         fees = _optional_money(request.form.get("fees"))
         taxes = _optional_money(request.form.get("taxes"))
     except ValueError:
-        return redirect(url_for("home", err="Quantità, prezzo o costi non leggibili.", asset=asset))
+        return _buy_back(err="Quantità, prezzo o costi non leggibili.", asset=asset)
     if amount is None or amount <= 0:
-        return redirect(url_for("home", err="La quantità deve essere maggiore di zero.", asset=asset))
+        return _buy_back(err="La quantità deve essere maggiore di zero.", asset=asset)
     conn = connect()
     try:
         prefs = load_preferences(conn)
@@ -415,26 +420,23 @@ def buy():
             if market:
                 price = money(market["price"])
         if price is None or price <= 0:
-            return redirect(url_for("home", err="Manca il prezzo di acquisto.", asset=asset))
+            return _buy_back(err="Manca il prezzo di acquisto.", asset=asset)
         notional = amount * price
         if notional > prefs["max_investment"]:
-            return redirect(
-                url_for(
-                    "home",
-                    err="L'importo supera l'investimento massimo. Alza la preferenza o riduci la quantità.",
-                    asset=asset,
-                )
+            return _buy_back(
+                err="L'importo supera l'investimento massimo. Alza la preferenza o riduci la quantità.",
+                asset=asset,
             )
         if fees is None:
             fees = money(notional * prefs["fee_rate"]) or Decimal("0")
         if taxes is None:
             taxes = Decimal("0")
         if taxes < 0 or fees < 0:
-            return redirect(url_for("home", err="Commissioni e tasse non possono essere negative.", asset=asset))
+            return _buy_back(err="Commissioni e tasse non possono essere negative.", asset=asset)
         insert_transaction(conn, "buy", asset, amount, price, fees, taxes)
     finally:
         conn.close()
-    return redirect(url_for("home", ok=f"Acquisto di {asset} registrato.", asset=asset))
+    return _buy_back(ok=f"Acquisto di {asset} registrato.", asset=asset)
 
 
 @app.route("/ciclo", methods=["POST"])

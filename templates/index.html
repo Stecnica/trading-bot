@@ -24,6 +24,18 @@
 			72% { transform: translateY(0.7rem); }
 			100% { transform: translateY(-120%); }
 		}
+		.navbar > .container-fluid > .d-flex > .dropdown > .btn,
+		.navbar > .container-fluid > .d-flex > form > .btn {
+			--bs-btn-padding-y: 0;
+			height: 2rem;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.navbar .icon-btn {
+			--bs-btn-padding-x: 0;
+			width: 2rem;
+		}
 		.icon-btn svg { width: 1.15rem; height: 1.15rem; display: block; }
 		.spin svg { animation: spin 1s linear infinite; }
 		@keyframes spin { to { transform: rotate(360deg); } }
@@ -40,14 +52,124 @@
 			transform: translateY(0.7rem);
 		}
 		.slide-note.bg-info { --bs-bg-opacity: 0.4; }
+		.nav-panel {
+			width: min(36rem, calc(100vw - 1rem));
+			max-height: min(70vh, 32rem);
+			overflow: auto;
+		}
+		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
+		.panel-note { opacity: 0.62; }
 	</style>
 </head>
-<body class="bg-light">
+<body class="bg-light"{% if request.args.get('pannello') == 'acquisto' %} data-pannello="acquisto"{% endif %}>
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid">
 				<a class="navbar-brand" href="{{ url_for('home', vista='volume') }}">Trading bot</a>
-				<div class="ms-auto d-flex align-items-center gap-2">
+				<div class="ms-auto d-flex flex-wrap align-items-center justify-content-end gap-2">
+					<div class="dropdown">
+						<button class="btn btn-outline-light" type="button" id="posizioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">Posizioni</button>
+						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="posizioni-toggle">
+							<h2 class="h6 mb-3">Posizioni aperte</h2>
+							<p class="mb-3">Il profitto è netto: dal ricavo si tolgono la commissione di vendita e l'imposta sul guadagno, e si confronta con il costo di acquisto (prezzo più commissioni e tasse già registrate). Soglia attuale: {{ prefs.profit_threshold|pct }}.</p>
+							{% if positions %}
+							<div class="table-responsive">
+							<table class="table table-sm align-middle mb-0">
+								<thead>
+									<tr>
+										<th>Titolo</th>
+										<th>Quantità</th>
+										<th>Prezzo di carico</th>
+										<th>Prezzo ora</th>
+										<th>Profitto netto</th>
+										<th>Esito</th>
+									</tr>
+								</thead>
+								<tbody>
+									{% for row in positions %}
+									<tr class="{{ 'table-success' if row.ready else '' }}">
+										<td>{{ row.asset }}<br><small>{{ row.bought_at|when }}</small></td>
+										<td>{{ row.amount|qty }}</td>
+										<td>{{ row.buy_price|px }}</td>
+										<td>{{ row.market_price|px }}<br><small>{{ row.market_time|when }}</small></td>
+										<td>{{ row.ratio|pct }}</td>
+										<td>{{ row.outcome }}</td>
+									</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+							</div>
+							{% else %}
+							<p class="mb-0">Nessun acquisto aperto.</p>
+							{% endif %}
+						</div>
+					</div>
+					<div class="dropdown">
+						<button class="btn btn-outline-light" type="button" id="acquisto-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">Acquisto</button>
+						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="acquisto-toggle">
+							<h2 class="h6 mb-3">Registra un acquisto</h2>
+							{% if request.args.get('pannello') == 'acquisto' and (err or ok) %}
+							<div class="panel-note border rounded-4 text-center px-3 py-2 mb-3 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' }}" role="status">{{ err or ok }}</div>
+							{% endif %}
+							<p class="mb-3">È il record iniziale del lotto. Se lasci vuoti prezzo e commissioni, il bot usa l'ultimo prezzo in archivio e la commissione delle preferenze. Le tasse in acquisto, se non le indichi, restano zero: l'imposta sul guadagno si calcola in vendita.</p>
+							<form class="row g-3" method="post" action="{{ url_for('buy') }}">
+								<input type="hidden" name="csrf" value="{{ csrf }}">
+								<div class="col-12 col-sm-6">
+									<label class="form-label" for="buy-asset">Titolo</label>
+									<input class="form-control" id="buy-asset" name="asset" value="{{ asset }}" required>
+								</div>
+								<div class="col-6">
+									<label class="form-label" for="buy-amount">Quantità</label>
+									<input class="form-control" id="buy-amount" name="amount" inputmode="decimal" required>
+								</div>
+								<div class="col-6">
+									<label class="form-label" for="buy-price">Prezzo</label>
+									<input class="form-control" id="buy-price" name="price" inputmode="decimal" placeholder="ultimo prezzo">
+								</div>
+								<div class="col-6">
+									<label class="form-label" for="buy-fees">Commissioni</label>
+									<input class="form-control" id="buy-fees" name="fees" inputmode="decimal" placeholder="automatiche">
+								</div>
+								<div class="col-6">
+									<label class="form-label" for="buy-taxes">Tasse</label>
+									<input class="form-control" id="buy-taxes" name="taxes" inputmode="decimal" placeholder="0">
+								</div>
+								<div class="col-12">
+									<button class="btn btn-primary" type="submit">Registra acquisto</button>
+								</div>
+							</form>
+						</div>
+					</div>
+					<div class="dropdown">
+						<button class="btn btn-outline-light" type="button" id="transazioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">Transazioni</button>
+						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="transazioni-toggle">
+							<h2 class="h6 mb-3">Ultime transazioni</h2>
+							{% if transactions %}
+							<div class="table-responsive">
+							<table class="table table-sm align-middle mb-0">
+								<thead>
+									<tr><th>Data</th><th>Tipo</th><th>Titolo</th><th>Quantità</th><th>Prezzo</th><th>Commissioni</th><th>Tasse</th></tr>
+								</thead>
+								<tbody>
+									{% for tx in transactions %}
+									<tr>
+										<td>{{ tx.timestamp|when }}</td>
+										<td>{{ tx.type }}</td>
+										<td>{{ tx.asset_name }}</td>
+										<td>{{ tx.amount|qty }}</td>
+										<td>{{ tx.price|px }}</td>
+										<td>{{ tx.fees|px }}</td>
+										<td>{{ tx.taxes|px }}</td>
+									</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+							</div>
+							{% else %}
+							<p class="mb-0">Ancora nessuna transazione.</p>
+							{% endif %}
+						</div>
+					</div>
 					<form method="post" action="{{ url_for('refresh') }}">
 						<input type="hidden" name="csrf" value="{{ csrf }}">
 						<button class="btn btn-outline-light icon-btn{% if running %} spin{% endif %}" type="submit" title="Aggiorna prezzi e controlla vendite" aria-label="Aggiorna prezzi e controlla vendite" {% if running %}disabled{% endif %}>
@@ -81,7 +203,7 @@
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
 			<div class="slide-note anteprima border rounded-4 text-center pe-none px-3 py-2" data-anteprima role="status"></div>
 		</div>
-		{% elif err or ok or sync_notice %}
+		{% elif (err or ok or sync_notice) and request.args.get('pannello') != 'acquisto' %}
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
 			<div class="slide-note border rounded-4 text-center pe-none px-3 py-2 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' if ok or status.state == 'ok' else 'text-primary bg-info border-primary opacity-50' }}{{ ' stay' if running else '' }}" style="--linger: {{ prefs.notice_seconds }}s" role="status">
 				{% if err %}{{ err }}{% elif ok %}{{ ok }}{% else %}{{ status.message }}{% endif %}
@@ -151,99 +273,6 @@
 			</div>
 		</div>
 	</div>
-
-	<section class="card mb-3"><div class="card-body">
-		<h2 class="h5 mb-3">Posizioni aperte</h2>
-		<p class="mb-3">Il profitto è netto: dal ricavo si tolgono la commissione di vendita e l'imposta sul guadagno, e si confronta con il costo di acquisto (prezzo più commissioni e tasse già registrate). Soglia attuale: {{ prefs.profit_threshold|pct }}.</p>
-		{% if positions %}
-		<table class="table table-sm align-middle mb-0">
-			<thead>
-				<tr>
-					<th>Titolo</th>
-					<th>Quantità</th>
-					<th>Prezzo di carico</th>
-					<th>Prezzo ora</th>
-					<th>Profitto netto</th>
-					<th>Esito</th>
-				</tr>
-			</thead>
-			<tbody>
-				{% for row in positions %}
-				<tr class="{{ 'table-success' if row.ready else '' }}">
-					<td>{{ row.asset }}<br><small>{{ row.bought_at|when }}</small></td>
-					<td>{{ row.amount|qty }}</td>
-					<td>{{ row.buy_price|px }}</td>
-					<td>{{ row.market_price|px }}<br><small>{{ row.market_time|when }}</small></td>
-					<td>{{ row.ratio|pct }}</td>
-					<td>{{ row.outcome }}</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
-		{% else %}
-		<p class="mb-0">Nessun acquisto aperto.</p>
-		{% endif %}
-		</div>
-	</section>
-
-	<section class="card mb-3"><div class="card-body">
-		<h2 class="h5 mb-3">Registra un acquisto</h2>
-		<p class="mb-3">È il record iniziale del lotto. Se lasci vuoti prezzo e commissioni, il bot usa l'ultimo prezzo in archivio e la commissione delle preferenze. Le tasse in acquisto, se non le indichi, restano zero: l'imposta sul guadagno si calcola in vendita.</p>
-		<form class="row g-3 align-items-end" method="post" action="{{ url_for('buy') }}">
-			<input type="hidden" name="csrf" value="{{ csrf }}">
-			<div class="col-6 col-lg-2">
-				<label class="form-label" for="buy-asset">Titolo</label>
-				<input class="form-control" id="buy-asset" name="asset" value="{{ asset }}" required>
-			</div>
-			<div class="col-6 col-lg-2">
-				<label class="form-label" for="buy-amount">Quantità</label>
-				<input class="form-control" id="buy-amount" name="amount" inputmode="decimal" required>
-			</div>
-			<div class="col-6 col-lg-2">
-				<label class="form-label" for="buy-price">Prezzo</label>
-				<input class="form-control" id="buy-price" name="price" inputmode="decimal" placeholder="ultimo prezzo">
-			</div>
-			<div class="col-6 col-lg-2">
-				<label class="form-label" for="buy-fees">Commissioni</label>
-				<input class="form-control" id="buy-fees" name="fees" inputmode="decimal" placeholder="automatiche">
-			</div>
-			<div class="col-6 col-lg-2">
-				<label class="form-label" for="buy-taxes">Tasse</label>
-				<input class="form-control" id="buy-taxes" name="taxes" inputmode="decimal" placeholder="0">
-			</div>
-			<div class="col-12 col-lg-2">
-				<button class="btn btn-primary" type="submit">Registra acquisto</button>
-			</div>
-		</form>
-		</div>
-	</section>
-
-	<section class="card mb-3"><div class="card-body">
-		<h2 class="h5 mb-3">Ultime transazioni</h2>
-		{% if transactions %}
-		<table class="table table-sm align-middle mb-0">
-			<thead>
-				<tr><th>Data</th><th>Tipo</th><th>Titolo</th><th>Quantità</th><th>Prezzo</th><th>Commissioni</th><th>Tasse</th></tr>
-			</thead>
-			<tbody>
-				{% for tx in transactions %}
-				<tr>
-					<td>{{ tx.timestamp|when }}</td>
-					<td>{{ tx.type }}</td>
-					<td>{{ tx.asset_name }}</td>
-					<td>{{ tx.amount|qty }}</td>
-					<td>{{ tx.price|px }}</td>
-					<td>{{ tx.fees|px }}</td>
-					<td>{{ tx.taxes|px }}</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
-		{% else %}
-		<p class="mb-0">Ancora nessuna transazione.</p>
-		{% endif %}
-		</div>
-	</section>
 
 	<div class="modal fade" id="preferenze" tabindex="-1" aria-labelledby="preferenze-title" aria-hidden="true">
 		<div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -321,7 +350,7 @@
 	</div>
 </main>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=2) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=4) }}"></script>
 {% if request.args.get('anteprima') == 'messaggi' %}
 <script src="{{ url_for('static', filename='anteprima.js', v=3) }}"></script>
 {% endif %}

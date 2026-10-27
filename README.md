@@ -33,7 +33,7 @@ Le sedute nuove si aggiungono e non cancellano le vecchie. Lo storico arriva al 
 
 L'accesso alla pagina è una sessione. La password è cifrata. Si esce solo con Esci. I tentativi falliti li conta anche il filtro del server.
 
-La pagina è una barra e due schede, Volume e Storico, con Bootstrap tenuto in `static/`. Il cambio di scheda e dei controlli dello storico non ricarica la pagina. Siamo ancora in debug: messaggio, grafico e archivio devono coincidere. Il dettaglio di ciò che è fatto e di ciò che manca è in `TODO.md`.
+La pagina è una barra e due schede, Volume e Storico, con Bootstrap tenuto in `static/`. Dalla barra si aprono posizioni, acquisto e transazioni. Il cambio di scheda e dei controlli dello storico non ricarica la pagina. Siamo ancora in debug: messaggio, grafico e archivio devono coincidere. Il dettaglio di ciò che è fatto e di ciò che manca è in `TODO.md`.
 
 `?anteprima=messaggi` accende il riquadro sotto la barra e fa girare ogni 4 secondi quattro stati su tre righe: message, success, warning e alert. Serve a controllare testo, bordo, fondo e opacità. Senza quel parametro il riquadro compare solo all’avvio e alla fine di un aggiornamento.
 
