@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from flask import Flask, Response, abort, redirect, render_template, request, session, url_for
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, session, url_for
 from jinja2 import ChoiceLoader, FileSystemLoader
 from werkzeug.exceptions import HTTPException
 
@@ -15,8 +15,8 @@ if SITE not in sys.path:
     sys.path.insert(0, SITE)
 
 from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_session
-from bot_charts import history_png, treemap_layout, treemap_png
-from bot_market import security_names
+from bot_charts import history_hits, history_png, treemap_layout, treemap_png
+from bot_market import constituents, security_names
 from bot_config import (
     FLASK_SECRET_PATH,
     LOG_PATH,
@@ -27,10 +27,14 @@ from bot_config import (
 )
 from bot_db import (
     PREF_LABELS,
+    accepted_volume_class,
     build_blocks,
+    class_symbols,
+    classification_tree,
     connect,
     cycle_running,
     ensure_schema,
+    save_classifications,
     insert_transaction,
     latest_prices,
     list_assets,
@@ -98,7 +102,7 @@ def _ensure_csrf():
         session["csrf"] = os.urandom(16).hex()
 
 
-_AZIONI = {"/aggiorna", "/ciclo", "/acquisto", "/preferenze", "/esci"}
+_AZIONI = {"/aggiorna", "/ciclo", "/acquisto", "/preferenze", "/esci", "/volume"}
 
 
 def _safe_next(value):
@@ -187,6 +191,8 @@ def prepare():
     try:
         ensure_schema(conn)
         seed_preferences(conn)
+        linked = save_classifications(conn, ((symbol, sector, sub) for symbol, _name, sector, sub in constituents()))
+        log.info("classificazioni aggiornate: %s titoli", linked)
     finally:
         conn.close()
     _ready = True
@@ -233,6 +239,39 @@ PERIODS = (
     ("365", "1A", "Un anno"),
     ("730", "2A", "Due anni"),
 )
+
+
+def history_stats(series):
+    """Numeri della stessa finestra disegnata nel grafico."""
+    empty = {"change": "—", "last": "—", "low": "—", "high": "—", "sessions": "0", "tone": "flat"}
+    if not series:
+        return empty
+    closes = [Decimal(str(row["price"])) for row in series]
+    first, last = closes[0], closes[-1]
+    change = (last - first) / first if first else None
+    lows, highs = [], []
+    for row in series:
+        low = row.get("low_price")
+        high = row.get("high_price")
+        lows.append(Decimal(str(low if low is not None else row["price"])))
+        highs.append(Decimal(str(high if high is not None else row["price"])))
+    tone = "flat"
+    text = "—"
+    if change is not None:
+        text = format_pct(change)
+        if change > 0:
+            tone = "success"
+            text = "+" + text
+        elif change < 0:
+            tone = "danger"
+    return {
+        "change": text,
+        "last": format_price(last),
+        "low": format_price(min(lows)),
+        "high": format_price(max(highs)),
+        "sessions": str(len(series)),
+        "tone": tone,
+    }
 
 
 def _span(value):
@@ -295,13 +334,14 @@ def home():
     try:
         prefs = load_preferences(conn)
         asset = asset or prefs["focus_asset"]
-        window_days = max(prefs["history_days"], prefs["return_days"] * 3, 40)
-        blocks = build_blocks(load_bars_since(conn, window_days), prefs)
+        prefs, blocks, tiles, volume_caption_text = _volume_board(conn, prefs)
         catalog = security_names()
-        tiles = treemap_layout(blocks, catalog)
+        class_tree = classification_tree(conn)
         positions = position_rows(conn, prefs)
         transactions = recent_transactions(conn)
         assets = list_assets(conn)
+        period, days = _span(request.args.get("periodo"))
+        stats = history_stats(load_asset_history(conn, asset, days))
         asset_options = [
             {"symbol": symbol, "label": f"{symbol} — {catalog[symbol]}" if catalog.get(symbol) else symbol}
             for symbol in assets
@@ -324,7 +364,6 @@ def home():
     grafico = request.args.get("grafico")
     if grafico not in ("line", "candle"):
         grafico = prefs["chart_type"]
-    period, _days = _span(request.args.get("periodo"))
     return render_template(
         "index.html",
         prefs=prefs,
@@ -346,6 +385,9 @@ def home():
         grafico=grafico,
         period=period,
         periods=PERIODS,
+        stats=stats,
+        class_tree=class_tree,
+        volume_caption_text=volume_caption_text,
     )
 
 
@@ -354,15 +396,85 @@ def chart_blocks():
     conn = connect()
     try:
         prefs = load_preferences(conn)
-        window_days = max(prefs["history_days"], prefs["return_days"] * 3, 40)
-        blocks = build_blocks(load_bars_since(conn, window_days), prefs)
+        _prefs, blocks, _tiles, _caption = _volume_board(conn, prefs)
     finally:
         conn.close()
     return _png(treemap_png(blocks))
 
 
-@app.route("/chart/storico.png")
-def chart_history():
+def volume_caption(prefs, shown):
+    chosen = prefs.get("volume_class") or ""
+    if chosen.startswith("s:"):
+        where = "di " + chosen[2:]
+    elif chosen.startswith("u:") and "|" in chosen:
+        where = "di " + chosen.split("|", 1)[1]
+    else:
+        where = "in archivio"
+    return (
+        f"Tra i titoli {where}, i {prefs['universe_size']} con il rendimento più alto "
+        f"sulle ultime {prefs['return_days']} sedute. In grafico: {shown}. La dimensione è il volume."
+    )
+
+
+def _volume_board(conn, prefs):
+    prefs = dict(prefs)
+    prefs["volume_class"] = accepted_volume_class(conn, prefs.get("volume_class"))
+    window_days = max(prefs["history_days"], prefs["return_days"] * 3, 40)
+    allowed = class_symbols(conn, prefs["volume_class"])
+    blocks = build_blocks(load_bars_since(conn, window_days), prefs, allowed)
+    tiles = treemap_layout(blocks, security_names())
+    return prefs, blocks, tiles, volume_caption(prefs, len(blocks))
+
+
+@app.route("/volume", methods=["POST"])
+def volume_view():
+    try:
+        sessions = int(request.form.get("return_days", ""))
+        count = int(request.form.get("universe_size", ""))
+    except (TypeError, ValueError):
+        return jsonify(error="Valori non leggibili."), 400
+    if not 1 <= sessions <= 120:
+        return jsonify(error="Le sedute vanno da 1 a 120."), 400
+    if not 10 <= count <= 500 or count % 10 != 0:
+        return jsonify(error="I titoli vanno da 10 a 500, a passi di 10."), 400
+    conn = connect()
+    try:
+        raw_group = (request.form.get("volume_class") or "").strip()
+        chosen = accepted_volume_class(conn, raw_group)
+        if raw_group and not chosen:
+            return jsonify(error="Gruppo sconosciuto."), 400
+        prefs = load_preferences(conn)
+        prefs["return_days"] = sessions
+        prefs["universe_size"] = count
+        prefs["volume_class"] = chosen
+        save_preferences(
+            conn,
+            {
+                "return_days": str(sessions),
+                "universe_size": str(count),
+                "volume_class": chosen,
+            },
+        )
+        prefs, blocks, tiles, caption = _volume_board(conn, prefs)
+    finally:
+        conn.close()
+    return jsonify(tiles=tiles, sessions=sessions, count=count, group=chosen, caption=caption)
+
+
+@app.route("/chart/statistiche.json")
+def chart_stats():
+    conn = connect()
+    try:
+        prefs = load_preferences(conn)
+        asset = normalize_ticker(request.args.get("asset", "")) or prefs["focus_asset"]
+        _period, days = _span(request.args.get("periodo"))
+        stats = history_stats(load_asset_history(conn, asset, days))
+    finally:
+        conn.close()
+    return jsonify(stats)
+
+
+def _history_query():
     conn = connect()
     try:
         prefs = load_preferences(conn)
@@ -372,11 +484,25 @@ def chart_history():
         chart_type = request.args.get("grafico")
         if chart_type not in ("line", "candle"):
             chart_type = prefs["chart_type"]
-        width = _chart_px("w", 1280, 480, 4096)
-        height = _chart_px("h", 720, 280, 2160)
     finally:
         conn.close()
+    return asset, series, chart_type
+
+
+@app.route("/chart/storico.png")
+def chart_history():
+    asset, series, chart_type = _history_query()
+    width = _chart_px("w", 1280, 480, 4096)
+    height = _chart_px("h", 720, 280, 2160)
     return _png(history_png(series, asset, chart_type, width, height))
+
+
+@app.route("/chart/sedute.json")
+def chart_hits():
+    _asset, series, chart_type = _history_query()
+    response = jsonify(hits=history_hits(series, chart_type))
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/preferenze", methods=["POST"])

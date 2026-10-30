@@ -10,6 +10,7 @@ import matplotlib
 
 matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
+from matplotlib.dates import date2num
 from matplotlib.patches import Rectangle
 
 TONES = {
@@ -26,6 +27,11 @@ COLORS = {
 INK = "#212529"
 RULE = "#dee2e6"
 PAPER = "#ffffff"
+# Stessi margini di _finish_history: il titolo al passaggio deve cadere sulla seduta disegnata.
+AXIS_LEFT = 0.075
+AXIS_RIGHT = 0.985
+LINE_MARGIN = 0.03
+CANDLE_MARGIN = 0.02
 
 
 def treemap_layout(blocks, names=None):
@@ -120,7 +126,7 @@ def history_png(series, asset, chart_type, width=1280, height=720):
 
 
 def _line_png(series, asset, missing_ohlc, width, height):
-    fig, ax, tick, title_px = _figure(width, height)
+    fig, ax, volume, tick, title_px = _history_figure(width, height)
     dates = [row["timestamp"] for row in series]
     prices = [float(row["price"]) for row in series]
     low, high = min(prices), max(prices)
@@ -131,28 +137,19 @@ def _line_png(series, asset, missing_ohlc, width, height):
         style.update(marker="o", markersize=_pt(8), markerfacecolor=COLORS["stabile"], markeredgecolor=PAPER, markeredgewidth=_pt(1.4))
     ax.plot(dates, prices, **style)
     ax.set_ylim(low - pad, high + pad)
-    ax.margins(x=0.03)
+    ax.margins(x=LINE_MARGIN)
     title = asset + " — chiusure giornaliere"
     if missing_ohlc:
         title += " (mancano i prezzi per le candele)"
     _decorate(ax, title, tick, title_px)
-    if len(series) <= 12:
-        ax.set_xticks(dates)
-        ax.set_xticklabels([day.strftime("%d/%m") for day in dates])
-        for label in ax.get_xticklabels():
-            label.set_fontsize(_pt(tick))
-            label.set_fontweight("medium")
-    else:
-        fig.autofmt_xdate()
-        for label in ax.get_xticklabels():
-            label.set_fontsize(_pt(tick))
-            label.set_fontweight("medium")
-    fig.tight_layout()
+    _date_labels(ax, dates, series, tick, indexed=False)
+    _volume_strip(volume, dates, series, 0.72)
+    _finish_history(fig, ax, volume)
     return _png(fig)
 
 
 def _candle_png(series, asset, width, height):
-    fig, ax, tick, title_px = _figure(width, height)
+    fig, ax, volume, tick, title_px = _history_figure(width, height)
     for index, row in enumerate(series):
         open_price = float(row["open_price"])
         close = float(row["price"])
@@ -163,13 +160,150 @@ def _candle_png(series, asset, width, height):
         body_low = min(open_price, close)
         body = abs(close - open_price) or (close * 0.0005)
         ax.add_patch(Rectangle((index - 0.3, body_low), 0.6, body, facecolor=color, edgecolor=color))
-    step = max(1, len(series) // 8)
-    ticks = list(range(0, len(series), step))
-    ax.set_xticks(ticks)
-    ax.set_xticklabels([series[i]["timestamp"].strftime("%d/%m") for i in ticks])
+    ax.margins(x=CANDLE_MARGIN)
     _decorate(ax, asset + " — candele", tick, title_px)
-    fig.tight_layout()
+    _date_labels(ax, None, series, tick, indexed=True)
+    _volume_strip(volume, list(range(len(series))), series, 0.6)
+    _finish_history(fig, ax, volume)
     return _png(fig)
+
+
+def _history_figure(width, height):
+    """Prezzo sopra, volume in una fascia sottile. Le date restano in mezzo."""
+    width, height, tick, title = _metrics(width, height)
+    fig = plt.figure(figsize=(width / 100, height / 100), dpi=200)
+    fig.patch.set_facecolor(PAPER)
+    grid = fig.add_gridspec(2, 1, height_ratios=[7.4, 1], hspace=0.22)
+    price = fig.add_subplot(grid[0])
+    volume = fig.add_subplot(grid[1], sharex=price)
+    return fig, price, volume, tick, title
+
+
+def _date_labels(ax, dates, series, tick, indexed):
+    if indexed or len(series) <= 12:
+        if indexed:
+            step = max(1, len(series) // 8)
+            ticks = list(range(0, len(series), step))
+            labels = [series[i]["timestamp"].strftime("%d/%m") for i in ticks]
+        else:
+            ticks = dates
+            labels = [day.strftime("%d/%m") for day in dates]
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(labels)
+    rotate = len(series) > 12
+    ax.tick_params(axis="x", labelbottom=True)
+    for label in ax.get_xticklabels():
+        label.set_fontsize(_pt(tick))
+        label.set_fontweight("medium")
+        if rotate:
+            label.set_rotation(30)
+            label.set_ha("right")
+
+
+def _volume_strip(volume, xs, series, bar_width):
+    """Volume in azioni della seduta. Il colore segue la candela: chiusura contro apertura."""
+    amounts = [float(row["volume"] or 0) for row in series]
+    peak = max(amounts) if amounts else 0
+    if peak <= 0:
+        volume.set_visible(False)
+        return
+    colors = []
+    previous = None
+    for row in series:
+        close = float(row["price"])
+        open_price = row.get("open_price")
+        if open_price:
+            rising = close >= float(open_price)
+        elif previous is None:
+            rising = True
+        else:
+            rising = close >= previous
+        colors.append(COLORS["crescita"] if rising else COLORS["perdita"])
+        previous = close
+    volume.bar(xs, amounts, width=bar_width, color=colors, linewidth=0, align="center")
+    volume.set_ylim(0, peak * 1.08)
+    volume.set_facecolor(PAPER)
+    volume.grid(False)
+    for name in ("top", "right", "left"):
+        volume.spines[name].set_visible(False)
+    volume.spines["bottom"].set_color(RULE)
+    volume.spines["bottom"].set_linewidth(_pt(1))
+    volume.tick_params(axis="both", which="both", left=False, labelleft=False, bottom=False, labelbottom=False)
+
+
+def history_hits(series, chart_type):
+    """Fasce in percentuale dell'immagine. Il title è la cifra che la barra non mostra."""
+    if not series:
+        return []
+    indexed = chart_type == "candle" and all(
+        row.get("open_price") and row.get("high_price") and row.get("low_price") for row in series
+    )
+    margin = CANDLE_MARGIN if indexed else LINE_MARGIN
+    xs = list(range(len(series))) if indexed else [date2num(row["timestamp"]) for row in series]
+    width = AXIS_RIGHT - AXIS_LEFT
+    if xs[-1] == xs[0]:
+        spans = [(AXIS_LEFT, width)]
+    else:
+        span = xs[-1] - xs[0]
+        view_lo = xs[0] - margin * span
+        view_hi = xs[-1] + margin * span
+        view = view_hi - view_lo
+        spans = []
+        for index, x in enumerate(xs):
+            start = view_lo if index == 0 else (xs[index - 1] + x) / 2
+            end = view_hi if index + 1 == len(xs) else (x + xs[index + 1]) / 2
+            left = AXIS_LEFT + (start - view_lo) / view * width
+            spans.append((left, AXIS_LEFT + (end - view_lo) / view * width - left))
+    return [
+        {"x": round(left * 100, 3), "w": round(band * 100, 3), "lines": _session_lines(row)}
+        for (left, band), row in zip(spans, series)
+    ]
+
+
+def _usd(amount):
+    if amount >= 1e12:
+        text, unit = amount / 1e12, "bilioni"
+    elif amount >= 1e9:
+        text, unit = amount / 1e9, "miliardi"
+    elif amount >= 1e6:
+        text, unit = amount / 1e6, "milioni"
+    elif amount >= 1e3:
+        text, unit = amount / 1e3, "mila"
+    else:
+        return f"{amount:.2f} USD"
+    return f"{text:.2f} {unit} USD"
+
+
+def _session_lines(row):
+    """L'importo non arriva da Massive: è il volume in azioni per il prezzo medio."""
+    day = row["timestamp"].strftime("%d/%m/%Y")
+    close = float(row["price"])
+    lines = [day, "chiusura " + f"{close:.4f}".rstrip("0").rstrip(".")]
+    volume = row.get("volume")
+    if not volume:
+        lines.append("importo assente")
+        return lines
+    shares = int(round(float(volume)))
+    share_text = f"{shares:,}".replace(",", " ")
+    vwap = row.get("vwap")
+    if vwap:
+        price = float(vwap)
+        basis = "prezzo medio"
+    else:
+        price = close
+        basis = "chiusura"
+    lines.append("importo " + _usd(shares * price))
+    lines.append(f"{share_text} azioni × {basis}")
+    return lines
+
+
+def _finish_history(fig, price, volume):
+    fig.subplots_adjust(left=AXIS_LEFT, right=AXIS_RIGHT, top=0.90, bottom=0.025)
+    fig.canvas.draw()
+    price.tick_params(axis="x", labelbottom=True)
+    box = price.get_position()
+    band = volume.get_position()
+    volume.set_position([box.x0, band.y0, box.width, band.height])
 
 
 def _decorate(ax, title, tick, title_px):

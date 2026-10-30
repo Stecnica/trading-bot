@@ -25,12 +25,13 @@ DEFAULTS = {
     "focus_asset": "AAPL",
     "max_price_age_hours": "120",
     "notice_seconds": "8",
+    "volume_class": "",
 }
 
 PREF_LABELS = {
     "profit_threshold": "Soglia di profitto netto (0.05 = 5%)",
     "max_investment": "Investimento massimo per acquisto",
-    "universe_size": "Quanti titoli mostrare (100, 200 o 500)",
+    "universe_size": "Quanti titoli mostrare (da 10 a 500, a passi di 10)",
     "chart_type": "Grafico storico",
     "fee_rate": "Commissione (0.001 = 0,1%)",
     "tax_rate": "Imposta sul guadagno (0.26 = 26%)",
@@ -63,6 +64,14 @@ def ensure_schema(conn):
         additions.append("ADD COLUMN low_price DECIMAL(18,8) NULL")
     if "volume" not in columns:
         additions.append("ADD COLUMN volume DECIMAL(20,4) NULL")
+    if "vwap" not in columns:
+        additions.append("ADD COLUMN vwap DECIMAL(18,8) NULL")
+    if "trade_count" not in columns:
+        additions.append("ADD COLUMN trade_count INT NULL")
+    if "bar_ms" not in columns:
+        additions.append("ADD COLUMN bar_ms BIGINT NULL")
+    if "otc" not in columns:
+        additions.append("ADD COLUMN otc TINYINT(1) NULL")
     if additions:
         cur.execute("ALTER TABLE market_history " + ", ".join(additions))
     cur.execute("SHOW INDEX FROM market_history WHERE Key_name = 'uniq_asset_ts'")
@@ -73,8 +82,72 @@ def ensure_schema(conn):
     cur.execute("SHOW INDEX FROM preferences WHERE Key_name = 'uniq_pref_name'")
     if not cur.fetchall():
         cur.execute("ALTER TABLE preferences ADD UNIQUE KEY uniq_pref_name (name)")
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS classification (
+            code VARCHAR(220) NOT NULL,
+            parent_code VARCHAR(220) NULL,
+            name VARCHAR(160) NOT NULL,
+            PRIMARY KEY (code),
+            KEY idx_class_parent (parent_code),
+            CONSTRAINT fk_class_parent FOREIGN KEY (parent_code) REFERENCES classification (code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS asset_class (
+            asset_name VARCHAR(16) NOT NULL,
+            classification_code VARCHAR(220) NOT NULL,
+            PRIMARY KEY (asset_name),
+            KEY idx_asset_class (classification_code),
+            CONSTRAINT fk_asset_class FOREIGN KEY (classification_code) REFERENCES classification (code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+    )
     cur.close()
     conn.commit()
+
+
+def save_classifications(conn, rows):
+    """Righe (simbolo, settore, sotto-industria). Il simbolo punta alla sotto-industria, e quella al settore."""
+    usable = []
+    for symbol, sector, sub in rows:
+        symbol = normalize_ticker(symbol)
+        sector = (sector or "").strip()
+        sub = (sub or "").strip()
+        if symbol and sector and sub and "\t" not in sector and "\t" not in sub:
+            usable.append((symbol, sector, sub))
+    if not usable:
+        return 0
+    cur = conn.cursor()
+    for sector in sorted({sector for _symbol, sector, _sub in usable}):
+        cur.execute(
+            """
+            INSERT INTO classification (code, parent_code, name) VALUES (%s, NULL, %s)
+            ON DUPLICATE KEY UPDATE name = VALUES(name)
+            """,
+            (sector, sector),
+        )
+    for _symbol, sector, sub in usable:
+        cur.execute(
+            """
+            INSERT INTO classification (code, parent_code, name) VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE parent_code = VALUES(parent_code), name = VALUES(name)
+            """,
+            (sector + "\t" + sub, sector, sub),
+        )
+    for symbol, sector, sub in usable:
+        cur.execute(
+            """
+            INSERT INTO asset_class (asset_name, classification_code) VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE classification_code = VALUES(classification_code)
+            """,
+            (symbol, sector + "\t" + sub),
+        )
+    conn.commit()
+    cur.close()
+    return len(usable)
 
 
 def seed_preferences(conn):
@@ -105,7 +178,8 @@ def interpret(raw):
     prefs = {
         "profit_threshold": _decimal(raw.get("profit_threshold"), "0.05"),
         "max_investment": _decimal(raw.get("max_investment"), "1000"),
-        "universe_size": _choice_int(raw.get("universe_size"), (100, 200, 500), 100),
+        "universe_size": _step_between(raw.get("universe_size"), 10, 500, 10, 100),
+        "volume_class": (raw.get("volume_class") or "").strip(),
         "chart_type": raw.get("chart_type") if raw.get("chart_type") in ("line", "candle") else "line",
         "fee_rate": _decimal(raw.get("fee_rate"), "0.001"),
         "tax_rate": _decimal(raw.get("tax_rate"), "0.26"),
@@ -146,8 +220,8 @@ def validate_preferences(form):
         return None, "L'imposta deve stare tra 0 e 0,5."
     if not (Decimal("0") <= band <= Decimal("0.2")):
         return None, "La banda di stabilità deve stare tra 0 e 0,2."
-    if universe not in (100, 200, 500):
-        return None, "Il numero di titoli può essere 100, 200 o 500."
+    if not 10 <= universe <= 500 or universe % 10 != 0:
+        return None, "I titoli nel grafico del volume vanno da 10 a 500, a passi di 10."
     if chart not in ("line", "candle"):
         return None, "Il grafico storico può essere lineare o a candele."
     if not focus:
@@ -192,14 +266,19 @@ def upsert_bars(conn, rows):
         return 0
     sql = """
         INSERT INTO market_history
-            (asset_name, timestamp, price, open_price, high_price, low_price, volume)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+            (asset_name, timestamp, price, open_price, high_price, low_price, volume,
+             vwap, trade_count, bar_ms, otc)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             price = VALUES(price),
             open_price = VALUES(open_price),
             high_price = VALUES(high_price),
             low_price = VALUES(low_price),
-            volume = VALUES(volume)
+            volume = VALUES(volume),
+            vwap = COALESCE(VALUES(vwap), vwap),
+            trade_count = COALESCE(VALUES(trade_count), trade_count),
+            bar_ms = COALESCE(VALUES(bar_ms), bar_ms),
+            otc = COALESCE(VALUES(otc), otc)
     """
     payload = [
         (
@@ -210,6 +289,10 @@ def upsert_bars(conn, rows):
             row["high_price"],
             row["low_price"],
             row["volume"],
+            row.get("vwap"),
+            row.get("trade_count"),
+            row.get("bar_ms"),
+            row.get("otc"),
         )
         for row in rows
     ]
@@ -262,7 +345,7 @@ def load_asset_history(conn, asset, days):
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """
-        SELECT timestamp, price, open_price, high_price, low_price, volume
+        SELECT timestamp, price, open_price, high_price, low_price, volume, vwap
         FROM market_history
         WHERE asset_name = %s
           AND timestamp >= (NOW() - INTERVAL %s DAY)
@@ -372,7 +455,80 @@ def insert_transaction(conn, kind, asset, amount, price, fees, taxes, when=None)
     return new_id
 
 
-def build_blocks(rows, prefs):
+def classification_tree(conn):
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT code, parent_code, name FROM classification")
+    rows = cur.fetchall()
+    cur.close()
+    subs = {}
+    sectors = []
+    for row in rows:
+        if row["parent_code"]:
+            subs.setdefault(row["parent_code"], []).append(row)
+        else:
+            sectors.append(row)
+    tree = []
+    for sector in sorted(sectors, key=lambda item: item["name"]):
+        children = sorted(subs.get(sector["code"], []), key=lambda item: item["name"])
+        tree.append({"name": sector["name"], "code": sector["code"], "subs": children})
+    return tree
+
+
+def accepted_volume_class(conn, raw):
+    """Stringa vuota: tutti i titoli. s:settore oppure u:settore|sotto-industria."""
+    text = (raw or "").strip()
+    if not text:
+        return ""
+    cur = conn.cursor()
+    if text.startswith("s:") and "|" not in text and "\t" not in text:
+        cur.execute(
+            "SELECT 1 FROM classification WHERE parent_code IS NULL AND code = %s",
+            (text[2:],),
+        )
+        found = cur.fetchone() is not None
+        cur.close()
+        return text if found else ""
+    if text.startswith("u:") and text.count("|") == 1:
+        sector, sub = text[2:].split("|", 1)
+        if sector and sub and "\t" not in sector and "\t" not in sub:
+            cur.execute(
+                "SELECT 1 FROM classification WHERE code = %s AND parent_code = %s",
+                (sector + "\t" + sub, sector),
+            )
+            found = cur.fetchone() is not None
+            cur.close()
+            return text if found else ""
+    cur.close()
+    return ""
+
+
+def class_symbols(conn, volume_class):
+    """None significa tutti i simboli. Un insieme vuoto non disegna nulla."""
+    if not volume_class:
+        return None
+    cur = conn.cursor()
+    if volume_class.startswith("s:"):
+        cur.execute(
+            """
+            SELECT ac.asset_name
+            FROM asset_class ac
+            JOIN classification sub ON sub.code = ac.classification_code
+            WHERE sub.parent_code = %s
+            """,
+            (volume_class[2:],),
+        )
+    else:
+        sector, sub = volume_class[2:].split("|", 1)
+        cur.execute(
+            "SELECT asset_name FROM asset_class WHERE classification_code = %s",
+            (sector + "\t" + sub,),
+        )
+    names = {row[0] for row in cur.fetchall()}
+    cur.close()
+    return names
+
+
+def build_blocks(rows, prefs, allowed=None):
     grouped = {}
     for row in rows:
         grouped.setdefault(row["asset_name"], []).append(row)
@@ -380,6 +536,8 @@ def build_blocks(rows, prefs):
     band = prefs["stable_band"]
     window = prefs["return_days"]
     for asset, bars in grouped.items():
+        if allowed is not None and asset not in allowed:
+            continue
         last = bars[-1]
         volume = last.get("volume")
         if volume is None or Decimal(str(volume)) <= 0:
@@ -530,7 +688,7 @@ def cycle_running():
         command = open(f"/proc/{pid}/cmdline", "rb").read()
     except (OSError, ValueError):
         return False
-    return b"cycle.py" in command
+    return b"cycle.py" in command or b"cycle_reread.py" in command
 
 
 def _decimal(value, fallback):
@@ -548,6 +706,16 @@ def _int_between(value, low, high, fallback):
     if number < low or number > high:
         return fallback
     return number
+
+
+def _step_between(value, low, high, step, fallback):
+    number = _int_between(value, low, high, fallback)
+    snapped = int(round(number / step) * step)
+    if snapped < low:
+        snapped = low
+    if snapped > high:
+        snapped = high
+    return snapped
 
 
 def _choice_int(value, choices, fallback):

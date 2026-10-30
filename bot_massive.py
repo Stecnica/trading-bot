@@ -87,6 +87,74 @@ def update_from_massive(conn, on_progress, max_dates=None):
     return stored, None
 
 
+def reread_stored_sessions(conn, on_progress):
+    """Rilegge le sedute già in archivio e compila i campi della risposta prima scartati."""
+    secret = _api_key()
+    wanted = set(candidate_symbols(500))
+    end = last_completed_session()
+    chosen = _unfilled(conn, end)
+    if not chosen:
+        on_progress("I campi aggiuntivi sono già su tutte le sedute in archivio.")
+        return 0, None
+    on_progress(
+        f"Rileggo {len(chosen)} sedute già in archivio. "
+        "La risposta non ha altri campi oltre a quelli che ora salviamo."
+    )
+    client = RESTClient(api_key=secret, retries=0, connect_timeout=15, read_timeout=90)
+    stored = 0
+    for index, day in enumerate(chosen):
+        if index:
+            time.sleep(PAUSE_SECONDS)
+        on_progress(f"Rileggo la seduta {day.isoformat()}, {index + 1} di {len(chosen)}.")
+        try:
+            aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
+        except (AuthError, BadResponse, OSError) as exc:
+            kind = _kind(exc, secret)
+            log.warning("massive rilettura %s rifiutata: %s", day.isoformat(), _quiet(exc, secret))
+            if kind == "plan":
+                _remember(CLOSED_PATH, day)
+                on_progress(f"La seduta {day.isoformat()} è fuori dalla storia del piano. Non la richiedo più.")
+                continue
+            if kind == "auth":
+                return stored, "Massive ha rifiutato la chiave. Le barre già scritte restano."
+            if kind == "rate":
+                return stored, "Massive ha chiesto di rallentare. Le barre già scritte restano."
+            return stored, "Massive non ha completato la rilettura. Le barre già scritte restano."
+        rows = _rows(aggs, wanted, day)
+        if len(rows) < ENOUGH:
+            log.warning("massive rilettura %s solo %s simboli dell'elenco", day.isoformat(), len(rows))
+            return stored, (
+                f"La seduta {day.isoformat()} ha restituito solo {len(rows)} titoli dell'elenco. "
+                "Mi fermo. Le barre già scritte restano."
+            )
+        stored += upsert_bars(conn, rows)
+        log.info("massive rilettura %s aggiornati %s", day.isoformat(), len(rows))
+    log.info("rilettura conclusa, barre %s", stored)
+    return stored, None
+
+
+def _unfilled(conn, end):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT DATE(timestamp), COUNT(*), SUM(vwap IS NOT NULL)
+        FROM market_history
+        WHERE asset_name <> 'test'
+        GROUP BY DATE(timestamp)
+        """
+    )
+    closed = _read_dates(CLOSED_PATH)
+    found = []
+    for raw, count, filled in cur.fetchall():
+        day = _as_date(raw)
+        if day > end or day in closed:
+            continue
+        if count < ENOUGH or (filled or 0) < ENOUGH:
+            found.append(day)
+    cur.close()
+    return sorted(found, reverse=True)
+
+
 def last_completed_session(now=None):
     """Ultimo giorno feriale di New York di cui la chiusura è già passata."""
     moment = now or datetime.now(NEW_YORK)
@@ -160,6 +228,10 @@ def _rows(aggs, wanted, day):
                 "high_price": _optional(agg.high),
                 "low_price": _optional(agg.low),
                 "volume": quantize_volume(agg.volume),
+                "vwap": _optional(agg.vwap),
+                "trade_count": _count(agg.transactions),
+                "bar_ms": _millis(agg.timestamp),
+                "otc": _flag(agg.otc),
             }
         )
     return rows
@@ -170,6 +242,36 @@ def _optional(value):
     if amount is None or amount <= 0:
         return None
     return amount
+
+
+def _count(value):
+    if value is None:
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    if number < 0:
+        return None
+    return number
+
+
+def _millis(value):
+    if value is None:
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    if number <= 0:
+        return None
+    return number
+
+
+def _flag(value):
+    if value is None:
+        return None
+    return 1 if value else 0
 
 
 def _api_key():

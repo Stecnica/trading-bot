@@ -14,6 +14,7 @@ UI_PASSWORD_PATH = PRIVATE / "ui_password"
 FLASK_SECRET_PATH = PRIVATE / "flask_secret"
 UNIVERSE_CACHE = PRIVATE / "sp500_symbols.txt"
 NAMES_CACHE = PRIVATE / "sp500_names.tsv"
+CLASSES_CACHE = PRIVATE / "sp500_classes.tsv"
 MPLCONFIG = PRIVATE / "mplconfig"
 
 SITE_PACKAGES = (

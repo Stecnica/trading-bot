@@ -10,7 +10,7 @@ import pandas as pd
 import yfinance as yf
 import yfinance.shared as yf_shared
 
-from bot_config import NAMES_CACHE, UNIVERSE_CACHE, get_logger
+from bot_config import CLASSES_CACHE, NAMES_CACHE, UNIVERSE_CACHE, get_logger
 from bot_db import history_coverage, quantize_volume, upsert_bars
 from bot_logic import money
 
@@ -85,16 +85,9 @@ def candidate_symbols(limit):
 
 
 def _load_sp500():
-    if UNIVERSE_CACHE.exists():
-        age = datetime.now().timestamp() - UNIVERSE_CACHE.stat().st_mtime
-        if age < 7 * 24 * 3600:
-            cached = _read_cache()
-            if len(cached) >= 100:
-                return cached
-    fresh = _fetch_sp500()
-    if len(fresh) >= 100:
-        UNIVERSE_CACHE.write_text("\n".join(fresh) + "\n", encoding="utf-8")
-        return fresh
+    symbols = [symbol for symbol, _name, _sector, _sub in constituents()]
+    if len(symbols) >= 100:
+        return symbols
     cached = _read_cache()
     return cached or None
 
@@ -110,23 +103,66 @@ def _read_cache():
     return symbols
 
 
-def _fetch_sp500():
-    return [symbol for symbol, _name in _fetch_constituents()]
+def constituents():
+    """Simbolo, società, settore GICS e sotto-industria. La cache dura una settimana."""
+    cached = _read_constituents()
+    if _caches_fresh() and len(cached) >= 100:
+        return cached
+    fresh = _fetch_constituents()
+    if len(fresh) >= 100:
+        _write_constituents(fresh)
+        return fresh
+    return cached
 
 
 def security_names():
     """Simbolo → nome della società. La cache dura una settimana, come l'elenco."""
-    cached = _read_names()
-    if NAMES_CACHE.exists() and len(cached) >= 100:
-        age = datetime.now().timestamp() - NAMES_CACHE.stat().st_mtime
-        if age < 7 * 24 * 3600:
-            return cached
-    fresh = {symbol: name for symbol, name in _fetch_constituents() if name}
-    if len(fresh) >= 100:
-        lines = [f"{symbol}\t{name}" for symbol, name in fresh.items()]
-        NAMES_CACHE.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return fresh
-    return cached
+    names = {symbol: name for symbol, name, _sector, _sub in constituents() if name}
+    if len(names) >= 100:
+        return names
+    return _read_names()
+
+
+def _caches_fresh():
+    paths = (UNIVERSE_CACHE, NAMES_CACHE, CLASSES_CACHE)
+    if not all(path.exists() for path in paths):
+        return False
+    oldest = min(path.stat().st_mtime for path in paths)
+    return datetime.now().timestamp() - oldest < 7 * 24 * 3600
+
+
+def _read_constituents():
+    names = _read_names()
+    if not CLASSES_CACHE.exists():
+        return []
+    rows = []
+    for line in CLASSES_CACHE.read_text(encoding="utf-8").splitlines():
+        symbol, sector, sub = (line.split("\t") + ["", ""])[:3]
+        symbol = symbol.strip().upper().replace(".", "-")
+        sector = sector.strip()
+        sub = sub.strip()
+        if symbol and sector and sub:
+            rows.append((symbol, names.get(symbol, ""), sector, sub))
+    return rows
+
+
+def _write_constituents(rows):
+    symbols = []
+    names = []
+    classes = []
+    seen = set()
+    for symbol, name, sector, sub in rows:
+        if symbol in seen:
+            continue
+        seen.add(symbol)
+        symbols.append(symbol)
+        if name:
+            names.append(f"{symbol}\t{name}")
+        if sector and sub:
+            classes.append(f"{symbol}\t{sector}\t{sub}")
+    UNIVERSE_CACHE.write_text("\n".join(symbols) + "\n", encoding="utf-8")
+    NAMES_CACHE.write_text("\n".join(names) + "\n", encoding="utf-8")
+    CLASSES_CACHE.write_text("\n".join(classes) + "\n", encoding="utf-8")
 
 
 def _read_names():
@@ -163,9 +199,9 @@ def _fetch_constituents():
         if not symbol:
             continue
         name = _plain_cell(cells[1]) if len(cells) > 1 else ""
-        rows.append((symbol, name))
-        if len(rows) >= 500:
-            break
+        sector = _plain_cell(cells[2]) if len(cells) > 2 else ""
+        sub = _plain_cell(cells[3]) if len(cells) > 3 else ""
+        rows.append((symbol, name, sector, sub))
     log.info("elenco S&P 500: %s simboli", len(rows))
     return rows
 
