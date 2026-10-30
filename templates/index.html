@@ -6,7 +6,7 @@
 	<title>Trading bot</title>
 	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
 	<link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
-	{% if running and request.args.get('anteprima') != 'messaggi' %}<meta http-equiv="refresh" content="20">{% endif %}
+	{% if running and request.args.get('anteprima') != 'messaggi' %}<meta http-equiv="refresh" content="20;url={{ url_for('home', vista=vista, asset=asset, periodo=period, grafico=grafico) }}">{% endif %}
 	<style>
 		.slide-note {
 			width: min(36rem, calc(100% - 2rem));
@@ -59,6 +59,8 @@
 		}
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
 		.panel-note { opacity: 0.62; }
+		.volume-step { width: 6.5rem; flex: 0 0 auto; }
+		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 	</style>
 </head>
 <body class="bg-light"{% if request.args.get('pannello') == 'acquisto' %} data-pannello="acquisto"{% endif %}>
@@ -205,7 +207,7 @@
 		</div>
 		{% elif (err or ok or sync_notice) and request.args.get('pannello') != 'acquisto' %}
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
-			<div class="slide-note border rounded-4 text-center pe-none px-3 py-2 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' if ok or status.state == 'ok' else 'text-primary bg-info border-primary opacity-50' }}{{ ' stay' if running else '' }}" style="--linger: {{ prefs.notice_seconds }}s" role="status">
+			<div class="slide-note border rounded-4 text-center pe-none px-3 py-2 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' if ok or status.state == 'ok' else 'text-primary bg-info border-primary opacity-50' }}{{ ' stay' if running and not ok and not err else '' }}" style="--linger: {{ prefs.notice_seconds }}s" role="status">
 				{% if err %}{{ err }}{% elif ok %}{{ ok }}{% else %}{{ status.message }}{% endif %}
 			</div>
 		</div>
@@ -226,8 +228,62 @@
 		</div>
 		<div class="card-body tab-content">
 			<div class="tab-pane fade{% if vista != 'storico' %} show active{% endif %}" id="volume" role="tabpanel" aria-labelledby="volume-tab">
-				<h2 class="h5 mb-3">Volume e stato</h2>
-				<div class="treemap position-relative w-100 rounded bg-body-tertiary" role="img" aria-label="Blocchi dei titoli per volume">
+				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+					<h2 class="h5 mb-0">Volume e stato</h2>
+					<div class="d-flex flex-wrap align-items-end gap-3" id="volume-controls" data-volume="{{ url_for('volume_view') }}">
+						<div>
+							<label class="form-label" for="volume-sessions">Sedute</label>
+							<div class="input-group input-group-sm volume-step">
+								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="-1" aria-label="Meno sedute">−</button>
+								<input class="form-control text-center" id="volume-sessions" inputmode="numeric" value="{{ prefs.return_days }}" autocomplete="off">
+								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="1" aria-label="Più sedute">+</button>
+							</div>
+						</div>
+						{% set chosen = prefs.volume_class or '' %}
+						{% set sector_code = chosen[2:].split('|')[0] if chosen[:2] in ['s:', 'u:'] else '' %}
+						<div>
+							<label class="form-label" for="volume-sector">Settore</label>
+							<select class="form-select form-select-sm volume-group" id="volume-sector">
+								<option value="" {% if not sector_code %}selected{% endif %}>Tutti</option>
+								{% for sector in class_tree %}
+								<option value="{{ sector.code }}" {% if sector.code == sector_code %}selected{% endif %}>{{ sector.name }}</option>
+								{% endfor %}
+							</select>
+						</div>
+						<div>
+							<label class="form-label" for="volume-group">Gruppo</label>
+							<select class="form-select form-select-sm volume-group" id="volume-group">
+								<option value="" {% if not chosen.startswith('u:') %}selected{% endif %}>Tutti</option>
+								{% for sector in class_tree if not sector_code or sector.code == sector_code %}
+								<optgroup label="{{ sector.name }}" data-sector="{{ sector.code }}">
+									{% for sub in sector.subs %}
+									<option value="u:{{ sector.code }}|{{ sub.name }}" data-sector="{{ sector.code }}" {% if chosen == 'u:' ~ sector.code ~ '|' ~ sub.name %}selected{% endif %}>{{ sub.name }}</option>
+									{% endfor %}
+								</optgroup>
+								{% endfor %}
+							</select>
+							<select id="volume-group-catalog" hidden>
+								{% for sector in class_tree %}
+								<optgroup label="{{ sector.name }}" data-sector="{{ sector.code }}">
+									{% for sub in sector.subs %}
+									<option value="u:{{ sector.code }}|{{ sub.name }}">{{ sub.name }}</option>
+									{% endfor %}
+								</optgroup>
+								{% endfor %}
+							</select>
+						</div>
+						<div>
+							<label class="form-label" for="volume-titles">Titoli</label>
+							<div class="input-group input-group-sm volume-step">
+								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="-1" aria-label="Meno titoli">−</button>
+								<input class="form-control text-center" id="volume-titles" inputmode="numeric" value="{{ prefs.universe_size }}" autocomplete="off">
+								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="Più titoli">+</button>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="position-relative">
+				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary" role="img" aria-label="Blocchi dei titoli per volume">
 					{% for tile in tiles %}
 					<div class="tile {{ tile.kind }} {{ tile.tone }} position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white" title="{{ tile.title }}" style="--x:{{ tile.x }}%;--y:{{ tile.y }}%;--w:{{ tile.w }}%;--h:{{ tile.h }}%">
 						<span class="full">{{ tile.label }}<br><span class="chg text-nowrap">{{ tile.change }}</span></span>
@@ -235,15 +291,20 @@
 					</div>
 					{% endfor %}
 				</div>
-				<div class="d-flex flex-wrap align-items-center gap-3 mt-3 mb-3">
+				<div id="volume-wait" class="position-absolute top-0 start-0 w-100 h-100 d-none bg-body align-items-center justify-content-center rounded" style="--bs-bg-opacity: .55" role="status">
+					<div class="spinner-border text-primary" aria-hidden="true"></div>
+					<span class="visually-hidden">Aggiorno il grafico</span>
+				</div>
+				</div>
+				<div class="d-flex flex-wrap align-items-center gap-3 my-3">
 					<span class="d-inline-flex align-items-center gap-1"><span class="badge bg-success">&nbsp;</span>in crescita</span>
 					<span class="d-inline-flex align-items-center gap-1"><span class="badge bg-danger">&nbsp;</span>in perdita</span>
 					<span class="d-inline-flex align-items-center gap-1"><span class="badge bg-primary">&nbsp;</span>stabile (± {{ prefs.stable_band|pct }})</span>
 				</div>
-				<p class="text-secondary mb-0">Tra i titoli in archivio, i {{ prefs.universe_size }} con il rendimento più alto sulle ultime {{ prefs.return_days }} sedute. In grafico: {{ blocks|length }}. La dimensione è il volume.</p>
+				<p class="text-secondary mb-0" id="volume-caption">{{ volume_caption_text }}</p>
 			</div>
 			<div class="tab-pane fade{% if vista == 'storico' %} show active{% endif %}" id="storico" role="tabpanel" aria-labelledby="storico-tab">
-				<div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
 					<div>
 						<label class="form-label" for="titolo">Titolo</label>
 						<select class="form-select form-select-sm" id="titolo">
@@ -268,8 +329,33 @@
 							<button class="btn btn-outline-primary{% if grafico == 'candle' %} active{% endif %}" type="button" data-grafico="candle">Candele</button>
 						</div>
 					</div>
+					<div id="statistiche" class="d-flex flex-wrap align-items-end gap-3" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
+						<div>
+							<div class="form-label">Variazione</div>
+							<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
+						</div>
+						<div>
+							<div class="form-label">Ultimo</div>
+							<div class="fw-semibold" data-stat="last">{{ stats.last }}</div>
+						</div>
+						<div>
+							<div class="form-label">Minimo</div>
+							<div class="fw-semibold" data-stat="low">{{ stats.low }}</div>
+						</div>
+						<div>
+							<div class="form-label">Massimo</div>
+							<div class="fw-semibold" data-stat="high">{{ stats.high }}</div>
+						</div>
+						<div>
+							<div class="form-label">Sedute</div>
+							<div class="fw-semibold" data-stat="sessions">{{ stats.sessions }}</div>
+						</div>
+					</div>
 				</div>
-				<img id="grafico" class="w-100 h-auto d-block" alt="Andamento di {{ asset }}" data-chart="{{ url_for('chart_history') }}" src="{{ url_for('chart_history', asset=asset, periodo=period, grafico=grafico) }}">
+				<div class="position-relative">
+				<img id="grafico" class="w-100 h-auto d-block" alt="Andamento e volumi di {{ asset }}" data-chart="{{ url_for('chart_history') }}" src="{{ url_for('chart_history', asset=asset, periodo=period, grafico=grafico) }}">
+				<div id="grafico-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1" data-hits="{{ url_for('chart_hits') }}"></div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -307,11 +393,7 @@
 				</div>
 				<div class="col-md-6">
 					<label class="form-label" for="pref-universe">{{ labels.universe_size }}</label>
-					<select class="form-select" id="pref-universe" name="universe_size">
-						{% for size in (100, 200, 500) %}
-						<option value="{{ size }}" {% if prefs.universe_size == size %}selected{% endif %}>{{ size }}</option>
-						{% endfor %}
-					</select>
+					<input class="form-control" id="pref-universe" name="universe_size" type="number" min="10" max="500" step="10" value="{{ prefs.universe_size }}" required>
 				</div>
 				<div class="col-md-6">
 					<label class="form-label" for="pref-chart">{{ labels.chart_type }}</label>
@@ -330,7 +412,12 @@
 				</div>
 				<div class="col-md-6">
 					<label class="form-label" for="pref-focus">{{ labels.focus_asset }}</label>
-					<input class="form-control" id="pref-focus" name="focus_asset" value="{{ prefs.focus_asset }}" required>
+					<select class="form-select" id="pref-focus" name="focus_asset" required>
+						{% if prefs.focus_asset not in assets %}<option value="{{ prefs.focus_asset }}" selected>{{ prefs.focus_asset }}</option>{% endif %}
+						{% for item in asset_options %}
+						<option value="{{ item.symbol }}" {% if item.symbol == prefs.focus_asset %}selected{% endif %}>{{ item.label }}</option>
+						{% endfor %}
+					</select>
 				</div>
 				<div class="col-md-6">
 					<label class="form-label" for="pref-age">{{ labels.max_price_age_hours }}</label>
@@ -350,7 +437,7 @@
 	</div>
 </main>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=4) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=14) }}"></script>
 {% if request.args.get('anteprima') == 'messaggi' %}
 <script src="{{ url_for('static', filename='anteprima.js', v=3) }}"></script>
 {% endif %}
