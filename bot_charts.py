@@ -2,6 +2,7 @@
 
 import io
 import os
+from contextlib import contextmanager
 
 os.environ.setdefault("MPLCONFIGDIR", "/var/www/clients/client0/web5/private/mplconfig")
 os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
@@ -27,6 +28,34 @@ COLORS = {
 INK = "#212529"
 RULE = "#dee2e6"
 PAPER = "#ffffff"
+_LOOK = {"scale": 1, "weight": "medium"}
+_PALETTES = {
+    "light": ("#212529", "#dee2e6", "#ffffff"),
+    "dark": ("#dee2e6", "#495057", "#212529"),
+}
+_WEIGHTS = {200: "light", 300: "light", 400: "normal", 500: "medium", 600: "semibold", 700: "bold"}
+
+
+@contextmanager
+def _appearance(theme, scale, weight):
+    """Colori, scala e peso per un solo disegno. I valori di prima tornano al termine."""
+    global INK, RULE, PAPER
+    previous = (INK, RULE, PAPER, _LOOK["scale"], _LOOK["weight"])
+    INK, RULE, PAPER = _PALETTES.get(theme, _PALETTES["light"])
+    try:
+        scale = int(scale)
+    except (TypeError, ValueError):
+        scale = 100
+    _LOOK["scale"] = max(80, min(scale, 120)) / 100
+    try:
+        weight = int(weight)
+    except (TypeError, ValueError):
+        weight = 400
+    _LOOK["weight"] = _WEIGHTS.get(weight, "medium")
+    try:
+        yield
+    finally:
+        INK, RULE, PAPER, _LOOK["scale"], _LOOK["weight"] = previous
 # Stessi margini di _finish_history: il titolo al passaggio deve cadere sulla seduta disegnata.
 AXIS_LEFT = 0.075
 AXIS_RIGHT = 0.985
@@ -116,13 +145,49 @@ def treemap_png(blocks):
     return _png(fig)
 
 
-def history_png(series, asset, chart_type, width=1280, height=720):
+def history_model(series, asset, chart_type):
+    """Stessi numeri del PNG, in forma che il vettore SVG disegna da sé."""
     if not series:
-        return _message_png(f"Nessuno storico per {asset}.", width, height)
+        return {"asset": asset, "draw": "line", "title": f"Nessuno storico per {asset}.", "points": []}
     has_ohlc = all(row.get("open_price") and row.get("high_price") and row.get("low_price") for row in series)
-    if chart_type == "candle" and has_ohlc:
-        return _candle_png(series, asset, width, height)
-    return _line_png(series, asset, chart_type == "candle" and not has_ohlc, width, height)
+    draw = "candle" if chart_type == "candle" and has_ohlc else "line"
+    if draw == "candle":
+        title = asset + " — candele"
+    else:
+        title = asset + " — chiusure giornaliere"
+        if chart_type == "candle" and not has_ohlc:
+            title += " (mancano i prezzi per le candele)"
+    points = []
+    for row in series:
+        points.append(
+            {
+                "d": row["timestamp"].strftime("%Y-%m-%d"),
+                "label": row["timestamp"].strftime("%d/%m"),
+                "o": _num(row.get("open_price")),
+                "h": _num(row.get("high_price")),
+                "l": _num(row.get("low_price")),
+                "c": _num(row["price"]),
+                "v": _num(row.get("volume")) or 0,
+                "lines": _session_lines(row),
+            }
+        )
+    return {"asset": asset, "draw": draw, "title": title, "points": points}
+
+
+def _num(value):
+    if value is None:
+        return None
+    return float(value)
+
+
+def history_png(series, asset, chart_type, width=1280, height=720, scale=100, theme="light", weight=400):
+    with _appearance(theme, scale, weight):
+        if not series:
+            return _message_png(f"Nessuno storico per {asset}.", width, height)
+        has_ohlc = all(row.get("open_price") and row.get("high_price") and row.get("low_price") for row in series)
+        if chart_type == "candle" and has_ohlc:
+            return _candle_png(series, asset, width, height)
+        return _line_png(series, asset, chart_type == "candle" and not has_ohlc, width, height)
 
 
 def _line_png(series, asset, missing_ohlc, width, height):
@@ -194,7 +259,7 @@ def _date_labels(ax, dates, series, tick, indexed):
     ax.tick_params(axis="x", labelbottom=True)
     for label in ax.get_xticklabels():
         label.set_fontsize(_pt(tick))
-        label.set_fontweight("medium")
+        label.set_fontweight(_LOOK["weight"])
         if rotate:
             label.set_rotation(30)
             label.set_ha("right")
@@ -313,7 +378,7 @@ def _decorate(ax, title, tick, title_px):
     ax.spines["right"].set_visible(False)
     ax.tick_params(axis="both", colors=INK, labelsize=_pt(tick), width=_pt(1), length=_pt(6))
     for label in ax.get_xticklabels() + ax.get_yticklabels():
-        label.set_fontweight("medium")
+        label.set_fontweight(_LOOK["weight"])
     ax.set_facecolor(PAPER)
 
 
@@ -328,7 +393,7 @@ def _metrics(width, height):
     height = max(280, min(height, 2160))
     span = (width * height) ** 0.5
     tick = 13 + (span - 640) * (6 / 1000)
-    tick = max(12, min(19, tick))
+    tick = max(12, min(19, tick)) * _LOOK["scale"]
     return width, height, tick, tick + 2
 
 

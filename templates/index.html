@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-bs-theme="{{ theme }}" data-theme="{{ prefs.ui_theme }}" data-font="{{ prefs.font_family }}" data-scale="{{ prefs.ui_scale }}" style="--ui-scale: {{ prefs.ui_scale }}; --bs-body-font-weight: {{ prefs.ui_weight }}">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Trading bot</title>
 	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
 	<link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
+	<link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
 	{% if running and request.args.get('anteprima') != 'messaggi' %}<meta http-equiv="refresh" content="20;url={{ url_for('home', vista=vista, asset=asset, periodo=period, grafico=grafico) }}">{% endif %}
 	<style>
 		.slide-note {
@@ -60,10 +61,12 @@
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
 		.panel-note { opacity: 0.62; }
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
+		#grafico-svg { min-height: 280px; }
+		.pref-foot { flex: 1 1 16rem; min-width: 0; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 	</style>
 </head>
-<body class="bg-light"{% if request.args.get('pannello') == 'acquisto' %} data-pannello="acquisto"{% endif %}>
+<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}"{% if request.args.get('pannello') == 'acquisto' %} data-pannello="acquisto"{% endif %}>
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid">
@@ -296,12 +299,12 @@
 					<span class="visually-hidden">Aggiorno il grafico</span>
 				</div>
 				</div>
-				<div class="d-flex flex-wrap align-items-center gap-3 my-3">
-					<span class="d-inline-flex align-items-center gap-1"><span class="badge bg-success">&nbsp;</span>in crescita</span>
-					<span class="d-inline-flex align-items-center gap-1"><span class="badge bg-danger">&nbsp;</span>in perdita</span>
-					<span class="d-inline-flex align-items-center gap-1"><span class="badge bg-primary">&nbsp;</span>stabile (± {{ prefs.stable_band|pct }})</span>
+				<div class="small d-flex flex-wrap align-items-center gap-3 my-3">
+					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-success">&nbsp;</span>in crescita</span>
+					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-danger">&nbsp;</span>in perdita</span>
+					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-primary">&nbsp;</span>stabile (± {{ prefs.stable_band|pct }})</span>
+					<p class="small text-secondary mb-0" id="volume-caption">{{ volume_caption_text }}</p>
 				</div>
-				<p class="text-secondary mb-0" id="volume-caption">{{ volume_caption_text }}</p>
 			</div>
 			<div class="tab-pane fade{% if vista == 'storico' %} show active{% endif %}" id="storico" role="tabpanel" aria-labelledby="storico-tab">
 				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
@@ -329,7 +332,7 @@
 							<button class="btn btn-outline-primary{% if grafico == 'candle' %} active{% endif %}" type="button" data-grafico="candle">Candele</button>
 						</div>
 					</div>
-					<div id="statistiche" class="d-flex flex-wrap align-items-end gap-3" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
+					<div id="statistiche" class="d-flex flex-wrap align-items-end gap-3 text-end" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
 						<div>
 							<div class="form-label">Variazione</div>
 							<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
@@ -352,9 +355,10 @@
 						</div>
 					</div>
 				</div>
-				<div class="position-relative">
-				<img id="grafico" class="w-100 h-auto d-block" alt="Andamento e volumi di {{ asset }}" data-chart="{{ url_for('chart_history') }}" src="{{ url_for('chart_history', asset=asset, periodo=period, grafico=grafico) }}">
-				<div id="grafico-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1" data-hits="{{ url_for('chart_hits') }}"></div>
+				<div id="grafico-frame" class="position-relative" data-render="{{ prefs.chart_render }}" data-series="{{ url_for('chart_series') }}">
+				<img id="grafico" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="Andamento e volumi di {{ asset }}" data-chart="{{ url_for('chart_history') }}"{% if prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, periodo=period, grafico=grafico, scala=prefs.ui_scale, tema=theme, peso=prefs.ui_weight) }}"{% endif %}>
+				<svg id="grafico-svg" class="d-block w-100{% if prefs.chart_render != 'vector' %} d-none{% endif %}" role="img" aria-label="Andamento e volumi di {{ asset }}"></svg>
+				<div id="grafico-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1{% if prefs.chart_render == 'vector' %} d-none{% endif %}" data-hits="{{ url_for('chart_hits') }}"></div>
 				</div>
 			</div>
 		</div>
@@ -370,74 +374,123 @@
 		<div class="modal-body">
 		<form method="post" action="{{ url_for('save_prefs') }}">
 			<input type="hidden" name="csrf" value="{{ csrf }}">
-			<div class="row g-3">
-				<div class="col-md-6">
-					<label class="form-label" for="pref-profit">{{ labels.profit_threshold }}</label>
-					<input class="form-control" id="pref-profit" name="profit_threshold" value="{{ prefs.profit_threshold }}" required>
+			<div class="row row-cols-4 g-3 align-items-end">
+				<div class="col d-flex align-items-end">
+					<h3 class="h5 mb-5">Operatività</h3>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-invest">{{ labels.max_investment }}</label>
-					<input class="form-control" id="pref-invest" name="max_investment" value="{{ prefs.max_investment }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-profit" title="{{ labels.profit_threshold }}">Soglia</label>
+					<input class="form-control" id="pref-profit" name="profit_threshold" title="{{ labels.profit_threshold }}" value="{{ prefs.profit_threshold }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-fee">{{ labels.fee_rate }}</label>
-					<input class="form-control" id="pref-fee" name="fee_rate" value="{{ prefs.fee_rate }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-invest" title="{{ labels.max_investment }}">Investimento</label>
+					<input class="form-control" id="pref-invest" name="max_investment" title="{{ labels.max_investment }}" value="{{ prefs.max_investment }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-tax">{{ labels.tax_rate }}</label>
-					<input class="form-control" id="pref-tax" name="tax_rate" value="{{ prefs.tax_rate }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-fee" title="{{ labels.fee_rate }}">Commissione</label>
+					<input class="form-control" id="pref-fee" name="fee_rate" title="{{ labels.fee_rate }}" value="{{ prefs.fee_rate }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-band">{{ labels.stable_band }}</label>
-					<input class="form-control" id="pref-band" name="stable_band" value="{{ prefs.stable_band }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-tax" title="{{ labels.tax_rate }}">Imposta</label>
+					<input class="form-control" id="pref-tax" name="tax_rate" title="{{ labels.tax_rate }}" value="{{ prefs.tax_rate }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-universe">{{ labels.universe_size }}</label>
-					<input class="form-control" id="pref-universe" name="universe_size" type="number" min="10" max="500" step="10" value="{{ prefs.universe_size }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-band" title="{{ labels.stable_band }}">Banda</label>
+					<input class="form-control" id="pref-band" name="stable_band" title="{{ labels.stable_band }}" value="{{ prefs.stable_band }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-chart">{{ labels.chart_type }}</label>
-					<select class="form-select" id="pref-chart" name="chart_type">
-						<option value="line" {% if prefs.chart_type == 'line' %}selected{% endif %}>Lineare</option>
-						<option value="candle" {% if prefs.chart_type == 'candle' %}selected{% endif %}>Candele</option>
-					</select>
+				<div class="col">
+					<label class="form-label" for="pref-universe" title="{{ labels.universe_size }}">Volume Titoli</label>
+					<input class="form-control" id="pref-universe" name="universe_size" title="{{ labels.universe_size }}" type="number" min="10" max="500" step="10" value="{{ prefs.universe_size }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-history">{{ labels.history_days }}</label>
-					<input class="form-control" id="pref-history" name="history_days" value="{{ prefs.history_days }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-history" title="{{ labels.history_days }}">Giorni</label>
+					<input class="form-control" id="pref-history" name="history_days" title="{{ labels.history_days }}" value="{{ prefs.history_days }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-return">{{ labels.return_days }}</label>
-					<input class="form-control" id="pref-return" name="return_days" value="{{ prefs.return_days }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-return" title="{{ labels.return_days }}">Sedute</label>
+					<input class="form-control" id="pref-return" name="return_days" title="{{ labels.return_days }}" value="{{ prefs.return_days }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-focus">{{ labels.focus_asset }}</label>
-					<select class="form-select" id="pref-focus" name="focus_asset" required>
+				<div class="col">
+					<label class="form-label" for="pref-focus" title="{{ labels.focus_asset }}">Titolo</label>
+					<select class="form-select" id="pref-focus" name="focus_asset" title="{{ labels.focus_asset }}" required>
 						{% if prefs.focus_asset not in assets %}<option value="{{ prefs.focus_asset }}" selected>{{ prefs.focus_asset }}</option>{% endif %}
 						{% for item in asset_options %}
 						<option value="{{ item.symbol }}" {% if item.symbol == prefs.focus_asset %}selected{% endif %}>{{ item.label }}</option>
 						{% endfor %}
 					</select>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-age">{{ labels.max_price_age_hours }}</label>
-					<input class="form-control" id="pref-age" name="max_price_age_hours" value="{{ prefs.max_price_age_hours }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-age" title="{{ labels.max_price_age_hours }}">Età</label>
+					<input class="form-control" id="pref-age" name="max_price_age_hours" title="{{ labels.max_price_age_hours }}" value="{{ prefs.max_price_age_hours }}" required>
 				</div>
-				<div class="col-md-6">
-					<label class="form-label" for="pref-notice">{{ labels.notice_seconds }}</label>
-					<input class="form-control" id="pref-notice" name="notice_seconds" value="{{ prefs.notice_seconds }}" required>
+				<div class="col">
+					<label class="form-label" for="pref-notice" title="{{ labels.notice_seconds }}">Secondi</label>
+					<input class="form-control" id="pref-notice" name="notice_seconds" title="{{ labels.notice_seconds }}" value="{{ prefs.notice_seconds }}" required>
 				</div>
 			</div>
-			<div class="mt-3"><button class="btn btn-primary" type="submit">Salva preferenze</button></div>
+			<div class="row row-cols-4 g-3 align-items-end border-top mt-4 pt-3">
+				<div class="col d-flex align-items-end">
+					<h3 class="h5 mb-5">Aspetto</h3>
+				</div>
+				<div class="col">
+					<label class="form-label" for="pref-font" title="Carattere dell'interfaccia">Carattere</label>
+					<select class="form-select" id="pref-font" name="font_family" title="Carattere dell'interfaccia">
+						{% for face in fonts %}
+						<option value="{{ face.id }}" {% if prefs.font_family == face.id %}selected{% endif %}{% if face.family %} style="font-family: '{{ face.family }}', sans-serif"{% endif %}>{{ face.label }}</option>
+						{% endfor %}
+					</select>
+				</div>
+				<div class="col">
+					<label class="form-label" for="pref-scale" title="Dimensione e interlinea (%). La percentuale vale insieme per il carattere e per l'interlinea.">Dimensione</label>
+					<input class="form-control" id="pref-scale" name="ui_scale" title="Dimensione e interlinea (%). La percentuale vale insieme per il carattere e per l'interlinea." type="number" min="80" max="120" step="5" value="{{ prefs.ui_scale }}" required>
+				</div>
+				<div class="col">
+					<label class="form-label" for="pref-weight" title="Peso del carattere">Peso</label>
+					<select class="form-select" id="pref-weight" name="ui_weight" title="Peso del carattere">
+						{% for item in weights %}
+						<option value="{{ item.id }}" {% if prefs.ui_weight == item.id %}selected{% endif %}>{{ item.label }}</option>
+						{% endfor %}
+					</select>
+				</div>
+				<div class="col">
+					<label class="form-label" for="pref-theme" title="Chiaro e Scuro restano fissi. Automatico segue l'ora locale: chiaro dalle 7 alle 19, scuro dalle 19 alle 7.">Tema</label>
+					<select class="form-select" id="pref-theme" name="ui_theme" title="Chiaro e Scuro restano fissi. Automatico segue l'ora locale: chiaro dalle 7 alle 19, scuro dalle 19 alle 7.">
+						<option value="light" {% if prefs.ui_theme == 'light' %}selected{% endif %}>Chiaro</option>
+						<option value="dark" {% if prefs.ui_theme == 'dark' %}selected{% endif %}>Scuro</option>
+						<option value="auto" {% if prefs.ui_theme == 'auto' %}selected{% endif %}>Automatico</option>
+					</select>
+				</div>
+				<div class="col">
+					<label class="form-label" for="pref-chart" title="{{ labels.chart_type }}">Grafico</label>
+					<select class="form-select" id="pref-chart" name="chart_type" title="{{ labels.chart_type }}">
+						<option value="line" {% if prefs.chart_type == 'line' %}selected{% endif %}>Lineare</option>
+						<option value="candle" {% if prefs.chart_type == 'candle' %}selected{% endif %}>Candele</option>
+					</select>
+				</div>
+				<div class="col">
+					<label class="form-label" for="pref-draw" title="{{ labels.chart_render }}">Disegno</label>
+					<select class="form-select" id="pref-draw" name="chart_render" title="{{ labels.chart_render }}">
+						<option value="image" {% if prefs.chart_render == 'image' %}selected{% endif %}>Immagine</option>
+						<option value="vector" {% if prefs.chart_render == 'vector' %}selected{% endif %}>Vettore</option>
+					</select>
+				</div>
+			</div>
+			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mt-3">
+				<p class="pref-foot small text-secondary mb-0">La commissione iniziale è 0,1% e l'imposta 26% del guadagno. Con 100 titoli l'aggiornamento è più corto; 500 può richiedere diversi minuti.</p>
+				<button class="btn btn-primary flex-shrink-0" type="submit">Salva preferenze</button>
+			</div>
 		</form>
-		<p class="text-secondary mt-3 mb-0">La commissione iniziale è 0,1% e l'imposta 26% del guadagno. Con 100 titoli l'aggiornamento è più corto; 500 può richiedere diversi minuti.</p>
 		</div>
 		</div>
 		</div>
 	</div>
+	<div id="pref-wait" class="position-fixed top-0 start-0 w-100 h-100 d-none bg-body align-items-center justify-content-center" style="--bs-bg-opacity: .55; z-index: 2000" role="status">
+		<div class="spinner-border text-primary" aria-hidden="true"></div>
+		<span class="visually-hidden">Salvo le preferenze</span>
+	</div>
 </main>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=14) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=18) }}"></script>
 {% if request.args.get('anteprima') == 'messaggi' %}
 <script src="{{ url_for('static', filename='anteprima.js', v=3) }}"></script>
 {% endif %}
