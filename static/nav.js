@@ -1,4 +1,64 @@
 (function () {
+  var root = document.documentElement;
+  if (root.getAttribute("data-theme") !== "auto") {
+    return;
+  }
+  var dayStart = 7;
+  var dayEnd = 19;
+
+  function themeAt(date) {
+    var hour = date.getHours();
+    return hour >= dayStart && hour < dayEnd ? "light" : "dark";
+  }
+
+  function apply(theme) {
+    if (root.getAttribute("data-bs-theme") !== theme) {
+      root.setAttribute("data-bs-theme", theme);
+      document.body.classList.toggle("bg-body", theme === "dark");
+      document.body.classList.toggle("bg-light", theme !== "dark");
+    }
+    var img = document.getElementById("grafico");
+    if (!img || !img.getAttribute("src")) {
+      return;
+    }
+    var url = new URL(img.getAttribute("src"), location.origin);
+    if (url.searchParams.get("tema") === theme) {
+      return;
+    }
+    url.searchParams.set("tema", theme);
+    img.src = url.pathname + url.search;
+  }
+
+  function nextChange(now) {
+    var next = new Date(now.getTime());
+    var hour = now.getHours();
+    if (hour < dayStart) {
+      next.setHours(dayStart, 0, 0, 0);
+    } else if (hour < dayEnd) {
+      next.setHours(dayEnd, 0, 0, 0);
+    } else {
+      next.setDate(next.getDate() + 1);
+      next.setHours(dayStart, 0, 0, 0);
+    }
+    return next;
+  }
+
+  function arm() {
+    var now = new Date();
+    apply(themeAt(now));
+    var wait = nextChange(now).getTime() - now.getTime();
+    window.setTimeout(arm, Math.max(1000, wait));
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) {
+      apply(themeAt(new Date()));
+    }
+  });
+  arm();
+})();
+
+(function () {
   function place(button) {
     var menu = button.nextElementSibling;
     if (!menu) {
@@ -276,11 +336,15 @@
     });
   }
 
+  var frameEl = document.getElementById("grafico-frame");
   var img = document.getElementById("grafico");
+  var svg = document.getElementById("grafico-svg");
   var select = document.getElementById("titolo");
-  if (!img || !select) {
+  if (!img || !select || !frameEl) {
     return;
   }
+  var vectorMode = frameEl.dataset.render === "vector";
+  var NS = "http://www.w3.org/2000/svg";
 
   function chosen(name) {
     var button = document.querySelector("[data-" + name + "].active");
@@ -288,12 +352,9 @@
   }
 
   function frame() {
-    var width = img.clientWidth;
-    if (width < 200 && img.parentElement) {
-      width = img.parentElement.clientWidth;
-    }
+    var width = frameEl.clientWidth;
     width = Math.round(width);
-    var top = img.getBoundingClientRect().top;
+    var top = frameEl.getBoundingClientRect().top;
     var room = Math.round(window.innerHeight - top - 28);
     if (room < 280) {
       room = 280;
@@ -312,6 +373,9 @@
     url.searchParams.set("grafico", chosen("grafico"));
     url.searchParams.set("w", String(box.w));
     url.searchParams.set("h", String(box.h));
+    url.searchParams.set("scala", document.documentElement.dataset.scale || "100");
+    url.searchParams.set("tema", document.documentElement.getAttribute("data-bs-theme") || "light");
+    url.searchParams.set("peso", getComputedStyle(document.documentElement).getPropertyValue("--bs-body-font-weight").trim() || "400");
     return url.pathname + url.search;
   }
 
@@ -373,7 +437,7 @@
   var hitLayer = document.getElementById("grafico-hit");
   var hitsDrawn = "";
   var note = document.createElement("div");
-  note.className = "position-absolute z-3 d-none pe-none bg-white text-dark border rounded-2 px-2 py-1 shadow";
+  note.className = "position-absolute z-3 d-none pe-none bg-body text-body border rounded-2 px-2 py-1 shadow";
   if (hitLayer && hitLayer.parentElement) {
     hitLayer.parentElement.appendChild(note);
   }
@@ -391,7 +455,7 @@
       note.appendChild(row);
     });
     note.classList.remove("d-none");
-    var box = hitLayer.getBoundingClientRect();
+    var box = frameEl.getBoundingClientRect();
     var x = event.clientX - box.left + 14;
     var y = event.clientY - box.top + 14;
     if (x + note.offsetWidth > box.width - 8) {
@@ -411,6 +475,11 @@
       }
     });
     hitLayer.addEventListener("mouseleave", function () {
+      note.classList.add("d-none");
+    });
+  }
+  if (svg) {
+    svg.addEventListener("mouseleave", function () {
       note.classList.add("d-none");
     });
   }
@@ -459,20 +528,345 @@
       });
   }
 
+  function svgEl(name, attrs) {
+    var node = document.createElementNS(NS, name);
+    Object.keys(attrs).forEach(function (key) {
+      node.setAttribute(key, attrs[key]);
+    });
+    return node;
+  }
+
+  function priceText(value) {
+    var text = Number(value).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    return text || "0";
+  }
+
+  function axisTicks(low, high) {
+    var span = high - low;
+    if (!(span > 0)) {
+      return [low];
+    }
+    var raw = span / 4;
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var norm = raw / mag;
+    var step = (norm >= 5 ? 5 : norm >= 2 ? 2 : 1) * mag;
+    var start = Math.ceil(low / step) * step;
+    var ticks = [];
+    var guard = 0;
+    for (var value = start; value < high && guard < 6; value += step) {
+      if (value > low) {
+        ticks.push(value);
+      }
+      guard += 1;
+    }
+    if (!ticks.length) {
+      ticks.push((low + high) / 2);
+    }
+    return ticks;
+  }
+
+  function dayNumber(iso) {
+    var parts = iso.split("-");
+    return Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])) / 86400000;
+  }
+
+  function sessionTone(point, previous) {
+    var close = Number(point.c);
+    var rising;
+    if (point.o !== null && point.o !== undefined) {
+      rising = close >= Number(point.o);
+    } else if (previous === null) {
+      rising = true;
+    } else {
+      rising = close >= previous;
+    }
+    return rising ? "var(--bs-success)" : "var(--bs-danger)";
+  }
+
+  var seriesToken = 0;
+  var seriesKey = "";
+  var seriesData = null;
+
+  function drawSvg(data, box) {
+    if (!svg) {
+      return;
+    }
+    var width = box.w;
+    var height = box.h;
+    var span = Math.sqrt(width * height);
+    var tick = 13 + (span - 640) * (6 / 1000);
+    var scale = Number(document.documentElement.dataset.scale) || 100;
+    tick = Math.max(12, Math.min(19, tick)) * scale / 100;
+    var weight = Number(getComputedStyle(document.documentElement).getPropertyValue("--bs-body-font-weight")) || 400;
+    var titleWeight = Math.max(500, weight);
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("font-family", "inherit");
+    svg.style.height = height + "px";
+    svg.replaceChildren();
+    svg.setAttribute("aria-label", data.title || ("Andamento e volumi di " + select.value));
+    var points = data.points || [];
+    if (!points.length) {
+      var empty = svgEl("text", {
+        x: width / 2,
+        y: height / 2,
+        "text-anchor": "middle",
+        fill: "var(--bs-body-color)",
+        "font-size": tick + "px",
+        "font-weight": String(titleWeight)
+      });
+      empty.textContent = data.title;
+      svg.appendChild(empty);
+      return;
+    }
+    var lows = [];
+    var highs = [];
+    points.forEach(function (point) {
+      if (data.draw === "candle") {
+        lows.push(Number(point.l));
+        highs.push(Number(point.h));
+      } else {
+        lows.push(Number(point.c));
+        highs.push(Number(point.c));
+      }
+    });
+    var low = Math.min.apply(null, lows);
+    var high = Math.max.apply(null, highs);
+    var range = high - low;
+    var pad = range * 0.22 || high * 0.012 || 1;
+    low -= pad;
+    high += pad;
+    var sample = priceText(high);
+    var left = Math.ceil(10 + sample.length * tick * 0.62);
+    var right = width - 12;
+    var top = tick + 22;
+    var volumeH = Math.max(32, Math.round(height * 0.12));
+    var dateBand = points.length > 12 ? tick * 3.2 : tick * 1.7;
+    var plotBottom = height - 10 - volumeH - dateBand;
+    var plotW = Math.max(40, right - left);
+    var plotH = Math.max(40, plotBottom - top);
+    var xs = data.draw === "candle"
+      ? points.map(function (_point, index) { return index; })
+      : points.map(function (point) { return dayNumber(point.d); });
+    var margin = data.draw === "candle" ? 0.02 : 0.03;
+    var xSpan = xs[xs.length - 1] - xs[0];
+    var viewLo = xSpan === 0 ? xs[0] - 1 : xs[0] - margin * xSpan;
+    var viewHi = xSpan === 0 ? xs[0] + 1 : xs[xs.length - 1] + margin * xSpan;
+    var view = viewHi - viewLo;
+
+    function xAt(index) {
+      return left + (xs[index] - viewLo) / view * plotW;
+    }
+    function yAt(value) {
+      return plotBottom - (value - low) / (high - low) * plotH;
+    }
+
+    var title = svgEl("text", {
+      x: left,
+      y: tick + 4,
+      fill: "var(--bs-body-color)",
+      "font-size": (tick + 2) + "px",
+      "font-weight": String(titleWeight)
+    });
+    title.textContent = data.title;
+    svg.appendChild(title);
+
+    axisTicks(low, high).forEach(function (value) {
+      var y = yAt(value);
+      svg.appendChild(svgEl("line", {
+        x1: left,
+        x2: right,
+        y1: y,
+        y2: y,
+        stroke: "var(--bs-border-color)",
+        "stroke-width": "1"
+      }));
+      var label = svgEl("text", {
+        x: left - 8,
+        y: y + tick * 0.35,
+        "text-anchor": "end",
+        fill: "var(--bs-body-color)",
+        "font-size": tick + "px",
+        "font-weight": String(weight)
+      });
+      label.textContent = priceText(value);
+      svg.appendChild(label);
+    });
+    svg.appendChild(svgEl("line", {
+      x1: left, y1: top, x2: left, y2: plotBottom,
+      stroke: "var(--bs-border-color)", "stroke-width": "1"
+    }));
+    svg.appendChild(svgEl("line", {
+      x1: left, y1: plotBottom, x2: right, y2: plotBottom,
+      stroke: "var(--bs-border-color)", "stroke-width": "1"
+    }));
+
+    if (data.draw === "candle") {
+      var bodyW = Math.max(1, 0.6 / view * plotW);
+      points.forEach(function (point, index) {
+        var color = sessionTone(point, null);
+        var x = xAt(index);
+        svg.appendChild(svgEl("line", {
+          x1: x, x2: x, y1: yAt(point.h), y2: yAt(point.l),
+          stroke: color, "stroke-width": "1.25"
+        }));
+        var open = Number(point.o);
+        var close = Number(point.c);
+        var bodyTop = yAt(Math.max(open, close));
+        var bodyHeight = Math.max(1, Math.abs(yAt(open) - yAt(close)));
+        svg.appendChild(svgEl("rect", {
+          x: x - bodyW / 2,
+          y: bodyTop,
+          width: bodyW,
+          height: bodyHeight,
+          fill: color
+        }));
+      });
+    } else {
+      var commands = points.map(function (point, index) {
+        return (index ? "L" : "M") + xAt(index).toFixed(2) + " " + yAt(point.c).toFixed(2);
+      }).join(" ");
+      svg.appendChild(svgEl("path", {
+        d: commands,
+        fill: "none",
+        stroke: "var(--bs-primary)",
+        "stroke-width": "2.25",
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round"
+      }));
+      if (points.length <= 40) {
+        points.forEach(function (point, index) {
+          svg.appendChild(svgEl("circle", {
+            cx: xAt(index),
+            cy: yAt(point.c),
+            r: Math.max(3, tick * 0.28),
+            fill: "var(--bs-primary)",
+            stroke: "var(--bs-body-bg)",
+            "stroke-width": "1.4"
+          }));
+        });
+      }
+    }
+
+    var step = points.length <= 12 ? 1 : Math.max(1, Math.floor(points.length / 8));
+    var dateY = plotBottom + tick + 8;
+    for (var index = 0; index < points.length; index += step) {
+      var date = svgEl("text", {
+        x: xAt(index),
+        y: dateY,
+        fill: "var(--bs-body-color)",
+        "font-size": tick + "px",
+        "font-weight": String(weight),
+        "text-anchor": points.length > 12 ? "end" : "middle"
+      });
+      date.textContent = points[index].label;
+      if (points.length > 12) {
+        date.setAttribute("transform", "rotate(-30 " + xAt(index) + " " + dateY + ")");
+      }
+      svg.appendChild(date);
+    }
+
+    var amounts = points.map(function (point) { return Number(point.v) || 0; });
+    var peak = Math.max.apply(null, amounts);
+    var volumeTop = height - 8 - volumeH;
+    var volumeBottom = height - 8;
+    svg.appendChild(svgEl("line", {
+      x1: left, y1: volumeBottom, x2: right, y2: volumeBottom,
+      stroke: "var(--bs-border-color)", "stroke-width": "1"
+    }));
+    if (peak > 0) {
+      var unit = data.draw === "candle" ? 0.6 : 0.72;
+      var barW = Math.max(1, unit / view * plotW);
+      var previous = null;
+      points.forEach(function (point, i) {
+        var amount = amounts[i];
+        var barH = amount / peak * (volumeH - 4);
+        svg.appendChild(svgEl("rect", {
+          x: xAt(i) - barW / 2,
+          y: volumeBottom - barH,
+          width: barW,
+          height: Math.max(0, barH),
+          fill: sessionTone(point, previous)
+        }));
+        previous = Number(point.c);
+      });
+    }
+
+    points.forEach(function (point, index) {
+      var start = index === 0 ? left : (xAt(index - 1) + xAt(index)) / 2;
+      var end = index + 1 === points.length ? right : (xAt(index) + xAt(index + 1)) / 2;
+      var zone = svgEl("rect", {
+        x: start,
+        y: top,
+        width: Math.max(1, end - start),
+        height: volumeBottom - top,
+        fill: "none",
+        "pointer-events": "all"
+      });
+      zone._lines = point.lines || [];
+      zone.addEventListener("pointermove", function (event) {
+        showNote(zone, event);
+      });
+      svg.appendChild(zone);
+    });
+  }
+
+  function seriesUrl() {
+    var url = new URL(frameEl.dataset.series, location.origin);
+    url.searchParams.set("asset", select.value);
+    url.searchParams.set("periodo", chosen("periodo"));
+    url.searchParams.set("grafico", chosen("grafico"));
+    return url.pathname + url.search;
+  }
+
+  function paintVector(box) {
+    var key = seriesUrl();
+    if (key === seriesKey && seriesData) {
+      drawSvg(seriesData, box);
+      return;
+    }
+    seriesKey = key;
+    var token = ++seriesToken;
+    fetch(key, { headers: { Accept: "application/json" } })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("serie");
+        }
+        return response.json();
+      })
+      .then(function (data) {
+        if (token !== seriesToken) {
+          return;
+        }
+        seriesData = data;
+        drawSvg(data, frame());
+      })
+      .catch(function () {
+        if (token !== seriesToken) {
+          return;
+        }
+        drawSvg({ title: "Storico non disponibile.", points: [] }, frame());
+      });
+  }
+
   function paint() {
     var box = frame();
     if (box.w < 200) {
       return;
     }
-    var next = chartUrl(box);
-    if (next !== drawn) {
-      drawn = next;
-      img.src = next;
+    if (vectorMode) {
+      paintVector(box);
+    } else {
+      var next = chartUrl(box);
+      if (next !== drawn) {
+        drawn = next;
+        img.src = next;
+      }
+      img.alt = "Andamento e volumi di " + select.value;
+      paintHits();
     }
-    img.alt = "Andamento e volumi di " + select.value;
     remember("storico");
     loadStats();
-    paintHits();
   }
 
   select.addEventListener("change", paint);
@@ -513,4 +907,47 @@
   if (img.closest(".tab-pane.active") || img.offsetParent !== null) {
     paint();
   }
+})();
+
+(function () {
+  var modal = document.getElementById("preferenze");
+  var form = modal ? modal.querySelector("form") : null;
+  var wait = document.getElementById("pref-wait");
+  if (!modal || !form) {
+    return;
+  }
+  var sending = false;
+
+  function showWait() {
+    if (!wait) {
+      return;
+    }
+    wait.classList.remove("d-none");
+    wait.classList.add("d-flex");
+  }
+
+  form.addEventListener("submit", function (event) {
+    if (sending) {
+      event.preventDefault();
+      return;
+    }
+    event.preventDefault();
+    sending = true;
+    var button = form.querySelector("[type=submit]");
+    if (button) {
+      button.disabled = true;
+    }
+    var gone = false;
+    function leave() {
+      if (gone) {
+        return;
+      }
+      gone = true;
+      showWait();
+      form.submit();
+    }
+    modal.addEventListener("hidden.bs.modal", leave, { once: true });
+    window.setTimeout(leave, 400);
+    bootstrap.Modal.getOrCreateInstance(modal).hide();
+  });
 })();

@@ -15,7 +15,7 @@ if SITE not in sys.path:
     sys.path.insert(0, SITE)
 
 from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_session
-from bot_charts import history_hits, history_png, treemap_layout, treemap_png
+from bot_charts import history_hits, history_model, history_png, treemap_layout, treemap_png
 from bot_market import constituents, security_names
 from bot_config import (
     FLASK_SECRET_PATH,
@@ -26,7 +26,10 @@ from bot_config import (
     get_logger,
 )
 from bot_db import (
+    FONT_CHOICES,
     PREF_LABELS,
+    WEIGHT_CHOICES,
+    WEIGHT_IDS,
     accepted_volume_class,
     build_blocks,
     class_symbols,
@@ -41,6 +44,7 @@ from bot_db import (
     load_asset_history,
     load_bars_since,
     load_preferences,
+    resolved_theme,
     normalize_ticker,
     position_rows,
     recent_transactions,
@@ -367,6 +371,9 @@ def home():
     return render_template(
         "index.html",
         prefs=prefs,
+        theme=resolved_theme(prefs["ui_theme"]),
+        fonts=FONT_CHOICES,
+        weights=WEIGHT_CHOICES,
         labels=PREF_LABELS,
         asset=asset,
         blocks=blocks,
@@ -419,7 +426,9 @@ def volume_caption(prefs, shown):
 def _volume_board(conn, prefs):
     prefs = dict(prefs)
     prefs["volume_class"] = accepted_volume_class(conn, prefs.get("volume_class"))
-    window_days = max(prefs["history_days"], prefs["return_days"] * 3, 40)
+    # I giorni dello storico non c'entrano: bastano le sedute della classifica.
+    # Tre giorni di calendario per seduta coprono i fine settimana.
+    window_days = max(prefs["return_days"] * 3, 40)
     allowed = class_symbols(conn, prefs["volume_class"])
     blocks = build_blocks(load_bars_since(conn, window_days), prefs, allowed)
     tiles = treemap_layout(blocks, security_names())
@@ -494,7 +503,23 @@ def chart_history():
     asset, series, chart_type = _history_query()
     width = _chart_px("w", 1280, 480, 4096)
     height = _chart_px("h", 720, 280, 2160)
-    return _png(history_png(series, asset, chart_type, width, height))
+    scale = _chart_px("scala", 100, 80, 120)
+    scale = int(round(scale / 5) * 5)
+    theme = request.args.get("tema")
+    if theme not in ("light", "dark"):
+        theme = "light"
+    weight = request.args.get("peso")
+    if weight not in WEIGHT_IDS:
+        weight = "400"
+    return _png(history_png(series, asset, chart_type, width, height, scale, theme, weight))
+
+
+@app.route("/chart/serie.json")
+def chart_series():
+    asset, series, chart_type = _history_query()
+    response = jsonify(history_model(series, asset, chart_type))
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/chart/sedute.json")

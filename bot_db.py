@@ -12,11 +12,38 @@ from bot_logic import money, open_lots, quote_sell
 
 log = get_logger()
 
+FONT_CHOICES = (
+    {"id": "system", "label": "Sistema", "family": ""},
+    {"id": "source-sans", "label": "Source Sans 3", "family": "Source Sans 3"},
+    {"id": "ibm-plex", "label": "IBM Plex Sans", "family": "IBM Plex Sans"},
+    {"id": "outfit", "label": "Outfit", "family": "Outfit"},
+    {"id": "literata", "label": "Literata", "family": "Literata"},
+)
+FONT_IDS = {item["id"] for item in FONT_CHOICES}
+WEIGHT_CHOICES = (
+    {"id": "200", "label": "Sottile"},
+    {"id": "300", "label": "Leggero"},
+    {"id": "400", "label": "Normale"},
+    {"id": "500", "label": "Medio"},
+    {"id": "600", "label": "Semigrassetto"},
+    {"id": "700", "label": "Grassetto"},
+)
+WEIGHT_IDS = {item["id"] for item in WEIGHT_CHOICES}
+THEME_IDS = ("light", "dark", "auto")
+# Automatico: chiaro di giorno e scuro di sera, sull'ora locale.
+DAY_START = 7
+DAY_END = 19
+
 DEFAULTS = {
     "profit_threshold": "0.05",
     "max_investment": "1000",
     "universe_size": "100",
     "chart_type": "line",
+    "chart_render": "image",
+    "font_family": "system",
+    "ui_scale": "100",
+    "ui_weight": "400",
+    "ui_theme": "light",
     "fee_rate": "0.001",
     "tax_rate": "0.26",
     "stable_band": "0.005",
@@ -33,6 +60,11 @@ PREF_LABELS = {
     "max_investment": "Investimento massimo per acquisto",
     "universe_size": "Quanti titoli mostrare (da 10 a 500, a passi di 10)",
     "chart_type": "Grafico storico",
+    "chart_render": "Disegno dello storico",
+    "font_family": "Carattere",
+    "ui_scale": "Dimensione e interlinea (%)",
+    "ui_weight": "Peso",
+    "ui_theme": "Tema",
     "fee_rate": "Commissione (0.001 = 0,1%)",
     "tax_rate": "Imposta sul guadagno (0.26 = 26%)",
     "stable_band": "Banda di stabilità (0.005 = ±0,5%)",
@@ -42,6 +74,20 @@ PREF_LABELS = {
     "max_price_age_hours": "Età massima del prezzo per vendere (ore)",
     "notice_seconds": "Secondi del messaggio",
 }
+
+
+def ambient_theme(moment=None):
+    """Chiaro dalle 7 alle 19, scuro nel resto, sull'ora del momento."""
+    moment = moment or datetime.now()
+    return "light" if DAY_START <= moment.hour < DAY_END else "dark"
+
+
+def resolved_theme(choice, moment=None):
+    if choice == "auto":
+        return ambient_theme(moment)
+    if choice == "dark":
+        return "dark"
+    return "light"
 
 
 def connect():
@@ -181,6 +227,11 @@ def interpret(raw):
         "universe_size": _step_between(raw.get("universe_size"), 10, 500, 10, 100),
         "volume_class": (raw.get("volume_class") or "").strip(),
         "chart_type": raw.get("chart_type") if raw.get("chart_type") in ("line", "candle") else "line",
+        "chart_render": raw.get("chart_render") if raw.get("chart_render") in ("image", "vector") else "image",
+        "font_family": raw.get("font_family") if raw.get("font_family") in FONT_IDS else "system",
+        "ui_scale": str(_step_between(raw.get("ui_scale"), 80, 120, 5, 100)),
+        "ui_weight": raw.get("ui_weight") if raw.get("ui_weight") in WEIGHT_IDS else "400",
+        "ui_theme": raw.get("ui_theme") if raw.get("ui_theme") in THEME_IDS else "light",
         "fee_rate": _decimal(raw.get("fee_rate"), "0.001"),
         "tax_rate": _decimal(raw.get("tax_rate"), "0.26"),
         "stable_band": _decimal(raw.get("stable_band"), "0.005"),
@@ -210,6 +261,14 @@ def validate_preferences(form):
         return None, "Uno dei valori numerici non è leggibile."
     focus = normalize_ticker(form.get("focus_asset", ""))
     chart = form.get("chart_type")
+    render = form.get("chart_render")
+    font = form.get("font_family")
+    weight = form.get("ui_weight")
+    theme = form.get("ui_theme")
+    try:
+        scale = int(form.get("ui_scale", ""))
+    except (TypeError, ValueError):
+        return None, "La dimensione del carattere non è leggibile."
     if not (Decimal("0") <= profit <= Decimal("5")):
         return None, "La soglia di profitto deve stare tra 0 e 5."
     if investment <= 0:
@@ -224,6 +283,16 @@ def validate_preferences(form):
         return None, "I titoli nel grafico del volume vanno da 10 a 500, a passi di 10."
     if chart not in ("line", "candle"):
         return None, "Il grafico storico può essere lineare o a candele."
+    if render not in ("image", "vector"):
+        return None, "Il disegno dello storico può essere un'immagine o un vettore."
+    if font not in FONT_IDS:
+        return None, "Il carattere non è tra quelli disponibili."
+    if not 80 <= scale <= 120 or scale % 5 != 0:
+        return None, "Dimensione e interlinea vanno da 80 a 120, a passi di 5."
+    if weight not in WEIGHT_IDS:
+        return None, "Il peso non è tra quelli disponibili."
+    if theme not in THEME_IDS:
+        return None, "Il tema può essere chiaro, scuro o automatico."
     if not focus:
         return None, "Il titolo del grafico non è valido."
     if not (30 <= history_days <= 1825 and 1 <= return_days <= 120 and 1 <= age <= 720):
@@ -235,6 +304,11 @@ def validate_preferences(form):
         "max_investment": format(investment.normalize(), "f"),
         "universe_size": str(universe),
         "chart_type": chart,
+        "chart_render": render,
+        "font_family": font,
+        "ui_scale": str(scale),
+        "ui_weight": weight,
+        "ui_theme": theme,
         "fee_rate": format(fee.normalize(), "f"),
         "tax_rate": format(tax.normalize(), "f"),
         "stable_band": format(band.normalize(), "f"),
@@ -328,7 +402,7 @@ def load_bars_since(conn, days):
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """
-        SELECT asset_name, timestamp, price, open_price, high_price, low_price, volume
+        SELECT asset_name, timestamp, price, volume
         FROM market_history
         WHERE asset_name <> 'test'
           AND timestamp >= (NOW() - INTERVAL %s DAY)
