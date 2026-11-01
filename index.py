@@ -1,4 +1,4 @@
-"""Pagina del trading bot: blocchi di volume, storico e vendite sulla soglia."""
+"""Trading bot page: volume blocks, history, and sales at the threshold."""
 
 import os
 import subprocess
@@ -99,7 +99,7 @@ def _load_secret():
         FLASK_SECRET_PATH.write_text(secret, encoding="utf-8")
         os.chmod(FLASK_SECRET_PATH, 0o600)
     except OSError:
-        log.warning("segreto di sessione non salvato")
+        log.warning("session secret not saved")
     return secret
 
 
@@ -221,7 +221,7 @@ def prepare():
         ensure_schema(conn)
         seed_preferences(conn)
         linked = save_classifications(conn, ((symbol, sector, sub) for symbol, _name, sector, sub in constituents()))
-        log.info("classificazioni aggiornate: %s titoli", linked)
+        log.info("classifications updated: %s names", linked)
     finally:
         conn.close()
     _ready = True
@@ -277,7 +277,7 @@ def period_label(key):
 
 
 def history_stats(series):
-    """Numeri della stessa finestra disegnata nel grafico."""
+    """Numbers for the same window drawn on the chart."""
     empty = {"change": "—", "last": "—", "low": "—", "high": "—", "sessions": "0", "tone": "flat"}
     if not series:
         return empty
@@ -320,7 +320,7 @@ def _span(value):
 
 
 def _page_status(status, running, now):
-    """Il processo compare un attimo dopo il clic: in quel momento è partito, non morto."""
+    """The process appears a moment after the click: at that moment it has started, not died."""
     if status.get("state") != "running" or running:
         return status, running, False
     updated = status.get("updated") or ""
@@ -338,7 +338,7 @@ def _page_status(status, running, now):
 
 
 def _sync_notice(status, running, now):
-    """Il messaggio del ciclo compare all'avvio e alla fine, non a ogni apertura della pagina."""
+    """The cycle message appears when it starts and when it finishes, not on every page open."""
     stamp = status.get("updated") or ""
     seen = session.get("sync_seen") or ""
     watching = session.get("sync_watch") or ""
@@ -461,8 +461,8 @@ def volume_caption(prefs, shown):
 def _volume_board(conn, prefs):
     prefs = dict(prefs)
     prefs["volume_class"] = accepted_volume_class(conn, prefs.get("volume_class"))
-    # I giorni dello storico non c'entrano: bastano le sedute della classifica.
-    # Tre giorni di calendario per seduta coprono i fine settimana.
+    # History length is not part of this: the ranking sessions are enough.
+    # Three calendar days per session cover weekends.
     window_days = max(prefs["return_days"] * 3, 40)
     allowed = class_symbols(conn, prefs["volume_class"])
     blocks = build_blocks(load_bars_since(conn, window_days), prefs, allowed)
@@ -575,7 +575,7 @@ def save_prefs():
         save_preferences(conn, values)
     finally:
         conn.close()
-    log.info("preferenze aggiornate")
+    log.info("preferences updated")
     return redirect(url_for("home", ok=tr("prefs.saved"), asset=values["focus_asset"]))
 
 
@@ -653,7 +653,7 @@ def refresh():
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
-    log.info("ciclo avviato")
+    log.info("cycle started")
     return redirect(url_for("home"))
 
 
@@ -661,7 +661,7 @@ def refresh():
 def on_error(exc):
     if isinstance(exc, HTTPException):
         return exc
-    log.exception("errore pagina")
+    log.exception("page error")
     return Response(tr("error.internal"), 500)
 
 

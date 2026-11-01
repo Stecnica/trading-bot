@@ -1,4 +1,4 @@
-"""Sedute giornaliere da Massive, una chiamata per tutto il mercato USA."""
+"""Daily sessions from Massive, one call for the whole US market."""
 
 import time
 from datetime import date, datetime, timedelta
@@ -24,7 +24,7 @@ CLOSED_PATH = PRIVATE / "massive_closed_dates.txt"
 
 
 def update_from_massive(conn, on_progress, max_dates=None):
-    """Completa le sedute già chiuse. Il piano gratuito non pubblica il giorno in corso."""
+    """Fill sessions that are already closed. The free plan does not publish the current day."""
     secret = _api_key()
     wanted = set(candidate_symbols(500))
     end = last_completed_session()
@@ -44,10 +44,10 @@ def update_from_massive(conn, on_progress, max_dates=None):
             aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
         except (AuthError, BadResponse, OSError) as exc:
             kind = _kind(exc, secret)
-            log.warning("massive seduta %s rifiutata: %s", day.isoformat(), _quiet(exc, secret))
+            log.warning("massive session %s rejected: %s", day.isoformat(), _quiet(exc, secret))
             if kind == "plan" and day < end:
                 _remember(CLOSED_PATH, day)
-                log.info("massive seduta %s fuori dal piano, segnata chiusa", day.isoformat())
+                log.info("massive session %s outside the plan, marked closed", day.isoformat())
                 on_progress(f"prices.plan|{day.isoformat()}")
                 continue
             if kind == "auth":
@@ -59,30 +59,30 @@ def update_from_massive(conn, on_progress, max_dates=None):
         if not rows:
             if day < end:
                 _remember(CLOSED_PATH, day)
-                log.info("massive seduta %s senza barre, segnata chiusa", day.isoformat())
+                log.info("massive session %s has no bars, marked closed", day.isoformat())
                 on_progress(f"prices.empty|{day.isoformat()}")
             else:
                 on_progress(f"prices.unpublished|{day.isoformat()}")
             continue
         if len(rows) < ENOUGH:
-            log.warning("massive seduta %s solo %s simboli dell'elenco", day.isoformat(), len(rows))
+            log.warning("massive session %s returned only %s symbols from the list", day.isoformat(), len(rows))
             return stored, f"prices.partial|{day.isoformat()}|{len(rows)}"
         stored += upsert_bars(conn, rows)
         _remember(SESSIONS_PATH, day)
         missing = sorted(wanted - {row["asset_name"] for row in rows})
         log.info(
-            "massive seduta %s trovati %s, mancano %s%s",
+            "massive session %s found %s, missing %s%s",
             day.isoformat(),
             len(rows),
             len(missing),
             ": " + ",".join(missing[:20]) if missing else "",
         )
-    log.info("barre scritte o aggiornate: %s", stored)
+    log.info("bars written or updated: %s", stored)
     return stored, None
 
 
 def reread_stored_sessions(conn, on_progress):
-    """Rilegge le sedute già in archivio e compila i campi della risposta prima scartati."""
+    """Reread sessions already in the archive and fill the response fields that were discarded."""
     secret = _api_key()
     wanted = set(candidate_symbols(500))
     end = last_completed_session()
@@ -101,7 +101,7 @@ def reread_stored_sessions(conn, on_progress):
             aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
         except (AuthError, BadResponse, OSError) as exc:
             kind = _kind(exc, secret)
-            log.warning("massive rilettura %s rifiutata: %s", day.isoformat(), _quiet(exc, secret))
+            log.warning("massive reread %s rejected: %s", day.isoformat(), _quiet(exc, secret))
             if kind == "plan":
                 _remember(CLOSED_PATH, day)
                 on_progress(f"prices.plan|{day.isoformat()}")
@@ -113,13 +113,13 @@ def reread_stored_sessions(conn, on_progress):
             return stored, "prices.incomplete"
         rows = _rows(aggs, wanted, day)
         if len(rows) < ENOUGH:
-            log.warning("massive rilettura %s solo %s simboli dell'elenco", day.isoformat(), len(rows))
+            log.warning("massive reread %s returned only %s symbols from the list", day.isoformat(), len(rows))
             return stored, (
                 f"prices.partial|{day.isoformat()}|{len(rows)}"
             )
         stored += upsert_bars(conn, rows)
-        log.info("massive rilettura %s aggiornati %s", day.isoformat(), len(rows))
-    log.info("rilettura conclusa, barre %s", stored)
+        log.info("massive reread %s updated %s", day.isoformat(), len(rows))
+    log.info("reread finished, bars %s", stored)
     return stored, None
 
 
@@ -146,7 +146,7 @@ def _unfilled(conn, end):
 
 
 def last_completed_session(now=None):
-    """Ultimo giorno feriale di New York di cui la chiusura è già passata."""
+    """Last New York weekday whose close has already passed."""
     moment = now or datetime.now(NEW_YORK)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=NEW_YORK)
@@ -267,7 +267,7 @@ def _flag(value):
 def _api_key():
     path = PRIVATE / "massive_api.env"
     if not path.exists():
-        raise RuntimeError("Manca il file delle chiavi Massive.")
+        raise RuntimeError("The Massive key file is missing.")
     found = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         text = line.strip()
@@ -280,7 +280,7 @@ def _api_key():
             found[key.strip()] = value.strip().strip('"').strip("'")
     secret = found.get("MASSIVE_API_KEY") or ""
     if not secret:
-        raise RuntimeError("Nel file delle chiavi manca MASSIVE_API_KEY.")
+        raise RuntimeError("MASSIVE_API_KEY is missing from the key file.")
     return secret
 
 

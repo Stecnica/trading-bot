@@ -1,4 +1,4 @@
-"""Elenco titoli e scarico prezzi da Yahoo Finance."""
+"""Constituent list and price download from Yahoo Finance."""
 
 import html
 import re
@@ -16,7 +16,7 @@ from bot_logic import money
 
 log = get_logger()
 
-# Listino di riserva se l'elenco S&P 500 non è raggiungibile. Titoli liquidi, simbolo Yahoo.
+# Fallback list when the S&P 500 list cannot be reached. Liquid names, Yahoo symbols.
 FALLBACK = (
     "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "GOOG", "META", "BRK-B", "LLY", "AVGO",
     "JPM", "TSLA", "UNH", "V", "XOM", "MA", "JNJ", "COST", "HD", "PG",
@@ -104,7 +104,7 @@ def _read_cache():
 
 
 def constituents():
-    """Simbolo, società, settore GICS e sotto-industria. La cache dura una settimana."""
+    """Symbol, company, GICS sector, and sub-industry. The cache lasts one week."""
     cached = _read_constituents()
     if _caches_fresh() and len(cached) >= 100:
         return cached
@@ -116,7 +116,7 @@ def constituents():
 
 
 def security_names():
-    """Simbolo → nome della società. La cache dura una settimana, come l'elenco."""
+    """Symbol to company name. The cache lasts one week, like the list."""
     names = {symbol: name for symbol, name, _sector, _sub in constituents() if name}
     if len(names) >= 100:
         return names
@@ -187,7 +187,7 @@ def _fetch_constituents():
         with urllib.request.urlopen(request, timeout=25) as response:
             page = response.read().decode("utf-8", "replace")
     except OSError as exc:
-        log.warning("elenco S&P 500 non scaricato: %s", exc)
+        log.warning("S&P 500 list not downloaded: %s", exc)
         return []
     start = page.find('id="constituents"')
     end = page.find("<h2", start + 1) if start != -1 else -1
@@ -202,7 +202,7 @@ def _fetch_constituents():
         sector = _plain_cell(cells[2]) if len(cells) > 2 else ""
         sub = _plain_cell(cells[3]) if len(cells) > 3 else ""
         rows.append((symbol, name, sector, sub))
-    log.info("elenco S&P 500: %s simboli", len(rows))
+    log.info("S&P 500 list: %s symbols", len(rows))
     return rows
 
 
@@ -222,7 +222,7 @@ def _symbol_from_cell(cell):
 
 
 def session_current(latest, now):
-    """La seduta giornaliera di venerdì resta valida per tutto il fine settimana."""
+    """Friday's daily session stays valid through the weekend."""
     if latest is None:
         return False
     day = now.date()
@@ -233,7 +233,7 @@ def session_current(latest, now):
 
 
 def symbols_due(conn, symbols, now=None):
-    """Titoli senza storico abbastanza lungo, o senza la seduta ancora valida."""
+    """Names without a long enough history, or without a session that is still valid."""
     now = now or datetime.now()
     coverage = history_coverage(conn, symbols)
     due = []
@@ -262,43 +262,40 @@ def update_quotes(conn, symbols, on_progress, force_recent=()):
             recent.append(symbol)
         else:
             full.append(symbol)
-    log.info("da scaricare: ultime sedute %s, storico 6 mesi %s", len(recent), len(full))
-    batches = [("ultime sedute", recent, "5d"), ("storico 6 mesi", full, "6mo")]
+    log.info("to download: recent sessions %s, six-month history %s", len(recent), len(full))
+    batches = [("quotes.fetch_recent", recent, "5d"), ("quotes.fetch_full", full, "6mo")]
     planned = sum((len(group) + 9) // 10 for _label, group, _period in batches if group)
     done = 0
     stored = 0
     failed = []
     waited = False
     if planned == 0:
-        on_progress("Prezzi già aggiornati.")
+        on_progress("prices.current")
         return 0, None
     for label, group, period in batches:
         for offset in range(0, len(group), 10):
             batch = group[offset : offset + 10]
             done += 1
-            on_progress(f"Scarico {label}, blocco {done}/{planned} ({len(batch)} titoli)")
+            on_progress(f"{label}|{done}|{planned}|{len(batch)}")
             rows = _download_batch(batch, period)
             if not rows and not waited:
-                on_progress("Yahoo ha chiuso la chiamata senza barre. Attendo 45 secondi e riprovo una volta.")
-                log.warning("blocco vuoto, attendo: %s", ",".join(batch))
+                on_progress("quotes.retry")
+                log.warning("empty batch, waiting: %s", ",".join(batch))
                 time.sleep(45)
                 waited = True
                 rows = _download_batch(batch, period)
             if not rows:
                 failed.extend(batch)
-                log.warning("blocco saltato: %s", ",".join(batch))
-                on_progress(f"Blocco {done} saltato. Continuo con gli altri.")
+                log.warning("batch skipped: %s", ",".join(batch))
+                on_progress(f"quotes.skip|{done}")
                 continue
             stored += upsert_bars(conn, rows)
             time.sleep(3)
     if failed:
-        message = (
-            f"Questo giro non ha aggiornato {len(failed)} titoli: barre nuove {stored}. "
-            "Lo storico già in archivio resta. Il prossimo giro riprova solo quelli rimasti indietro."
-        )
-        log.warning(message)
+        message = f"quotes.partial|{len(failed)}|{stored}"
+        log.warning("run left %s names behind, new bars %s", len(failed), stored)
         return stored, message
-    log.info("barre scritte o aggiornate: %s", stored)
+    log.info("bars written or updated: %s", stored)
     return stored, None
 
 
@@ -317,14 +314,14 @@ def _download_batch(batch, period):
             timeout=45,
         )
     except Exception:
-        log.exception("blocco non scaricato: %s", ",".join(batch))
+        log.exception("batch not downloaded: %s", ",".join(batch))
         return []
     elapsed = time.perf_counter() - started
     kept = bars_from_download(frame, batch)
     filled = _tickers_with_close(frame, batch)
     shape = None if frame is None else tuple(frame.shape)
     log.info(
-        "blocco %s %s in %.1fs forma=%s con_prezzo=%s barre=%s errori=%s",
+        "batch %s %s in %.1fs shape=%s with_price=%s bars=%s errors=%s",
         period,
         ",".join(batch),
         elapsed,

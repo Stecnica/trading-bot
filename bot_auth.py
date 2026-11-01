@@ -1,4 +1,4 @@
-"""Login a sessione: password cifrata, blocco tentativi. Esce solo con Esci."""
+"""Session login: hashed password, attempt lock. Sign-out is only the exit action."""
 
 import fcntl
 import hashlib
@@ -22,7 +22,7 @@ SCRYPT_P = 1
 
 
 def ensure_password_hash():
-    """Se il file contiene ancora la password in chiaro, la sostituisce con l'hash."""
+    """If the file still holds the password in clear text, replace it with the hash."""
     try:
         current = UI_PASSWORD_PATH.read_text(encoding="utf-8").strip()
     except OSError:
@@ -35,26 +35,26 @@ def ensure_password_hash():
     os.chmod(temporary, 0o600)
     os.replace(temporary, UI_PASSWORD_PATH)
     os.chmod(UI_PASSWORD_PATH, 0o600)
-    log.info("password di accesso cifrata e tolta dal file in chiaro")
+    log.info("sign-in password hashed and removed from the clear-text file")
     return True
 
 
 def authenticate(username, password, ip):
-    """Ritorna (ok, messaggio). Il messaggio è vuoto se l'accesso è riuscito."""
+    """Returns (ok, message). The message is empty when sign-in succeeded."""
     if not ensure_password_hash():
         return False, tr("auth.unconfigured")
     locked, wait = _locked(ip)
     if locked:
         minutes = max(1, int((wait + 59) // 60))
-        log.info("login bloccato da %s per %s minuti", ip, minutes)
+        log.info("login locked from %s for %s minutes", ip, minutes)
         return False, tr("auth.lockout", minutes=minutes)
     ok = _password_matches(username, password)
     if not ok:
         fails = _register_failure(ip)
-        log.info("login fallito da %s, tentativo %s", ip, fails)
+        log.info("login failed from %s, attempt %s", ip, fails)
         return False, tr("auth.bad")
     _clear_failures(ip)
-    log.info("login riuscito da %s", ip)
+    log.info("login succeeded from %s", ip)
     return True, ""
 
 

@@ -1,4 +1,4 @@
-"""Percorsi e accesso al database. Le credenziali restano nelle variabili d'ambiente."""
+"""Paths and database access. Credentials stay in the environment."""
 
 import logging
 import os
