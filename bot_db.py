@@ -8,6 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP
 import mysql.connector
 
 from bot_config import LOCK_PATH, STATUS_PATH, db_config, get_logger
+from bot_i18n import tr
 from bot_logic import money, open_lots, quote_sell
 
 log = get_logger()
@@ -99,6 +100,56 @@ def connect():
 
 def ensure_schema(conn):
     cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS market_history (
+            id INT NOT NULL AUTO_INCREMENT,
+            asset_name VARCHAR(255) NOT NULL,
+            timestamp DATETIME NOT NULL,
+            price DECIMAL(18,8) NOT NULL,
+            open_price DECIMAL(18,8) NULL,
+            high_price DECIMAL(18,8) NULL,
+            low_price DECIMAL(18,8) NULL,
+            volume DECIMAL(20,4) NULL,
+            vwap DECIMAL(18,8) NULL,
+            trade_count INT NULL,
+            bar_ms BIGINT NULL,
+            otc TINYINT(1) NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_asset_ts (asset_name, timestamp),
+            KEY idx_history_timestamp (timestamp)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS preferences (
+            id INT NOT NULL AUTO_INCREMENT,
+            name VARCHAR(255) NOT NULL,
+            value VARCHAR(255) NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_pref_name (name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INT NOT NULL AUTO_INCREMENT,
+            type VARCHAR(10) NOT NULL,
+            asset_name VARCHAR(255) NOT NULL,
+            amount DECIMAL(18,8) NOT NULL,
+            price DECIMAL(18,8) NOT NULL,
+            timestamp DATETIME NOT NULL,
+            fees DECIMAL(18,8) NOT NULL,
+            taxes DECIMAL(18,8) NOT NULL,
+            PRIMARY KEY (id),
+            KEY idx_tx_timestamp (timestamp),
+            KEY idx_tx_type (type),
+            KEY idx_tx_asset (asset_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+    )
     cur.execute("SHOW COLUMNS FROM market_history")
     columns = {row[0] for row in cur.fetchall()}
     additions = []
@@ -258,7 +309,7 @@ def validate_preferences(form):
         notice = int(form["notice_seconds"])
         universe = int(form["universe_size"])
     except (KeyError, ValueError, ArithmeticError):
-        return None, "Uno dei valori numerici non è leggibile."
+        return None, tr("prefs.err.numbers")
     focus = normalize_ticker(form.get("focus_asset", ""))
     chart = form.get("chart_type")
     render = form.get("chart_render")
@@ -268,37 +319,37 @@ def validate_preferences(form):
     try:
         scale = int(form.get("ui_scale", ""))
     except (TypeError, ValueError):
-        return None, "La dimensione del carattere non è leggibile."
+        return None, tr("prefs.err.scale_read")
     if not (Decimal("0") <= profit <= Decimal("5")):
-        return None, "La soglia di profitto deve stare tra 0 e 5."
+        return None, tr("prefs.err.profit")
     if investment <= 0:
-        return None, "L'investimento massimo deve essere maggiore di zero."
+        return None, tr("prefs.err.invest")
     if not (Decimal("0") <= fee <= Decimal("0.1")):
-        return None, "La commissione deve stare tra 0 e 0,1."
+        return None, tr("prefs.err.fee")
     if not (Decimal("0") <= tax <= Decimal("0.5")):
-        return None, "L'imposta deve stare tra 0 e 0,5."
+        return None, tr("prefs.err.tax")
     if not (Decimal("0") <= band <= Decimal("0.2")):
-        return None, "La banda di stabilità deve stare tra 0 e 0,2."
+        return None, tr("prefs.err.band")
     if not 10 <= universe <= 500 or universe % 10 != 0:
-        return None, "I titoli nel grafico del volume vanno da 10 a 500, a passi di 10."
+        return None, tr("prefs.err.names")
     if chart not in ("line", "candle"):
-        return None, "Il grafico storico può essere lineare o a candele."
+        return None, tr("prefs.err.chart")
     if render not in ("image", "vector"):
-        return None, "Il disegno dello storico può essere un'immagine o un vettore."
+        return None, tr("prefs.err.draw")
     if font not in FONT_IDS:
-        return None, "Il carattere non è tra quelli disponibili."
+        return None, tr("prefs.err.font")
     if not 80 <= scale <= 120 or scale % 5 != 0:
-        return None, "Dimensione e interlinea vanno da 80 a 120, a passi di 5."
+        return None, tr("prefs.err.scale")
     if weight not in WEIGHT_IDS:
-        return None, "Il peso non è tra quelli disponibili."
+        return None, tr("prefs.err.weight")
     if theme not in THEME_IDS:
-        return None, "Il tema può essere chiaro, scuro o automatico."
+        return None, tr("prefs.err.theme")
     if not focus:
-        return None, "Il titolo del grafico non è valido."
+        return None, tr("prefs.err.symbol")
     if not (30 <= history_days <= 1825 and 1 <= return_days <= 120 and 1 <= age <= 720):
-        return None, "Giorni di storico, sedute o età del prezzo fuori dai limiti."
+        return None, tr("prefs.err.limits")
     if not 3 <= notice <= 30:
-        return None, "I secondi del messaggio devono stare tra 3 e 30."
+        return None, tr("prefs.err.notice")
     values = {
         "profit_threshold": format(profit.normalize(), "f"),
         "max_investment": format(investment.normalize(), "f"),
@@ -668,13 +719,13 @@ def position_rows(conn, prefs):
             and not stale
         )
         if market is None:
-            outcome = "nessun prezzo"
+            outcome = tr("positions.no_price")
         elif stale:
-            outcome = "prezzo troppo vecchio per vendere"
+            outcome = tr("positions.stale")
         elif ready:
-            outcome = "pronta alla vendita"
+            outcome = tr("positions.ready")
         else:
-            outcome = "sotto la soglia"
+            outcome = tr("positions.below")
         rows.append(
             {
                 "asset": lot.asset,
@@ -736,11 +787,11 @@ def sell_ready_lots(conn, prefs):
 
 def read_status():
     if not STATUS_PATH.exists():
-        return {"state": "idle", "message": "Nessun aggiornamento eseguito.", "updated": ""}
+        return {"state": "idle", "message": "prices.idle", "updated": ""}
     try:
         return json.loads(STATUS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"state": "idle", "message": "Stato non leggibile.", "updated": ""}
+        return {"state": "idle", "message": "prices.unreadable", "updated": ""}
 
 
 def write_status(state, message):

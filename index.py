@@ -25,9 +25,9 @@ from bot_config import (
     WEB,
     get_logger,
 )
+from bot_i18n import activate, current, language_for, languages, locales, negotiate, status_text, tr
 from bot_db import (
     FONT_CHOICES,
-    PREF_LABELS,
     WEIGHT_CHOICES,
     WEIGHT_IDS,
     accepted_volume_class,
@@ -59,6 +59,11 @@ from bot_logic import money
 
 log = get_logger()
 app = Flask(__name__)
+
+
+@app.context_processor
+def _inject_language():
+    return {"t": tr, "lang": current(), "languages": languages(), "language": language_for(current())}
 app.jinja_loader = ChoiceLoader([
     FileSystemLoader(str(WEB / "templates")),
     FileSystemLoader(str(WEB / "icons")),
@@ -120,12 +125,13 @@ def _safe_next(value):
 
 @app.before_request
 def guard():
+    activate(negotiate(request.args.get("lang"), request.cookies.get("lang")))
     ensure_password_hash()
     if request.endpoint == "static":
         return None
     if request.endpoint == "login":
         if request.method == "POST" and not _csrf_ok():
-            abort(400, "Richiesta non valida. Ricarica la pagina.")
+            abort(400, tr("csrf.bad"))
         _ensure_csrf()
         return None
     if not session_alive(session):
@@ -136,7 +142,7 @@ def guard():
         nxt = request.full_path if request.query_string else request.path
         return redirect(url_for("login", next=nxt))
     if request.method == "POST" and not _csrf_ok():
-        abort(400, "Richiesta non valida. Ricarica la pagina.")
+        abort(400, tr("csrf.bad"))
     _ensure_csrf()
     prepare()
 
@@ -153,6 +159,16 @@ def harden(response):
     )
     if response.mimetype == "text/html":
         response.headers["Cache-Control"] = "no-store"
+    chosen = request.args.get("lang")
+    if chosen in locales():
+        response.set_cookie(
+            "lang",
+            chosen,
+            max_age=60 * 60 * 24 * 365,
+            secure=True,
+            httponly=True,
+            samesite="Lax",
+        )
     return response
 
 
@@ -233,16 +249,7 @@ def format_when(value):
     return str(value)
 
 
-PERIODS = (
-    ("1", "1G", "Giorno"),
-    ("7", "1S", "Settimana"),
-    ("30", "1M", "Mese"),
-    ("90", "3M", "Tre mesi"),
-    ("180", "6M", "Sei mesi"),
-    ("ytd", "YTD", "Da inizio anno"),
-    ("365", "1A", "Un anno"),
-    ("730", "2A", "Due anni"),
-)
+PERIOD_KEYS = ("1", "7", "30", "90", "180", "ytd", "365", "730")
 
 
 def history_stats(series):
@@ -301,7 +308,7 @@ def _page_status(status, running, now):
         return status, True, False
     return {
         "state": "error",
-        "message": "L'ultimo aggiornamento non è più in esecuzione. Puoi rilanciarlo.",
+        "message": "prices.dead",
         "updated": updated,
     }, False, True
 
@@ -360,8 +367,10 @@ def home():
     if stale:
         write_status(status["state"], status["message"])
     ok = (request.args.get("ok") or "")[:300]
-    if ok.startswith("Aggiornamento avviato"):
+    if ok == tr("prices.started"):
         ok = ""
+    status = dict(status)
+    status["message"] = status_text(status.get("message"))
     vista = request.args.get("vista")
     if vista not in ("volume", "storico"):
         vista = "volume"
@@ -374,7 +383,6 @@ def home():
         theme=resolved_theme(prefs["ui_theme"]),
         fonts=FONT_CHOICES,
         weights=WEIGHT_CHOICES,
-        labels=PREF_LABELS,
         asset=asset,
         blocks=blocks,
         tiles=tiles,
@@ -391,7 +399,7 @@ def home():
         vista=vista,
         grafico=grafico,
         period=period,
-        periods=PERIODS,
+        period_keys=PERIOD_KEYS,
         stats=stats,
         class_tree=class_tree,
         volume_caption_text=volume_caption_text,
@@ -412,14 +420,17 @@ def chart_blocks():
 def volume_caption(prefs, shown):
     chosen = prefs.get("volume_class") or ""
     if chosen.startswith("s:"):
-        where = "di " + chosen[2:]
+        where = tr("volume.where_named", name=chosen[2:])
     elif chosen.startswith("u:") and "|" in chosen:
-        where = "di " + chosen.split("|", 1)[1]
+        where = tr("volume.where_named", name=chosen.split("|", 1)[1])
     else:
-        where = "in archivio"
-    return (
-        f"Tra i titoli {where}, i {prefs['universe_size']} con il rendimento più alto "
-        f"sulle ultime {prefs['return_days']} sedute. In grafico: {shown}. La dimensione è il volume."
+        where = tr("volume.where_archive")
+    return tr(
+        "volume.caption",
+        where=where,
+        count=prefs["universe_size"],
+        sessions=prefs["return_days"],
+        shown=shown,
     )
 
 
@@ -441,17 +452,17 @@ def volume_view():
         sessions = int(request.form.get("return_days", ""))
         count = int(request.form.get("universe_size", ""))
     except (TypeError, ValueError):
-        return jsonify(error="Valori non leggibili."), 400
+        return jsonify(error=tr("volume.bad_values")), 400
     if not 1 <= sessions <= 120:
-        return jsonify(error="Le sedute vanno da 1 a 120."), 400
+        return jsonify(error=tr("volume.bad_sessions")), 400
     if not 10 <= count <= 500 or count % 10 != 0:
-        return jsonify(error="I titoli vanno da 10 a 500, a passi di 10."), 400
+        return jsonify(error=tr("volume.bad_count")), 400
     conn = connect()
     try:
         raw_group = (request.form.get("volume_class") or "").strip()
         chosen = accepted_volume_class(conn, raw_group)
         if raw_group and not chosen:
-            return jsonify(error="Gruppo sconosciuto."), 400
+            return jsonify(error=tr("volume.bad_group")), 400
         prefs = load_preferences(conn)
         prefs["return_days"] = sessions
         prefs["universe_size"] = count
@@ -541,7 +552,7 @@ def save_prefs():
     finally:
         conn.close()
     log.info("preferenze aggiornate")
-    return redirect(url_for("home", ok="Preferenze salvate.", asset=values["focus_asset"]))
+    return redirect(url_for("home", ok=tr("prefs.saved"), asset=values["focus_asset"]))
 
 
 def _buy_back(**extra):
@@ -553,16 +564,16 @@ def _buy_back(**extra):
 def buy():
     asset = normalize_ticker(request.form.get("asset", ""))
     if not asset:
-        return _buy_back(err="Titolo non valido.")
+        return _buy_back(err=tr("buy.bad_symbol"))
     try:
         amount = _required_money(request.form.get("amount"))
         price = _optional_money(request.form.get("price"))
         fees = _optional_money(request.form.get("fees"))
         taxes = _optional_money(request.form.get("taxes"))
     except ValueError:
-        return _buy_back(err="Quantità, prezzo o costi non leggibili.", asset=asset)
+        return _buy_back(err=tr("buy.bad_numbers"), asset=asset)
     if amount is None or amount <= 0:
-        return _buy_back(err="La quantità deve essere maggiore di zero.", asset=asset)
+        return _buy_back(err=tr("buy.bad_amount"), asset=asset)
     conn = connect()
     try:
         prefs = load_preferences(conn)
@@ -571,11 +582,11 @@ def buy():
             if market:
                 price = money(market["price"])
         if price is None or price <= 0:
-            return _buy_back(err="Manca il prezzo di acquisto.", asset=asset)
+            return _buy_back(err=tr("buy.no_price"), asset=asset)
         notional = amount * price
         if notional > prefs["max_investment"]:
             return _buy_back(
-                err="L'importo supera l'investimento massimo. Alza la preferenza o riduci la quantità.",
+                err=tr("buy.over_max"),
                 asset=asset,
             )
         if fees is None:
@@ -583,11 +594,11 @@ def buy():
         if taxes is None:
             taxes = Decimal("0")
         if taxes < 0 or fees < 0:
-            return _buy_back(err="Commissioni e tasse non possono essere negative.", asset=asset)
+            return _buy_back(err=tr("buy.negative"), asset=asset)
         insert_transaction(conn, "buy", asset, amount, price, fees, taxes)
     finally:
         conn.close()
-    return _buy_back(ok=f"Acquisto di {asset} registrato.", asset=asset)
+    return _buy_back(ok=tr("buy.saved", asset=asset), asset=asset)
 
 
 @app.route("/ciclo", methods=["POST"])
@@ -598,14 +609,14 @@ def cycle_sells():
         sold = sell_ready_lots(conn, prefs)
     finally:
         conn.close()
-    return redirect(url_for("home", ok=f"Controllo vendite concluso. Operazioni registrate: {sold}."))
+    return redirect(url_for("home", ok=tr("sells.done", sold=sold)))
 
 
 @app.route("/aggiorna", methods=["POST"])
 def refresh():
     if cycle_running():
-        return redirect(url_for("home", err="Un aggiornamento è già in corso."))
-    write_status("running", "Aggiornamento avviato.")
+        return redirect(url_for("home", err=tr("prices.busy")))
+    write_status("running", "prices.started")
     env = os.environ.copy()
     env["PYTHONPATH"] = SITE_PACKAGES + os.pathsep + env.get("PYTHONPATH", "")
     env["MPLCONFIGDIR"] = str(MPLCONFIG)
@@ -627,7 +638,7 @@ def on_error(exc):
     if isinstance(exc, HTTPException):
         return exc
     log.exception("errore pagina")
-    return Response("Errore interno. Il dettaglio è nel log del bot.", 500)
+    return Response(tr("error.internal"), 500)
 
 
 def _required_money(value):

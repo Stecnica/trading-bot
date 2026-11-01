@@ -28,7 +28,7 @@ def main():
     LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
     conn = None
     try:
-        write_status("running", "Rileggo le sedute già in archivio.")
+        write_status("running", "reread.running")
         conn = connect()
         ensure_schema(conn)
         log.info("rilettura campi Massive")
@@ -42,12 +42,12 @@ def main():
             write_status("error", warning)
             log.warning("rilettura incompleta, barre %s", stored)
         else:
-            write_status("ok", f"Rilettura conclusa. Barre aggiornate: {stored}.")
+            write_status("ok", f"reread.done|{stored}")
             log.info("rilettura conclusa, barre %s", stored)
         return 0
     except Exception:
         log.exception("rilettura fallita")
-        write_status("error", "Rilettura interrotta. Dettaglio nel log.")
+        write_status("error", "reread.stopped")
         return 1
     finally:
         if conn is not None:

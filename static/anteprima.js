@@ -3,11 +3,18 @@
 	if (!note) {
 		return;
 	}
+	var bag = {};
+	var node = document.getElementById("i18n");
+	try {
+		bag = node ? JSON.parse(node.textContent) : {};
+	} catch (error) {
+		bag = {};
+	}
 	var states = [
-		["message", "Messaggio<br>Testo primary, bordo primary<br>Fondo info più trasparente", "text-primary bg-info border-primary opacity-50"],
-		["success", "Successo<br>Testo, bordo e fondo success<br>Opacità sull'intero blocco", "text-success bg-success-subtle border-success"],
-		["warning", "Avviso<br>Testo danger<br>Bordo e fondo warning", "text-danger bg-warning-subtle border-warning"],
-		["alert", "Allarme<br>Testo, bordo e fondo danger<br>Opacità sull'intero blocco", "text-danger bg-danger-subtle border-danger"]
+		["message", bag["preview.message"] || "", "text-primary bg-info border-primary opacity-50"],
+		["success", bag["preview.success"] || "", "text-success bg-success-subtle border-success"],
+		["warning", bag["preview.warning"] || "", "text-danger bg-warning-subtle border-warning"],
+		["alert", bag["preview.alert"] || "", "text-danger bg-danger-subtle border-danger"]
 	];
 	var index = 0;
 	function show() {

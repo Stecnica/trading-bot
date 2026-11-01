@@ -8,6 +8,7 @@ import os
 import time
 
 from bot_config import PRIVATE, UI_PASSWORD_PATH, get_logger
+from bot_i18n import tr
 
 log = get_logger()
 
@@ -41,17 +42,17 @@ def ensure_password_hash():
 def authenticate(username, password, ip):
     """Ritorna (ok, messaggio). Il messaggio è vuoto se l'accesso è riuscito."""
     if not ensure_password_hash():
-        return False, "Accesso non configurato."
+        return False, tr("auth.unconfigured")
     locked, wait = _locked(ip)
     if locked:
         minutes = max(1, int((wait + 59) // 60))
         log.info("login bloccato da %s per %s minuti", ip, minutes)
-        return False, f"Troppi tentativi. Riprova tra {minutes} minuti."
+        return False, tr("auth.lockout", minutes=minutes)
     ok = _password_matches(username, password)
     if not ok:
         fails = _register_failure(ip)
         log.info("login fallito da %s, tentativo %s", ip, fails)
-        return False, "Credenziali non valide."
+        return False, tr("auth.bad")
     _clear_failures(ip)
     log.info("login riuscito da %s", ip)
     return True, ""

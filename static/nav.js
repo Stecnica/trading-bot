@@ -1,3 +1,22 @@
+function uiText(key, vars) {
+  if (!uiText.bag) {
+    var node = document.getElementById("i18n");
+    try {
+      uiText.bag = node ? JSON.parse(node.textContent) : {};
+    } catch (error) {
+      uiText.bag = {};
+    }
+  }
+  var text = uiText.bag[key] || key;
+  if (!vars) {
+    return text;
+  }
+  Object.keys(vars).forEach(function (name) {
+    text = text.split("{" + name + "}").join(String(vars[name]));
+  });
+  return text;
+}
+
 (function () {
   var root = document.documentElement;
   if (root.getAttribute("data-theme") !== "auto") {
@@ -604,7 +623,7 @@
     svg.setAttribute("font-family", "inherit");
     svg.style.height = height + "px";
     svg.replaceChildren();
-    svg.setAttribute("aria-label", data.title || ("Andamento e volumi di " + select.value));
+    svg.setAttribute("aria-label", data.title || uiText("history.alt", { asset: select.value }));
     var points = data.points || [];
     if (!points.length) {
       var empty = svgEl("text", {
@@ -845,7 +864,7 @@
         if (token !== seriesToken) {
           return;
         }
-        drawSvg({ title: "Storico non disponibile.", points: [] }, frame());
+        drawSvg({ title: uiText("chart.unavailable"), points: [] }, frame());
       });
   }
 
@@ -862,7 +881,7 @@
         drawn = next;
         img.src = next;
       }
-      img.alt = "Andamento e volumi di " + select.value;
+      img.alt = uiText("history.alt", { asset: select.value });
       paintHits();
     }
     remember("storico");
