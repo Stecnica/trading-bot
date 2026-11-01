@@ -1,5 +1,5 @@
 (function () {
-	var note = document.querySelector("[data-anteprima]");
+	var note = document.querySelector("[data-preview]");
 	if (!note) {
 		return;
 	}
@@ -19,7 +19,7 @@
 	var index = 0;
 	function show() {
 		var state = states[index];
-		note.className = "slide-note anteprima border rounded-4 text-center pe-none px-3 py-2 " + state[2];
+		note.className = "slide-note preview border rounded-4 text-center pe-none px-3 py-2 " + state[2];
 		note.innerHTML = state[1];
 		index = (index + 1) % states.length;
 	}

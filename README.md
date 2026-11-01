@@ -31,7 +31,7 @@ Preferences are two groups. Operations: threshold, investment, commission, tax, 
 
 Theme **Automatic** follows the browser’s local time: light from 07:00 to 19:00, dark otherwise. Light and Dark stay fixed. The first paint uses the server clock; the page then follows the browser.
 
-A message slides out under the bar when an update starts and when it finishes. It does not appear on an ordinary page load. While an update is running the page refreshes every 20 seconds. `?anteprima=messaggi` holds the message open and cycles four styles, for checking text, border, fill, and opacity.
+A message slides out under the bar when an update starts and when it finishes. It does not appear on an ordinary page load. While an update is running the page refreshes every 20 seconds. `?preview=messages` holds the message open and cycles four styles, for checking text, border, fill, and opacity.
 
 ## Operators
 
@@ -110,10 +110,10 @@ Requirements: Python 3.10, MariaDB, and the packages imported by the application
 
 1. Create an empty database and a user that can create tables in it.
 2. Apply `deploy/schema.sql`, or start the application once and let `ensure_schema` create the tables.
-3. Copy `deploy/database.env.example` into the process environment. Fill `DB_SERVER`, `DB_USERNAME`, `DB_PASSWORD`, and `DB_NAME`. When both forms are set, `DB_SERVER_web5`, `DB_USERNAME_web5`, `DB_PASSWORD_web5`, and `DB_NAME_web5` win.
+3. Copy `deploy/database.env.example` into the process environment. Fill `DB_SERVER`, `DB_USERNAME`, `DB_PASSWORD`, and `DB_NAME`. A suffixed form of the same name is used first.
 4. Copy `deploy/massive.env.example` to `private/massive_api.env` and set `MASSIVE_API_KEY`.
 5. Put the interface password in `private/ui_password`. The first successful sign-in hashes it.
-6. Point `ROOT`, `PRIVATE`, and `SITE_PACKAGES` in `bot_config.py` at this install. `ROOT` is the directory that contains `web/` and `private/`. The WSGI entry is `app.wsgi`. A generated session secret is written to `private/flask_secret` on first use.
+6. `ROOT` is the parent of the directory that contains the application, and `private/` sits next to `web/`. `SITE_PACKAGES` is the `SITE_PACKAGES` environment variable, or the process user’s own site-packages. The WSGI entry is `app.wsgi`. A generated session secret is written to `private/flask_secret` on first use.
 7. Serve `app.wsgi`. Static files, including Bootstrap and the fonts, are under `static/` and are not loaded from a third party.
 
 Nothing in those example files is a live credential. Do not commit a filled copy. `private/` stays outside the repository.

@@ -6,13 +6,16 @@ import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+from bot_config import install_import_path
+
+install_import_path()
+
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, session, url_for
 from jinja2 import ChoiceLoader, FileSystemLoader
 from werkzeug.exceptions import HTTPException
-
-SITE = "/var/www/clients/client0/web5/home/default_botmanager/.local/lib/python3.10/site-packages"
-if SITE not in sys.path:
-    sys.path.insert(0, SITE)
 
 from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_session
 from bot_charts import history_hits, history_model, history_png, treemap_layout, treemap_png
@@ -372,7 +375,7 @@ def home():
         positions = position_rows(conn, prefs)
         transactions = recent_transactions(conn)
         assets = list_assets(conn)
-        period, days = _span(request.args.get("periodo"))
+        period, days = _span(request.args.get("period"))
         stats = history_stats(load_asset_history(conn, asset, days))
         asset_options = [
             {"symbol": symbol, "label": f"{symbol} — {catalog[symbol]}" if catalog.get(symbol) else symbol}
@@ -392,12 +395,12 @@ def home():
         ok = ""
     status = dict(status)
     status["message"] = status_text(status.get("message"))
-    vista = request.args.get("vista")
-    if vista not in ("volume", "storico"):
-        vista = "volume"
-    grafico = request.args.get("grafico")
-    if grafico not in ("line", "candle"):
-        grafico = prefs["chart_type"]
+    view = request.args.get("view")
+    if view not in ("volume", "history"):
+        view = "volume"
+    chart = request.args.get("chart")
+    if chart not in ("line", "candle"):
+        chart = prefs["chart_type"]
     return render_template(
         "index.html",
         prefs=prefs,
@@ -417,8 +420,8 @@ def home():
         csrf=session.get("csrf", ""),
         ok=ok,
         err=(request.args.get("err") or "")[:300],
-        vista=vista,
-        grafico=grafico,
+        view=view,
+        chart=chart,
         period=period,
         period_keys=PERIOD_KEYS,
         stats=stats,
@@ -427,7 +430,7 @@ def home():
     )
 
 
-@app.route("/chart/massa.png")
+@app.route("/chart/volume.png")
 def chart_blocks():
     conn = connect()
     try:
@@ -502,13 +505,13 @@ def volume_view():
     return jsonify(tiles=tiles, sessions=sessions, count=count, group=chosen, caption=caption)
 
 
-@app.route("/chart/statistiche.json")
+@app.route("/chart/stats.json")
 def chart_stats():
     conn = connect()
     try:
         prefs = load_preferences(conn)
         asset = normalize_ticker(request.args.get("asset", "")) or prefs["focus_asset"]
-        _period, days = _span(request.args.get("periodo"))
+        _period, days = _span(request.args.get("period"))
         stats = history_stats(load_asset_history(conn, asset, days))
     finally:
         conn.close()
@@ -520,9 +523,9 @@ def _history_query():
     try:
         prefs = load_preferences(conn)
         asset = normalize_ticker(request.args.get("asset", "")) or prefs["focus_asset"]
-        _period, days = _span(request.args.get("periodo"))
+        _period, days = _span(request.args.get("period"))
         series = load_asset_history(conn, asset, days)
-        chart_type = request.args.get("grafico")
+        chart_type = request.args.get("chart")
         if chart_type not in ("line", "candle"):
             chart_type = prefs["chart_type"]
     finally:
@@ -530,23 +533,23 @@ def _history_query():
     return asset, series, chart_type
 
 
-@app.route("/chart/storico.png")
+@app.route("/chart/history.png")
 def chart_history():
     asset, series, chart_type = _history_query()
     width = _chart_px("w", 1280, 480, 4096)
     height = _chart_px("h", 720, 280, 2160)
-    scale = _chart_px("scala", 100, 80, 120)
+    scale = _chart_px("scale", 100, 80, 120)
     scale = int(round(scale / 5) * 5)
-    theme = request.args.get("tema")
+    theme = request.args.get("theme")
     if theme not in ("light", "dark"):
         theme = "light"
-    weight = request.args.get("peso")
+    weight = request.args.get("weight")
     if weight not in WEIGHT_IDS:
         weight = "400"
     return _png(history_png(series, asset, chart_type, width, height, scale, theme, weight))
 
 
-@app.route("/chart/serie.json")
+@app.route("/chart/series.json")
 def chart_series():
     asset, series, chart_type = _history_query()
     response = jsonify(history_model(series, asset, chart_type))
@@ -554,7 +557,7 @@ def chart_series():
     return response
 
 
-@app.route("/chart/sedute.json")
+@app.route("/chart/sessions.json")
 def chart_hits():
     _asset, series, chart_type = _history_query()
     response = jsonify(hits=history_hits(series, chart_type))
@@ -577,7 +580,7 @@ def save_prefs():
 
 
 def _buy_back(**extra):
-    extra["pannello"] = "acquisto"
+    extra["panel"] = "buy"
     return redirect(url_for("home", **extra))
 
 
