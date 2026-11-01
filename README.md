@@ -125,5 +125,3 @@ Nothing in those example files is a live credential. Do not commit a filled copy
 ## Licence
 
 [MIT](LICENSE). Copyright (c) 2026 Stefano Monti (Stecnica), <https://www.itecnica.it>.
-
-The application was written with Grok 4.7 (SpaceXAI) in Cursor. The copyright holder is Stefano Monti.
