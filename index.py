@@ -63,7 +63,13 @@ app = Flask(__name__)
 
 @app.context_processor
 def _inject_language():
-    return {"t": tr, "lang": current(), "languages": languages(), "language": language_for(current())}
+    return {
+        "t": tr,
+        "lang": current(),
+        "languages": languages(),
+        "language": language_for(current()),
+        "period_label": period_label,
+    }
 app.jinja_loader = ChoiceLoader([
     FileSystemLoader(str(WEB / "templates")),
     FileSystemLoader(str(WEB / "icons")),
@@ -250,6 +256,21 @@ def format_when(value):
 
 
 PERIOD_KEYS = ("1", "7", "30", "90", "180", "ytd", "365", "730")
+_PERIOD_MARK = {
+    "1": ("1", "day"),
+    "7": ("1", "week"),
+    "30": ("1", "month"),
+    "90": ("3", "month"),
+    "180": ("6", "month"),
+    "ytd": ("", "start"),
+    "365": ("1", "year"),
+    "730": ("2", "year"),
+}
+
+
+def period_label(key):
+    count, part = _PERIOD_MARK[key]
+    return f"{count}{tr('period.abbr.' + part)}"
 
 
 def history_stats(series):

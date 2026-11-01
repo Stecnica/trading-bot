@@ -348,7 +348,7 @@
 						<div class="form-label">{{ t('history.period') }}</div>
 						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('history.period') }}">
 							{% for key in period_keys %}
-							<button class="btn btn-outline-primary{% if period == key %} active{% endif %}" type="button" data-periodo="{{ key }}" title="{{ t('period.hint.' ~ key) }}">{{ t('period.' ~ key) }}</button>
+							<button class="btn btn-outline-primary{% if period == key %} active{% endif %}" type="button" data-periodo="{{ key }}" title="{{ t('period.hint.' ~ key) }}">{{ period_label(key) }}</button>
 							{% endfor %}
 						</div>
 					</div>
