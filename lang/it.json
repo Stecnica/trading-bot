@@ -5,8 +5,6 @@
   "login.password": "Password",
   "login.submit": "Entra",
   "language.name": "Italiano",
-  "login.en": "English",
-  "login.it": "Italiano",
   "auth.unconfigured": "Accesso non configurato.",
   "auth.lockout": "Troppi tentativi. Riprova tra {minutes} minuti.",
   "auth.bad": "Credenziali non valide.",

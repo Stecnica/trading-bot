@@ -5,8 +5,6 @@
   "login.password": "Contraseña",
   "login.submit": "Entrar",
   "language.name": "Español",
-  "login.en": "Inglés",
-  "login.it": "Italiano",
   "auth.unconfigured": "El inicio de sesión no está configurado.",
   "auth.lockout": "Demasiados intentos. Vuelva a intentarlo en {minutes} minutos.",
   "auth.bad": "Credenciales no válidas.",

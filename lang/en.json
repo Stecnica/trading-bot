@@ -5,8 +5,6 @@
   "login.password": "Password",
   "login.submit": "Enter",
   "language.name": "English",
-  "login.en": "English",
-  "login.it": "Italiano",
   "auth.unconfigured": "Sign-in is not configured.",
   "auth.lockout": "Too many attempts. Try again in {minutes} minutes.",
   "auth.bad": "Invalid credentials.",
