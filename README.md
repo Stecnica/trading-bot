@@ -12,7 +12,7 @@ The page is a bar and two tabs.
 
 **Volume** is a treemap of the names with the highest trailing return. The tile size is the volume of the latest stored session. Green is up, red is down, and blue is inside the flat band from preferences. Sector and group filters apply before the ranking. Sessions and the number of names can be typed or stepped. The caption under the legend states the filter, the count, and how many tiles were drawn.
 
-The sector list and the group list are the GICS names stored for the universe. Choosing a sector limits the groups to that sector. **All** clears that level. A filtered board is the same picture as an unfiltered one: fewer tiles, the same colour rule, and a caption that names the sector or the group.
+The sector list and the group list are the GICS names stored for the S&P 500 names in this database. Choosing a sector limits the groups to that sector. **All** clears that level. A filtered board is the same picture as an unfiltered one: fewer tiles, the same colour rule, and a caption that names the sector or the group.
 
 **History** is one symbol, as a line of daily closes or as candles, with the volume of each session underneath. Periods are 1D, 1W, 1M, 3M, 6M, YTD, 1Y, and 2Y. Beside the chart: change, last, low, high, and the number of sessions in the window. Hover reads the session date, the close, and the traded value (shares times VWAP, or times the close when VWAP is missing). The drawing is either a generated image or an SVG in the page. The volume treemap stays HTML. The chart title follows the language, for example `TSLA — daily closes` or `TSLA — candles`.
 
@@ -37,18 +37,18 @@ A message slides out under the bar when an update starts and when it finishes. I
 
 A person uses the buttons. A schedule runs `cycle.py` on its own, on weekdays after the US cash session, because the free price plan publishes a session only once it is closed. An agent uses the same routes as the form. There is no separate agent API and no broker plugin.
 
-Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the file `private/ui_password`: the first successful check replaces the plaintext with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /logout`. Five failed attempts lock the application for 15 minutes.
+Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the file `private/ui_password`: the first successful check replaces the plaintext with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /exit`. Five failed attempts lock the application for 15 minutes.
 
 Every POST carries the `csrf` value from the page. After sign-in the routes are:
 
 | Route | Role |
 | --- | --- |
 | `POST /buy` | Record a buy. Fields: `asset`, `amount`, `price`, `fees`, `taxes`, `csrf`. |
-| `POST /sells` | Apply the sell rule to lots that are ready. |
-| `POST /refresh` | Start one price update, which then applies the sell rule. |
-| `POST /preferences` | Save preferences. Field names match the inputs in the dialog. |
+| `POST /cycle` | Apply the sell rule to lots that are ready. |
+| `POST /update` | Start one price update, which then applies the sell rule. |
+| `POST /prefs` | Save preferences. Field names match the inputs in the dialog. |
 | `POST /volume` | Save the volume filter: `return_days` (1–120), `universe_size` (10–500, step 10), `volume_class`, `csrf`. |
-| `POST /logout` | End this session. |
+| `POST /exit` | End this session. |
 
 `volume_class` is empty for the whole archive, `s:` plus a sector name, or `u:` plus a sector, a pipe, and a group name.
 
@@ -90,7 +90,7 @@ Individual plans are licensed for personal, non-professional use. Display or red
 
 The history buttons stop at two years, which is the Basic window. Longer ranges are not offered until the stored bars cover them. Flat files are not downloaded. The key file can hold extra lines for a later S3 setup; the application reads only `MASSIVE_API_KEY`.
 
-The universe is the S&P 500 list. A session stores every name on that list that the response contains. The volume chart then keeps the strongest trailing returns inside the chosen sector or group. The ranking reads only the sessions it needs, not the whole archive.
+The names are the S&P 500. A session stores every name on that list that the response contains. The volume chart then keeps the strongest trailing returns inside the chosen sector or group. The ranking reads only the sessions it needs, not the whole archive.
 
 ## Database
 
