@@ -248,7 +248,7 @@ function uiText(key, vars) {
       var body = new URLSearchParams();
       body.set("csrf", csrf ? csrf.value : "");
       body.set("return_days", volumeSessions.value);
-      body.set("universe_size", volumeTitles.value);
+      body.set("names", volumeTitles.value);
       body.set("volume_class", composeClass());
       fetch(volumeControls.dataset.volume, {
         method: "POST",
@@ -273,7 +273,7 @@ function uiText(key, vars) {
           volumeSaved.sector = volumeSector.value;
           volumeSaved.group = volumeGroup.value;
           var prefSessions = document.getElementById("pref-return");
-          var prefTitles = document.getElementById("pref-universe");
+          var prefTitles = document.getElementById("pref-names");
           if (prefSessions) {
             prefSessions.value = volumeSessions.value;
           }

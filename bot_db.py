@@ -38,7 +38,7 @@ DAY_END = 19
 DEFAULTS = {
     "profit_threshold": "0.05",
     "max_investment": "1000",
-    "universe_size": "100",
+    "names": "100",
     "chart_type": "line",
     "chart_render": "image",
     "font_family": "system",
@@ -59,7 +59,7 @@ DEFAULTS = {
 PREF_LABELS = {
     "profit_threshold": "Soglia di profitto netto (0.05 = 5%)",
     "max_investment": "Investimento massimo per acquisto",
-    "universe_size": "Quanti titoli mostrare (da 10 a 500, a passi di 10)",
+    "names": "Quanti titoli mostrare (da 10 a 500, a passi di 10)",
     "chart_type": "Grafico storico",
     "chart_render": "Disegno dello storico",
     "font_family": "Carattere",
@@ -249,6 +249,15 @@ def save_classifications(conn, rows):
 
 def seed_preferences(conn):
     cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE preferences AS old
+        LEFT JOIN preferences AS neu ON neu.name = 'names'
+        SET old.name = 'names'
+        WHERE old.name = 'universe_size' AND neu.name IS NULL
+        """
+    )
+    cur.execute("DELETE FROM preferences WHERE name = 'universe_size'")
     for name, value in DEFAULTS.items():
         cur.execute(
             """
@@ -275,7 +284,7 @@ def interpret(raw):
     prefs = {
         "profit_threshold": _decimal(raw.get("profit_threshold"), "0.05"),
         "max_investment": _decimal(raw.get("max_investment"), "1000"),
-        "universe_size": _step_between(raw.get("universe_size"), 10, 500, 10, 100),
+        "names": _step_between(raw.get("names"), 10, 500, 10, 100),
         "volume_class": (raw.get("volume_class") or "").strip(),
         "chart_type": raw.get("chart_type") if raw.get("chart_type") in ("line", "candle") else "line",
         "chart_render": raw.get("chart_render") if raw.get("chart_render") in ("image", "vector") else "image",
@@ -307,7 +316,7 @@ def validate_preferences(form):
         return_days = int(form["return_days"])
         age = int(form["max_price_age_hours"])
         notice = int(form["notice_seconds"])
-        universe = int(form["universe_size"])
+        count = int(form["names"])
     except (KeyError, ValueError, ArithmeticError):
         return None, tr("prefs.err.numbers")
     focus = normalize_ticker(form.get("focus_asset", ""))
@@ -330,7 +339,7 @@ def validate_preferences(form):
         return None, tr("prefs.err.tax")
     if not (Decimal("0") <= band <= Decimal("0.2")):
         return None, tr("prefs.err.band")
-    if not 10 <= universe <= 500 or universe % 10 != 0:
+    if not 10 <= count <= 500 or count % 10 != 0:
         return None, tr("prefs.err.names")
     if chart not in ("line", "candle"):
         return None, tr("prefs.err.chart")
@@ -353,7 +362,7 @@ def validate_preferences(form):
     values = {
         "profit_threshold": format(profit.normalize(), "f"),
         "max_investment": format(investment.normalize(), "f"),
-        "universe_size": str(universe),
+        "names": str(count),
         "chart_type": chart,
         "chart_render": render,
         "font_family": font,
@@ -694,7 +703,7 @@ def build_blocks(rows, prefs, allowed=None):
             }
         )
     blocks.sort(key=lambda item: item["trail"], reverse=True)
-    return blocks[: prefs["universe_size"]]
+    return blocks[: prefs["names"]]
 
 
 def position_rows(conn, prefs):

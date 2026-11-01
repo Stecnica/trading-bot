@@ -428,7 +428,7 @@ def volume_caption(prefs, shown):
     return tr(
         "volume.caption",
         where=where,
-        count=prefs["universe_size"],
+        count=prefs["names"],
         sessions=prefs["return_days"],
         shown=shown,
     )
@@ -450,7 +450,7 @@ def _volume_board(conn, prefs):
 def volume_view():
     try:
         sessions = int(request.form.get("return_days", ""))
-        count = int(request.form.get("universe_size", ""))
+        count = int(request.form.get("names", ""))
     except (TypeError, ValueError):
         return jsonify(error=tr("volume.bad_values")), 400
     if not 1 <= sessions <= 120:
@@ -465,13 +465,13 @@ def volume_view():
             return jsonify(error=tr("volume.bad_group")), 400
         prefs = load_preferences(conn)
         prefs["return_days"] = sessions
-        prefs["universe_size"] = count
+        prefs["names"] = count
         prefs["volume_class"] = chosen
         save_preferences(
             conn,
             {
                 "return_days": str(sessions),
-                "universe_size": str(count),
+                "names": str(count),
                 "volume_class": chosen,
             },
         )

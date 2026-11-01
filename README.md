@@ -47,7 +47,7 @@ Every POST carries the `csrf` value from the page. After sign-in the routes are:
 | `POST /cycle` | Apply the sell rule to lots that are ready. |
 | `POST /update` | Start one price update, which then applies the sell rule. |
 | `POST /prefs` | Save preferences. Field names match the inputs in the dialog. |
-| `POST /volume` | Save the volume filter: `return_days` (1–120), `universe_size` (10–500, step 10), `volume_class`, `csrf`. |
+| `POST /volume` | Save the volume filter: `return_days` (1–120), `names` (10–500, step 10), `volume_class`, `csrf`. |
 | `POST /exit` | End this session. |
 
 `volume_class` is empty for the whole archive, `s:` plus a sector name, or `u:` plus a sector, a pipe, and a group name.
