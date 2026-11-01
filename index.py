@@ -111,7 +111,7 @@ def _ensure_csrf():
         session["csrf"] = os.urandom(16).hex()
 
 
-_AZIONI = {"/refresh", "/sells", "/buy", "/preferences", "/logout", "/volume"}
+_AZIONI = {"/update", "/cycle", "/buy", "/prefs", "/exit", "/volume"}
 
 
 def _safe_next(value):
@@ -197,7 +197,7 @@ def login():
     )
 
 
-@app.route("/logout", methods=["POST"])
+@app.route("/exit", methods=["POST"])
 def logout():
     session.clear()
     return redirect(url_for("login"))
@@ -541,7 +541,7 @@ def chart_hits():
     return response
 
 
-@app.route("/preferences", methods=["POST"])
+@app.route("/prefs", methods=["POST"])
 def save_prefs():
     values, error = validate_preferences(request.form)
     if error:
@@ -601,7 +601,7 @@ def buy():
     return _buy_back(ok=tr("buy.saved", asset=asset), asset=asset)
 
 
-@app.route("/sells", methods=["POST"])
+@app.route("/cycle", methods=["POST"])
 def cycle_sells():
     conn = connect()
     try:
@@ -612,7 +612,7 @@ def cycle_sells():
     return redirect(url_for("home", ok=tr("sells.done", sold=sold)))
 
 
-@app.route("/refresh", methods=["POST"])
+@app.route("/update", methods=["POST"])
 def refresh():
     if cycle_running():
         return redirect(url_for("home", err=tr("prices.busy")))
