@@ -1,4 +1,4 @@
-"""Stringhe di interfaccia. Inglese di default. Una voce di menu per ogni file in lang/."""
+"""Interface strings. English is the default. One menu entry for each file in lang/."""
 
 import json
 import re
@@ -8,7 +8,7 @@ from pathlib import Path
 DEFAULT = "en"
 _FOLDER = Path(__file__).resolve().parent / "lang"
 _CODE = re.compile(r"^[A-Za-z]{2,8}(?:[_-][A-Za-z0-9]{2,8})*$")
-# Stesse eccezioni di country_code_flag_conversion: la bandiera non coincide con il codice lingua.
+# Same exceptions as country_code_flag_conversion: the flag is not the language code.
 _FLAG = {"en": "gb", "cs": "cz", "fa": "pe", "ja": "jp", "ko": "co", "uk": "ua", "zh": "cn"}
 _locale = ContextVar("locale", default=DEFAULT)
 _catalogs = {}
@@ -29,6 +29,10 @@ _STATUS_FIELDS = {
     "reread.fetch": ("day", "index", "total"),
     "reread.done": ("stored",),
     "buy.saved": ("asset",),
+    "quotes.fetch_recent": ("index", "total", "count"),
+    "quotes.fetch_full": ("index", "total", "count"),
+    "quotes.skip": ("index",),
+    "quotes.partial": ("failed", "stored"),
 }
 
 

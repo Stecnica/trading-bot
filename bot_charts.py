@@ -1,4 +1,4 @@
-"""Grafico a blocchi (volume e stato) e grafico storico."""
+"""Volume treemap and history chart."""
 
 import io
 import os
@@ -22,7 +22,7 @@ TONES = {
     "crescita": "bg-success",
     "perdita": "bg-danger",
 }
-# PNG: matplotlib non applica le classi. I valori sono i token Bootstrap 5.3.
+# PNG: matplotlib does not apply the classes. The values are the Bootstrap 5.3 tokens.
 COLORS = {
     "stabile": "#0d6efd",
     "crescita": "#198754",
@@ -41,7 +41,7 @@ _WEIGHTS = {200: "light", 300: "light", 400: "normal", 500: "medium", 600: "semi
 
 @contextmanager
 def _appearance(theme, scale, weight):
-    """Colori, scala e peso per un solo disegno. I valori di prima tornano al termine."""
+    """Colors, scale, and weight for one drawing. The previous values return at the end."""
     global INK, RULE, PAPER
     previous = (INK, RULE, PAPER, _LOOK["scale"], _LOOK["weight"])
     INK, RULE, PAPER = _PALETTES.get(theme, _PALETTES["light"])
@@ -59,7 +59,7 @@ def _appearance(theme, scale, weight):
         yield
     finally:
         INK, RULE, PAPER, _LOOK["scale"], _LOOK["weight"] = previous
-# Stessi margini di _finish_history: il titolo al passaggio deve cadere sulla seduta disegnata.
+# Same margins as _finish_history: a hover title must land on the drawn session.
 AXIS_LEFT = 0.075
 AXIS_RIGHT = 0.985
 LINE_MARGIN = 0.03
@@ -67,7 +67,7 @@ CANDLE_MARGIN = 0.02
 
 
 def treemap_layout(blocks, names=None):
-    """Rettangoli in percentuale. Il title è sigla e società, non il testo già disegnato."""
+    """Rectangles in percent. The title is the symbol and the company, not the text already drawn."""
     if not blocks:
         return []
     sizes = [float(block["volume"]) for block in blocks]
@@ -102,7 +102,7 @@ def treemap_layout(blocks, names=None):
 
 
 def _tile_label(symbol, company, kind, width):
-    """Sul riquadro non basta una lettera: T è AT&T."""
+    """One letter is not enough on the tile: T is AT&T."""
     if not company:
         return symbol
     if len(symbol) <= 2:
@@ -114,7 +114,7 @@ def _tile_label(symbol, company, kind, width):
 
 def treemap_png(blocks):
     if not blocks:
-        return _message_png("Nessun titolo con volume. Aggiorna i prezzi.")
+        return _message_png(tr("volume.none"))
     sizes = [float(block["volume"]) for block in blocks]
     fig, ax, _tick, _title = _figure()
     ax.set_xlim(0, 1)
@@ -149,7 +149,7 @@ def treemap_png(blocks):
 
 
 def history_model(series, asset, chart_type):
-    """Stessi numeri del PNG, in forma che il vettore SVG disegna da sé."""
+    """The same numbers as the PNG, in the form the SVG vector draws itself."""
     if not series:
         return {"asset": asset, "draw": "line", "title": tr("chart.empty", asset=asset), "points": []}
     has_ohlc = all(row.get("open_price") and row.get("high_price") and row.get("low_price") for row in series)
@@ -233,7 +233,7 @@ def _candle_png(series, asset, width, height):
 
 
 def _history_figure(width, height):
-    """Prezzo sopra, volume in una fascia sottile. Le date restano in mezzo."""
+    """Price above, volume in a thin band. The dates stay in between."""
     width, height, tick, title = _metrics(width, height)
     fig = plt.figure(figsize=(width / 100, height / 100), dpi=200)
     fig.patch.set_facecolor(PAPER)
@@ -265,7 +265,7 @@ def _date_labels(ax, dates, series, tick, indexed):
 
 
 def _volume_strip(volume, xs, series, bar_width):
-    """Volume in azioni della seduta. Il colore segue la candela: chiusura contro apertura."""
+    """Session volume in shares. The color follows the candle: close against open."""
     amounts = [float(row["volume"] or 0) for row in series]
     peak = max(amounts) if amounts else 0
     if peak <= 0:
@@ -296,7 +296,7 @@ def _volume_strip(volume, xs, series, bar_width):
 
 
 def history_hits(series, chart_type):
-    """Fasce in percentuale dell'immagine. Il title è la cifra che la barra non mostra."""
+    """Bands as a percent of the image. The title is the figure the bar does not show."""
     if not series:
         return []
     indexed = chart_type == "candle" and all(
@@ -339,25 +339,25 @@ def _usd(amount):
 
 
 def _session_lines(row):
-    """L'importo non arriva da Massive: è il volume in azioni per il prezzo medio."""
+    """The amount does not come from Massive: it is share volume times the average price."""
     day = row["timestamp"].strftime("%d/%m/%Y")
     close = float(row["price"])
-    lines = [day, "chiusura " + f"{close:.4f}".rstrip("0").rstrip(".")]
+    lines = [day, tr("chart.close", price=f"{close:.4f}".rstrip("0").rstrip("."))]
     volume = row.get("volume")
     if not volume:
-        lines.append("importo assente")
+        lines.append(tr("chart.amount_missing"))
         return lines
     shares = int(round(float(volume)))
     share_text = f"{shares:,}".replace(",", " ")
     vwap = row.get("vwap")
     if vwap:
         price = float(vwap)
-        basis = "prezzo medio"
+        basis = tr("chart.basis_vwap")
     else:
         price = close
-        basis = "chiusura"
-    lines.append("importo " + _usd(shares * price))
-    lines.append(f"{share_text} azioni × {basis}")
+        basis = tr("chart.basis_close")
+    lines.append(tr("chart.amount", value=_usd(shares * price)))
+    lines.append(tr("chart.shares", shares=share_text, basis=basis))
     return lines
 
 
@@ -382,7 +382,7 @@ def _decorate(ax, title, tick, title_px):
 
 
 def _metrics(width, height):
-    """Pixel di pagina. Il carattere cresce col riquadro e si ferma prima di diventare un titolo da manifesto."""
+    """Page pixels. The type grows with the box and stops before it becomes a poster title."""
     try:
         width = int(width)
         height = int(height)
@@ -397,7 +397,7 @@ def _metrics(width, height):
 
 
 def _pt(px):
-    """Punti matplotlib che, a 200 dpi su una figura in centesimi di pollice, restano px sullo schermo."""
+    """Matplotlib points that, at 200 dpi on a figure in hundredths of an inch, stay px on screen."""
     return px * 72 / 100
 
 

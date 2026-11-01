@@ -1,4 +1,4 @@
-"""Schema, preferenze, prezzi e transazioni."""
+"""Schema, preferences, prices, and transactions."""
 
 import json
 import os
@@ -14,7 +14,7 @@ from bot_logic import money, open_lots, quote_sell
 log = get_logger()
 
 FONT_CHOICES = (
-    {"id": "system", "label": "Sistema", "family": ""},
+    {"id": "system", "label": "System", "family": ""},
     {"id": "source-sans", "label": "Source Sans 3", "family": "Source Sans 3"},
     {"id": "ibm-plex", "label": "IBM Plex Sans", "family": "IBM Plex Sans"},
     {"id": "outfit", "label": "Outfit", "family": "Outfit"},
@@ -22,16 +22,16 @@ FONT_CHOICES = (
 )
 FONT_IDS = {item["id"] for item in FONT_CHOICES}
 WEIGHT_CHOICES = (
-    {"id": "200", "label": "Sottile"},
-    {"id": "300", "label": "Leggero"},
-    {"id": "400", "label": "Normale"},
-    {"id": "500", "label": "Medio"},
-    {"id": "600", "label": "Semigrassetto"},
-    {"id": "700", "label": "Grassetto"},
+    {"id": "200", "label": "Thin"},
+    {"id": "300", "label": "Light"},
+    {"id": "400", "label": "Regular"},
+    {"id": "500", "label": "Medium"},
+    {"id": "600", "label": "Semibold"},
+    {"id": "700", "label": "Bold"},
 )
 WEIGHT_IDS = {item["id"] for item in WEIGHT_CHOICES}
 THEME_IDS = ("light", "dark", "auto")
-# Automatico: chiaro di giorno e scuro di sera, sull'ora locale.
+# Automatic: light by day and dark in the evening, on the local clock.
 DAY_START = 7
 DAY_END = 19
 
@@ -57,28 +57,28 @@ DEFAULTS = {
 }
 
 PREF_LABELS = {
-    "profit_threshold": "Soglia di profitto netto (0.05 = 5%)",
-    "max_investment": "Investimento massimo per acquisto",
-    "names": "Quanti titoli mostrare (da 10 a 500, a passi di 10)",
-    "chart_type": "Grafico storico",
-    "chart_render": "Disegno dello storico",
-    "font_family": "Carattere",
-    "ui_scale": "Dimensione e interlinea (%)",
-    "ui_weight": "Peso",
-    "ui_theme": "Tema",
-    "fee_rate": "Commissione (0.001 = 0,1%)",
-    "tax_rate": "Imposta sul guadagno (0.26 = 26%)",
-    "stable_band": "Banda di stabilità (0.005 = ±0,5%)",
-    "history_days": "Giorni di storico nel grafico",
-    "return_days": "Sedute per misurare il rendimento",
-    "focus_asset": "Titolo del grafico storico",
-    "max_price_age_hours": "Età massima del prezzo per vendere (ore)",
-    "notice_seconds": "Secondi del messaggio",
+    "profit_threshold": "Net profit threshold (0.05 = 5%)",
+    "max_investment": "Maximum investment per buy",
+    "names": "How many names to show (10 to 500, step 10)",
+    "chart_type": "History chart",
+    "chart_render": "History drawing",
+    "font_family": "Typeface",
+    "ui_scale": "Size and line spacing (%)",
+    "ui_weight": "Weight",
+    "ui_theme": "Theme",
+    "fee_rate": "Commission (0.001 = 0.1%)",
+    "tax_rate": "Tax on the gain (0.26 = 26%)",
+    "stable_band": "Flat band (0.005 = ±0.5%)",
+    "history_days": "History days on the chart",
+    "return_days": "Sessions used to measure the return",
+    "focus_asset": "History chart symbol",
+    "max_price_age_hours": "Maximum price age for a sale (hours)",
+    "notice_seconds": "Message seconds",
 }
 
 
 def ambient_theme(moment=None):
-    """Chiaro dalle 7 alle 19, scuro nel resto, sull'ora del momento."""
+    """Light from 7 to 19, dark otherwise, on the clock of the moment."""
     moment = moment or datetime.now()
     return "light" if DAY_START <= moment.hour < DAY_END else "dark"
 
@@ -94,7 +94,7 @@ def resolved_theme(choice, moment=None):
 def connect():
     cfg = db_config()
     if not cfg["user"] or not cfg["password"] or not cfg["database"]:
-        raise RuntimeError("Variabili d'ambiente del database assenti")
+        raise RuntimeError("Database environment variables are missing")
     return mysql.connector.connect(**cfg)
 
 
@@ -207,7 +207,7 @@ def ensure_schema(conn):
 
 
 def save_classifications(conn, rows):
-    """Righe (simbolo, settore, sotto-industria). Il simbolo punta alla sotto-industria, e quella al settore."""
+    """Rows of (symbol, sector, sub-industry). The symbol points at the sub-industry, and that points at the sector."""
     usable = []
     for symbol, sector, sub in rows:
         symbol = normalize_ticker(symbol)
@@ -305,7 +305,7 @@ def interpret(raw):
 
 
 def validate_preferences(form):
-    """Ritorna (valori_da_salvare, errore)."""
+    """Returns (values_to_save, error)."""
     try:
         profit = Decimal(str(form["profit_threshold"]).replace(",", "."))
         investment = Decimal(str(form["max_investment"]).replace(",", "."))
@@ -439,7 +439,7 @@ def upsert_bars(conn, rows):
 
 
 def history_coverage(conn, symbols):
-    """Quante barre e quanto è recente ciascun titolo, per decidere lo scarico."""
+    """How many bars each name has, and how recent they are, to decide the download."""
     if not symbols:
         return {}
     cur = conn.cursor()
@@ -609,7 +609,7 @@ def classification_tree(conn):
 
 
 def accepted_volume_class(conn, raw):
-    """Stringa vuota: tutti i titoli. s:settore oppure u:settore|sotto-industria."""
+    """Empty string: every name. s:sector or u:sector|sub-industry."""
     text = (raw or "").strip()
     if not text:
         return ""
@@ -637,7 +637,7 @@ def accepted_volume_class(conn, raw):
 
 
 def class_symbols(conn, volume_class):
-    """None significa tutti i simboli. Un insieme vuoto non disegna nulla."""
+    """None means every symbol. An empty set draws nothing."""
     if not volume_class:
         return None
     cur = conn.cursor()
@@ -752,10 +752,10 @@ def position_rows(conn, prefs):
 
 
 def sell_ready_lots(conn, prefs):
-    """Vende i lotti il cui profitto netto raggiunge la soglia. Ritorna il numero di vendite."""
+    """Sells the lots whose net profit reaches the threshold. Returns the number of sales."""
     lots, unmatched = open_lots(fetch_transactions(conn))
     if unmatched > 0:
-        log.warning("vendite senza acquisto corrispondente, quantità residua %s", unmatched)
+        log.warning("sales without a matching buy, residual quantity %s", unmatched)
     prices = latest_prices(conn)
     now = datetime.now()
     max_age = prefs["max_price_age_hours"] * 3600
@@ -765,7 +765,7 @@ def sell_ready_lots(conn, prefs):
         if not market:
             continue
         if (now - market["timestamp"]).total_seconds() > max_age:
-            log.info("tengo %s: prezzo del %s troppo vecchio", lot.asset, market["timestamp"])
+            log.info("keeping %s: price from %s is too old", lot.asset, market["timestamp"])
             continue
         quote = quote_sell(lot, market["price"], prefs["fee_rate"], prefs["tax_rate"])
         if quote is None or quote["ratio"] is None:
@@ -784,7 +784,7 @@ def sell_ready_lots(conn, prefs):
         )
         sold += 1
         log.info(
-            "vendita %s qty=%s prezzo=%s profitto_netto=%s soglia=%s",
+            "sale %s qty=%s price=%s net_profit=%s threshold=%s",
             lot.asset,
             quote["amount"],
             quote["price"],

@@ -1,4 +1,4 @@
-"""Lotti aperti e decisione di vendita al netto di commissioni e tasse."""
+"""Open lots and the sale decision net of commissions and tax."""
 
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -31,7 +31,7 @@ class Lot:
 
 
 def open_lots(transactions):
-    """Ricostruisce i lotti ancora aperti con FIFO. Ignora le vendite senza acquisto."""
+    """Rebuilds the lots still open with FIFO. Ignores sales that have no buy."""
     buckets = {}
     order = []
     unmatched = Decimal("0")
@@ -68,11 +68,11 @@ def open_lots(transactions):
 
 
 def quote_sell(lot, market_price, fee_rate, tax_rate):
-    """Ricavo netto rispetto al costo del lotto ancora aperto.
+    """Net proceeds against the cost of the lot still open.
 
-    Il costo è prezzo di carico più commissioni e tasse già pagate, in proporzione
-    alla quantità rimasta. In vendita si tolgono la commissione e l'imposta
-    sul guadagno (solo se il guadagno è positivo).
+    Cost is the entry price plus commissions and taxes already paid, in proportion
+    to the quantity left. A sale subtracts the commission and the tax on the gain
+    (only when the gain is positive).
     """
     qty = lot.remaining
     price = money(market_price)
