@@ -8,7 +8,7 @@ English is the default language. Every other language is a file in `lang/`.
 
 ## What you see
 
-The page is a bar and two tabs.
+The page is a bar and two tabs. The icon links home. The title is the words Trading bot followed by the selected list, `S&P500`. Opening that word shows the entry and a disabled line, `next idea...`. The page, the prices, and the names in this document are those of the selected entry.
 
 **Volume** is a treemap of the names with the highest trailing return. The tile size is the volume of the latest stored session. Green is up, red is down, and blue is inside the flat band from preferences. Sector and group filters apply before the ranking. Sessions and the number of names can be typed or stepped, and that filter is `POST /volume`. The caption under the legend states the filter, the count, and how many tiles were drawn.
 
@@ -56,7 +56,7 @@ Two agents can be signed in at the same time. They do not share a session. The p
 
 ## Languages
 
-Each valid JSON file in `lang/` is one language, and the language menu lists it. A file that does not parse, or whose name is not a language code, is left out. The file name is the code, for example `en.json`. `language.name` in the file is the name shown beside the flag, written in that language. The default is English. The application does not follow `Accept-Language`. `?lang=` followed by a code that has a file selects it and stores the `lang` cookie for one year. The same list is on the sign-in card. Status written by a running update is a catalog key, so the same status file is shown in the language of the reader. An older status that is already a sentence is shown as stored.
+Each valid JSON file in `lang/` is one language, and the language menu lists it. A file that does not parse, or whose name is not a language code, is left out. The file name is the code, for example `en.json`. `language.name` in the file is the name shown beside the flag, written in that language. The default is English. The application does not follow `Accept-Language`. `?lang=` followed by a code that has a file selects it and stores the `lang` cookie for one year. The same menu is the flag at the top right of the sign-in card. Status written by a running update is a catalog key, so the same status file is shown in the language of the reader. An older status that is already a sentence is shown as stored.
 
 Period buttons are built from five abbreviations in the active language file: `period.abbr.day`, `period.abbr.week`, `period.abbr.month`, `period.abbr.year`, and `period.abbr.start`. The buttons are one day, one week, one month, three months, six months, the start-of-year abbreviation, one year, and two years. The values posted with the chart stay `1`, `7`, `30`, `90`, `180`, `ytd`, `365`, `730`.
 
@@ -90,7 +90,7 @@ Individual plans are licensed for personal, non-professional use. Display or red
 
 The history buttons stop at two years, which is the Basic window. Longer ranges are not offered until the stored bars cover them. Flat files are not downloaded. The key file can hold extra lines for a later S3 setup; the application reads only `MASSIVE_API_KEY`.
 
-The names are the S&P 500. A session stores every name on that list that the response contains. The volume chart then keeps the strongest trailing returns inside the chosen sector or group. The ranking reads only the sessions it needs, not the whole archive.
+The selected list is the S&P 500. A session stores every name on that list that the response contains. The volume chart then keeps the strongest trailing returns inside the chosen sector or group. The ranking reads only the sessions it needs, not the whole archive.
 
 ## Database
 

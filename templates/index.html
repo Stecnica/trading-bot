@@ -35,6 +35,13 @@
 			justify-content: center;
 		}
 		.navbar .btn-nav-menu { --bs-btn-bg: rgba(0, 0, 0, 0.1); }
+		.navbar .brand-list {
+			border: 0;
+			background: transparent;
+			box-shadow: none;
+			padding-left: 0;
+			padding-right: 0;
+		}
 		.navbar .flag-icon { vertical-align: middle; }
 		.lang-menu { max-height: min(70vh, 24rem); overflow: auto; }
 		.navbar .icon-btn {
@@ -75,11 +82,18 @@
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid d-flex flex-wrap">
-				<div class="d-flex align-items-center flex-shrink-0">
+				<div class="d-flex align-items-center flex-shrink-0 mb-2 mb-md-0">
 					<a class="navbar-brand" href="{{ url_for('home', vista='volume') }}" aria-label="Trading bot">
 						<img src="{{ url_for('static', filename='icona.png') }}" alt="" width="32" height="32">
 					</a>
-					<a class="navbar-brand pt-2 pb-0" href="{{ url_for('home', vista='volume') }}">Trading bot</a>
+					<span class="navbar-brand pt-2 pb-0 me-1">Trading bot</span>
+					<div class="dropdown">
+						<button class="navbar-brand brand-list pt-2 pb-0" type="button" data-bs-toggle="dropdown" aria-expanded="false">S&amp;P500</button>
+						<ul class="dropdown-menu">
+							<li><button class="dropdown-item active" type="button" aria-current="true">S&amp;P500</button></li>
+							<li class="disabled"><span class="dropdown-item disabled" aria-disabled="true">next idea...</span></li>
+						</ul>
+					</div>
 				</div>
 				<div class="d-flex flex-grow-1 flex-wrap align-items-end justify-content-end gap-2">
 					<div class="flex-grow-1" style="max-width:1vw;"></div>

@@ -9,6 +9,16 @@
 	<link rel="stylesheet" href="{{ url_for('static', filename='flag-icon/css/flag-icon.css') }}">
 	<style>
 		.form-label { margin-bottom: .15rem; }
+		.lang-menu { max-height: min(70vh, 24rem); overflow: auto; }
+		.icon-btn {
+			--bs-btn-padding-x: 0;
+			--bs-btn-padding-y: 0;
+			width: 2rem;
+			height: 2rem;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+		}
 	</style>
 </head>
 <body class="bg-light">
@@ -17,8 +27,24 @@
 	<div class="col-11 col-sm-8 col-md-6 col-lg-4">
 	<div class="card shadow-sm">
 		<div class="card-body p-4">
-			<h1 class="h4 mb-1">{{ t('login.heading') }}</h1>
-			<p class="text-secondary">Trading bot</p>
+			<div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+				<div>
+					<h1 class="h4 mb-1">{{ t('login.heading') }}</h1>
+					<p class="text-secondary mb-0">Trading bot</p>
+				</div>
+				<div class="dropdown">
+					<button class="btn btn-outline-secondary icon-btn" type="button" id="lingua-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="{{ t('nav.language_current', name=language.name) }}" aria-label="{{ t('nav.language_current', name=language.name) }}">
+						<span class="flag-icon flag-icon-{{ language.flag }} m-1" aria-hidden="true"></span>
+					</button>
+					<ul class="dropdown-menu dropdown-menu-end lang-menu" aria-labelledby="lingua-toggle">
+						<li><h6 class="dropdown-header">{{ t('nav.language') }}</h6></li>
+						<li><hr class="dropdown-divider"></li>
+						{% for item in languages %}
+						<li><a class="dropdown-item d-flex align-items-center{% if lang == item.code %} active{% endif %}" href="{{ url_for('login', lang=item.code, next=next) }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a></li>
+						{% endfor %}
+					</ul>
+				</div>
+			</div>
 			{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
 			<form method="post" action="{{ url_for('login') }}">
 				<input type="hidden" name="csrf" value="{{ csrf }}">
@@ -33,15 +59,11 @@
 				</div>
 				<button class="btn btn-primary" type="submit">{{ t('login.submit') }}</button>
 			</form>
-			<p class="mt-3 mb-0 d-flex flex-wrap gap-3">
-				{% for item in languages %}
-				<a class="d-inline-flex align-items-center" href="{{ url_for('login', lang=item.code, next=next) }}" title="{{ item.name }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a>
-				{% endfor %}
-			</p>
 		</div>
 	</div>
 	</div>
 	</div>
 </main>
+<script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
 </body>
 </html>
