@@ -306,7 +306,7 @@
 							<label class="form-label" for="volume-titles">{{ t('volume.titles') }}</label>
 							<div class="input-group input-group-sm volume-step">
 								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="-1" aria-label="{{ t('volume.less_titles') }}">−</button>
-								<input class="form-control text-center" id="volume-titles" inputmode="numeric" value="{{ prefs.universe_size }}" autocomplete="off">
+								<input class="form-control text-center" id="volume-titles" inputmode="numeric" value="{{ prefs.names }}" autocomplete="off">
 								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="{{ t('volume.more_titles') }}">+</button>
 							</div>
 						</div>
@@ -426,8 +426,8 @@
 					<input class="form-control" id="pref-band" name="stable_band" title="{{ t('prefs.band_title') }}" value="{{ prefs.stable_band }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-universe" title="{{ t('prefs.names_title') }}">{{ t('prefs.names') }}</label>
-					<input class="form-control" id="pref-universe" name="universe_size" title="{{ t('prefs.names_title') }}" type="number" min="10" max="500" step="10" value="{{ prefs.universe_size }}" required>
+					<label class="form-label" for="pref-names" title="{{ t('prefs.names_title') }}">{{ t('prefs.names') }}</label>
+					<input class="form-control" id="pref-names" name="names" title="{{ t('prefs.names_title') }}" type="number" min="10" max="500" step="10" value="{{ prefs.names }}" required>
 				</div>
 				<div class="col">
 					<label class="form-label" for="pref-history" title="{{ t('prefs.days_title') }}">{{ t('prefs.days') }}</label>
@@ -525,7 +525,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=19) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=20) }}"></script>
 {% if request.args.get('anteprima') == 'messaggi' %}
 <script src="{{ url_for('static', filename='anteprima.js', v=4) }}"></script>
 {% endif %}
