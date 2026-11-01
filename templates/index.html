@@ -68,6 +68,18 @@
 			width: var(--w);
 			height: var(--h);
 		}
+		button.tile {
+			padding: 0;
+			font: inherit;
+			color: inherit;
+			cursor: pointer;
+		}
+		button.tile:hover,
+		button.tile:focus-visible {
+			outline: 2px solid var(--bs-body-color);
+			outline-offset: -2px;
+			z-index: 1;
+		}
 		.tile.tiny span, .tile.mid span.full, .tile.big span.short { display: none; }
 		.slide-note.preview {
 			animation: none;
@@ -293,10 +305,10 @@
 					<h2 class="h5 mb-0">{{ t('volume.heading') }}</h2>
 					<div class="d-flex flex-wrap align-items-end gap-3" id="volume-controls" data-volume="{{ url_for('volume_view') }}">
 						<div>
-							<label class="form-label" for="volume-sessions">{{ t('volume.sessions') }}</label>
+							<label class="form-label" for="volume-sessions" title="{{ t('prefs.sessions_title') }}">{{ t('volume.sessions') }}</label>
 							<div class="input-group input-group-sm volume-step">
 								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="-1" aria-label="{{ t('volume.less_sessions') }}">−</button>
-								<input class="form-control text-center" id="volume-sessions" inputmode="numeric" value="{{ prefs.return_days }}" autocomplete="off">
+								<input class="form-control text-center" id="volume-sessions" inputmode="numeric" min="1" max="240" title="{{ t('prefs.sessions_title') }}" value="{{ prefs.return_days }}" autocomplete="off">
 								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="1" aria-label="{{ t('volume.more_sessions') }}">+</button>
 							</div>
 						</div>
@@ -341,15 +353,22 @@
 								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="{{ t('volume.more_titles') }}">+</button>
 							</div>
 						</div>
+						<div>
+							<div class="form-label">{{ t('volume.order') }}</div>
+							<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('volume.order') }}">
+								<button class="btn btn-outline-primary{% if order != 'volume' %} active{% endif %}" type="button" data-order="rank" title="{{ t('volume.order.rank_title') }}">{{ t('volume.order.rank') }}</button>
+								<button class="btn btn-outline-primary{% if order == 'volume' %} active{% endif %}" type="button" data-order="volume" title="{{ t('volume.order.volume_title') }}">{{ t('volume.order.volume') }}</button>
+							</div>
+						</div>
 					</div>
 				</div>
 				<div class="position-relative">
-				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary" role="img" aria-label="{{ t('volume.map') }}">
+				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary" role="group" aria-label="{{ t('volume.map') }}">
 					{% for tile in tiles %}
-					<div class="tile {{ tile.kind }} {{ tile.tone }} position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white" title="{{ tile.title }}" style="--x:{{ tile.x }}%;--y:{{ tile.y }}%;--w:{{ tile.w }}%;--h:{{ tile.h }}%">
+					<button type="button" class="tile {{ tile.kind }} {{ tile.tone }} position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white" data-asset="{{ tile.asset }}" title="{{ tile.title }}" style="--x:{{ tile.x }}%;--y:{{ tile.y }}%;--w:{{ tile.w }}%;--h:{{ tile.h }}%">
 						<span class="full">{{ tile.label }}<br><span class="chg text-nowrap">{{ tile.change }}</span></span>
 						<span class="short">{{ tile.label }}</span>
-					</div>
+					</button>
 					{% endfor %}
 				</div>
 				<div id="volume-wait" class="position-absolute top-0 start-0 w-100 h-100 d-none bg-body align-items-center justify-content-center rounded" style="--bs-bg-opacity: .55" role="status">
@@ -357,11 +376,12 @@
 					<span class="visually-hidden">{{ t('volume.updating') }}</span>
 				</div>
 				</div>
-				<div class="small d-flex flex-wrap align-items-center gap-3 my-3">
-					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-success">&nbsp;</span>{{ t('volume.up') }}</span>
-					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-danger">&nbsp;</span>{{ t('volume.down') }}</span>
-					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-primary">&nbsp;</span>{{ t('volume.flat', band=prefs.stable_band|pct) }}</span>
+				<div class="small d-flex flex-wrap align-items-center gap-1 mt-3">
+					<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-success">&nbsp;</span>{{ t('volume.up') }}</span>
+					<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-danger">&nbsp;</span>{{ t('volume.down') }}</span>
+					<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-primary">&nbsp;</span>{{ t('volume.flat', band=prefs.stable_band|pct) }}</span>
 					<p class="small text-secondary mb-0" id="volume-caption">{{ volume_caption_text }}</p>
+					<p class="small text-secondary mb-0 w-100">{{ t('tile.color.explanation') }}</p>
 				</div>
 			</div>
 			<div class="tab-pane fade{% if view == 'history' %} show active{% endif %}" id="history" role="tabpanel" aria-labelledby="history-tab">
@@ -467,7 +487,7 @@
 				</div>
 				<div class="col">
 					<label class="form-label" for="pref-return" title="{{ t('prefs.sessions_title') }}">{{ t('prefs.sessions') }}</label>
-					<input class="form-control" id="pref-return" name="return_days" title="{{ t('prefs.sessions_title') }}" value="{{ prefs.return_days }}" required>
+					<input class="form-control" id="pref-return" name="return_days" title="{{ t('prefs.sessions_title') }}" type="number" min="1" max="240" step="1" value="{{ prefs.return_days }}" required>
 				</div>
 				<div class="col">
 					<label class="form-label" for="pref-focus" title="{{ t('prefs.symbol_title') }}">{{ t('prefs.symbol') }}</label>
@@ -557,7 +577,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=26) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=30) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

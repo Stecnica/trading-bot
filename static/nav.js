@@ -132,7 +132,7 @@ function uiText(key, vars) {
 
     function clampVolume(kind, value) {
       if (kind === "sessions") {
-        return Math.min(120, Math.max(1, value));
+        return Math.min(240, Math.max(1, value));
       }
       var snapped = Math.round(value / 10) * 10;
       return Math.min(500, Math.max(10, snapped));
@@ -141,8 +141,10 @@ function uiText(key, vars) {
     function paintVolume(tiles) {
       volumeMap.replaceChildren();
       tiles.forEach(function (tile) {
-        var node = document.createElement("div");
+        var node = document.createElement("button");
+        node.type = "button";
         node.className = "tile " + tile.kind + " " + tile.tone + " position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white";
+        node.setAttribute("data-asset", tile.asset);
         node.title = tile.title;
         node.style.setProperty("--x", tile.x + "%");
         node.style.setProperty("--y", tile.y + "%");
@@ -163,11 +165,23 @@ function uiText(key, vars) {
       });
     }
 
+    function volumeOrder() {
+      var active = volumeControls.querySelector("[data-order].active");
+      return active ? active.getAttribute("data-order") : "rank";
+    }
+
+    function setVolumeOrder(order) {
+      volumeControls.querySelectorAll("[data-order]").forEach(function (button) {
+        button.classList.toggle("active", button.getAttribute("data-order") === order);
+      });
+    }
+
     var volumeSaved = {
       sessions: volumeSessions.value,
       titles: volumeTitles.value,
       sector: volumeSector.value,
-      group: volumeGroup.value
+      group: volumeGroup.value,
+      order: volumeOrder()
     };
 
     function fillGroups(sector, groupValue) {
@@ -229,6 +243,7 @@ function uiText(key, vars) {
       volumeTitles.value = volumeSaved.titles;
       volumeSector.value = volumeSaved.sector;
       fillGroups(volumeSaved.sector, volumeSaved.group);
+      setVolumeOrder(volumeSaved.order);
     }
 
     var volumeWait = document.getElementById("volume-wait");
@@ -250,6 +265,7 @@ function uiText(key, vars) {
       body.set("return_days", volumeSessions.value);
       body.set("names", volumeTitles.value);
       body.set("volume_class", composeClass());
+      body.set("order", volumeOrder());
       fetch(volumeControls.dataset.volume, {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
@@ -272,6 +288,8 @@ function uiText(key, vars) {
           volumeSaved.titles = volumeTitles.value;
           volumeSaved.sector = volumeSector.value;
           volumeSaved.group = volumeGroup.value;
+          volumeSaved.order = data.order || volumeOrder();
+          setVolumeOrder(volumeSaved.order);
           var prefSessions = document.getElementById("pref-return");
           var prefTitles = document.getElementById("pref-names");
           if (prefSessions) {
@@ -285,6 +303,7 @@ function uiText(key, vars) {
           }
           paintVolume(data.tiles || []);
           setVolumeBusy(false);
+          remember("volume");
         })
         .catch(function () {
           if (token === volumeToken) {
@@ -353,6 +372,15 @@ function uiText(key, vars) {
       }
       pushVolume();
     });
+    volumeControls.querySelectorAll("[data-order]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        if (button.classList.contains("active")) {
+          return;
+        }
+        setVolumeOrder(button.getAttribute("data-order"));
+        pushVolume();
+      });
+    });
   }
 
   var frameEl = document.getElementById("chart-frame");
@@ -404,6 +432,10 @@ function uiText(key, vars) {
     params.set("asset", select.value);
     params.set("period", chosen("period"));
     params.set("chart", chosen("chart"));
+    var orderButton = document.querySelector("[data-order].active");
+    if (orderButton) {
+      params.set("order", orderButton.getAttribute("data-order"));
+    }
     params.delete("ok");
     params.delete("err");
     history.replaceState(null, "", location.pathname + "?" + params.toString());
@@ -916,6 +948,43 @@ function uiText(key, vars) {
   if (historyTab) {
     historyTab.addEventListener("shown.bs.tab", function () {
       paint();
+    });
+  }
+
+  function openVolumeTile(asset) {
+    if (!asset) {
+      return;
+    }
+    var exists = false;
+    [].forEach.call(select.options, function (option) {
+      if (option.value === asset) {
+        exists = true;
+      }
+    });
+    if (!exists) {
+      var extra = document.createElement("option");
+      extra.value = asset;
+      extra.textContent = asset;
+      select.add(extra);
+    }
+    select.value = asset;
+    document.querySelectorAll("[data-chart]").forEach(function (button) {
+      button.classList.toggle("active", button.getAttribute("data-chart") === "candle");
+    });
+    if (historyTab && !historyTab.classList.contains("active")) {
+      bootstrap.Tab.getOrCreateInstance(historyTab).show();
+      return;
+    }
+    paint();
+  }
+
+  if (volumeMap) {
+    volumeMap.addEventListener("click", function (event) {
+      var tile = event.target.closest("[data-asset]");
+      if (!tile || !volumeMap.contains(tile)) {
+        return;
+      }
+      openVolumeTile(tile.getAttribute("data-asset"));
     });
   }
 

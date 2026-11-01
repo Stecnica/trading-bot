@@ -296,7 +296,7 @@ def interpret(raw):
         "tax_rate": _decimal(raw.get("tax_rate"), "0.26"),
         "stable_band": _decimal(raw.get("stable_band"), "0.005"),
         "history_days": _int_between(raw.get("history_days"), 30, 1825, 180),
-        "return_days": _int_between(raw.get("return_days"), 1, 120, 20),
+        "return_days": _int_between(raw.get("return_days"), 1, 240, 20),
         "focus_asset": normalize_ticker(raw.get("focus_asset") or "AAPL") or "AAPL",
         "max_price_age_hours": _int_between(raw.get("max_price_age_hours"), 1, 720, 120),
         "notice_seconds": _int_between(raw.get("notice_seconds"), 3, 30, 8),
@@ -355,7 +355,7 @@ def validate_preferences(form):
         return None, tr("prefs.err.theme")
     if not focus:
         return None, tr("prefs.err.symbol")
-    if not (30 <= history_days <= 1825 and 1 <= return_days <= 120 and 1 <= age <= 720):
+    if not (30 <= history_days <= 1825 and 1 <= return_days <= 240 and 1 <= age <= 720):
         return None, tr("prefs.err.limits")
     if not 3 <= notice <= 30:
         return None, tr("prefs.err.notice")

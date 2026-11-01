@@ -66,10 +66,18 @@ LINE_MARGIN = 0.03
 CANDLE_MARGIN = 0.02
 
 
-def treemap_layout(blocks, names=None):
+def _pack_order(blocks, order):
+    """Rank walks the return list. Volume walks the sizes, largest first."""
+    if order == "volume":
+        return sorted(blocks, key=lambda block: (-float(block["volume"]), block["asset"]))
+    return list(blocks)
+
+
+def treemap_layout(blocks, names=None, order="rank"):
     """Rectangles in percent. The title is the symbol and the company, not the text already drawn."""
     if not blocks:
         return []
+    blocks = _pack_order(blocks, order)
     sizes = [float(block["volume"]) for block in blocks]
     laid = []
     for (x, y, width, height), block in zip(_squarify(sizes), blocks):
@@ -112,9 +120,10 @@ def _tile_label(symbol, company, kind, width):
     return symbol
 
 
-def treemap_png(blocks):
+def treemap_png(blocks, order="rank"):
     if not blocks:
         return _message_png(tr("volume.none"))
+    blocks = _pack_order(blocks, order)
     sizes = [float(block["volume"]) for block in blocks]
     fig, ax, _tick, _title = _figure()
     ax.set_xlim(0, 1)
