@@ -37,18 +37,18 @@ A message slides out under the bar when an update starts and when it finishes. I
 
 A person uses the buttons. A schedule runs `cycle.py` on its own, on weekdays after the US cash session, because the free price plan publishes a session only once it is closed. An agent uses the same routes as the form. There is no separate agent API and no broker plugin.
 
-Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the file `private/ui_password`: the first successful check replaces the plaintext with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /esci`. Five failed attempts lock the application for 15 minutes.
+Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the file `private/ui_password`: the first successful check replaces the plaintext with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /logout`. Five failed attempts lock the application for 15 minutes.
 
 Every POST carries the `csrf` value from the page. After sign-in the routes are:
 
 | Route | Role |
 | --- | --- |
-| `POST /acquisto` | Record a buy. Fields: `asset`, `amount`, `price`, `fees`, `taxes`, `csrf`. |
-| `POST /ciclo` | Apply the sell rule to lots that are ready. |
-| `POST /aggiorna` | Start one price update, which then applies the sell rule. |
-| `POST /preferenze` | Save preferences. Field names match the inputs in the dialog. |
+| `POST /buy` | Record a buy. Fields: `asset`, `amount`, `price`, `fees`, `taxes`, `csrf`. |
+| `POST /sells` | Apply the sell rule to lots that are ready. |
+| `POST /refresh` | Start one price update, which then applies the sell rule. |
+| `POST /preferences` | Save preferences. Field names match the inputs in the dialog. |
 | `POST /volume` | Save the volume filter: `return_days` (1–120), `universe_size` (10–500, step 10), `volume_class`, `csrf`. |
-| `POST /esci` | End this session. |
+| `POST /logout` | End this session. |
 
 `volume_class` is empty for the whole archive, `s:` plus a sector name, or `u:` plus a sector, a pipe, and a group name.
 

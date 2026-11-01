@@ -111,7 +111,7 @@ def _ensure_csrf():
         session["csrf"] = os.urandom(16).hex()
 
 
-_AZIONI = {"/aggiorna", "/ciclo", "/acquisto", "/preferenze", "/esci", "/volume"}
+_AZIONI = {"/refresh", "/sells", "/buy", "/preferences", "/logout", "/volume"}
 
 
 def _safe_next(value):
@@ -197,7 +197,7 @@ def login():
     )
 
 
-@app.route("/esci", methods=["POST"])
+@app.route("/logout", methods=["POST"])
 def logout():
     session.clear()
     return redirect(url_for("login"))
@@ -541,7 +541,7 @@ def chart_hits():
     return response
 
 
-@app.route("/preferenze", methods=["POST"])
+@app.route("/preferences", methods=["POST"])
 def save_prefs():
     values, error = validate_preferences(request.form)
     if error:
@@ -560,7 +560,7 @@ def _buy_back(**extra):
     return redirect(url_for("home", **extra))
 
 
-@app.route("/acquisto", methods=["POST"])
+@app.route("/buy", methods=["POST"])
 def buy():
     asset = normalize_ticker(request.form.get("asset", ""))
     if not asset:
@@ -601,7 +601,7 @@ def buy():
     return _buy_back(ok=tr("buy.saved", asset=asset), asset=asset)
 
 
-@app.route("/ciclo", methods=["POST"])
+@app.route("/sells", methods=["POST"])
 def cycle_sells():
     conn = connect()
     try:
@@ -612,7 +612,7 @@ def cycle_sells():
     return redirect(url_for("home", ok=tr("sells.done", sold=sold)))
 
 
-@app.route("/aggiorna", methods=["POST"])
+@app.route("/refresh", methods=["POST"])
 def refresh():
     if cycle_running():
         return redirect(url_for("home", err=tr("prices.busy")))
