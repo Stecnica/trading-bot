@@ -8,15 +8,3 @@ __pycache__/
 *.pyc
 stats/
 media/
-phpinfosticazzi.php
-index2.py
-index3.py
-index4.py
-index5.py
-index6-OK.py
-index.py.save
-app copy.old
-app copy.wsgi
-app_changeDirectory.wsgi
-app_printWorkingDirectory.wsgi
-app_pythonVersion.wsgi
