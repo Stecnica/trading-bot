@@ -10,7 +10,7 @@ English is the default language. Every other language is a file in `lang/`.
 
 The page is a bar and two tabs. The icon links home. The title is the words Trading bot followed by the selected list, `S&P500`. Opening that word shows the entry and a disabled line, `next idea...`. The page, the prices, and the names in this document are those of the selected entry.
 
-**Volume** is a treemap of the names with the highest trailing return. The tile size is the volume of the latest stored session. Green is up, red is down, and blue is inside the flat band from preferences. Sector and group filters apply before the ranking. Sessions and the number of names can be typed or stepped, and that filter is `POST /volume`. The caption under the legend states the filter, the count, and how many tiles were drawn.
+**Volume** is a treemap of the names with the highest trailing return. The tile size is the volume of the latest stored session. Arrangement is Rank, which places rectangles in return order, or Volume, which places the largest first. Green is up, red is down, and blue is inside the flat band from preferences. Sector and group filters apply before the ranking. Sessions and the number of names can be typed or stepped, and that filter is `POST /volume`. The caption under the legend states the filter, the count, and how many tiles were drawn.
 
 The sector list and the group list are the GICS names stored for the S&P 500 names in this database. Choosing a sector limits the groups to that sector. **All** clears that level. A filtered board is the same picture as an unfiltered one: fewer tiles, the same colour rule, and a caption that names the sector or the group.
 
@@ -47,7 +47,7 @@ Every POST carries the `csrf` value from the page. After sign-in the routes are:
 | `POST /cycle` | Apply the sell rule to lots that are ready. |
 | `POST /update` | Start one price update, which then applies the sell rule. |
 | `POST /prefs` | Save preferences. Field names match the inputs in the dialog. |
-| `POST /volume` | Save the volume filter: `return_days` (1–120), `names` (10–500, step 10), `volume_class`, `csrf`. |
+| `POST /volume` | Save the volume filter: `return_days` (1–240), `names` (10–500, step 10), `volume_class`, `order` (`rank` or `volume`), `csrf`. |
 | `POST /exit` | End this session. |
 
 `volume_class` is empty for the whole archive, `s:` plus a sector name, or `u:` plus a sector, a pipe, and a group name.

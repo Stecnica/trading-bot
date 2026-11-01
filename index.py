@@ -370,7 +370,8 @@ def home():
     try:
         prefs = load_preferences(conn)
         asset = asset or prefs["focus_asset"]
-        prefs, blocks, tiles, volume_caption_text = _volume_board(conn, prefs)
+        order = _pack_choice()
+        prefs, blocks, tiles, volume_caption_text = _volume_board(conn, prefs, order)
         catalog = security_names()
         class_tree = classification_tree(conn)
         positions = position_rows(conn, prefs)
@@ -428,7 +429,13 @@ def home():
         stats=stats,
         class_tree=class_tree,
         volume_caption_text=volume_caption_text,
+        order=order,
     )
+
+
+def _pack_choice():
+    order = request.values.get("order")
+    return order if order in ("rank", "volume") else "rank"
 
 
 @app.route("/chart/volume.png")
@@ -436,10 +443,11 @@ def chart_blocks():
     conn = connect()
     try:
         prefs = load_preferences(conn)
-        _prefs, blocks, _tiles, _caption = _volume_board(conn, prefs)
+        order = _pack_choice()
+        _prefs, blocks, _tiles, _caption = _volume_board(conn, prefs, order)
     finally:
         conn.close()
-    return _png(treemap_png(blocks))
+    return _png(treemap_png(blocks, order))
 
 
 def volume_caption(prefs, shown):
@@ -459,7 +467,7 @@ def volume_caption(prefs, shown):
     )
 
 
-def _volume_board(conn, prefs):
+def _volume_board(conn, prefs, order="rank"):
     prefs = dict(prefs)
     prefs["volume_class"] = accepted_volume_class(conn, prefs.get("volume_class"))
     # History length is not part of this: the ranking sessions are enough.
@@ -467,7 +475,7 @@ def _volume_board(conn, prefs):
     window_days = max(prefs["return_days"] * 3, 40)
     allowed = class_symbols(conn, prefs["volume_class"])
     blocks = build_blocks(load_bars_since(conn, window_days), prefs, allowed)
-    tiles = treemap_layout(blocks, security_names())
+    tiles = treemap_layout(blocks, security_names(), order)
     return prefs, blocks, tiles, volume_caption(prefs, len(blocks))
 
 
@@ -478,7 +486,7 @@ def volume_view():
         count = int(request.form.get("names", ""))
     except (TypeError, ValueError):
         return jsonify(error=tr("volume.bad_values")), 400
-    if not 1 <= sessions <= 120:
+    if not 1 <= sessions <= 240:
         return jsonify(error=tr("volume.bad_sessions")), 400
     if not 10 <= count <= 500 or count % 10 != 0:
         return jsonify(error=tr("volume.bad_count")), 400
@@ -500,10 +508,11 @@ def volume_view():
                 "volume_class": chosen,
             },
         )
-        prefs, blocks, tiles, caption = _volume_board(conn, prefs)
+        order = _pack_choice()
+        prefs, blocks, tiles, caption = _volume_board(conn, prefs, order)
     finally:
         conn.close()
-    return jsonify(tiles=tiles, sessions=sessions, count=count, group=chosen, caption=caption)
+    return jsonify(tiles=tiles, sessions=sessions, count=count, group=chosen, caption=caption, order=order)
 
 
 @app.route("/chart/stats.json")
