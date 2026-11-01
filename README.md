@@ -10,7 +10,7 @@ English is the default language. Italian is included.
 
 The page is a bar and two tabs.
 
-**Volume** is a treemap of the names with the highest trailing return. The tile size is the volume of the latest stored session. Green is up, red is down, and blue is inside the flat band from preferences. Sector and group filters apply before the ranking. Sessions and the number of names can be typed or stepped. The caption under the legend states the filter, the count, and how many tiles were drawn.
+**Volume** is a treemap of the names with the highest trailing return. The tile size is the volume of the latest stored session. Green is up, red is down, and blue is inside the flat band from preferences. Sector and group filters apply before the ranking. Sessions and the number of names can be typed or stepped, and that filter is `POST /volume`. The caption under the legend states the filter, the count, and how many tiles were drawn.
 
 The sector list and the group list are the GICS names stored for the S&P 500 names in this database. Choosing a sector limits the groups to that sector. **All** clears that level. A filtered board is the same picture as an unfiltered one: fewer tiles, the same colour rule, and a caption that names the sector or the group.
 
@@ -19,15 +19,15 @@ The sector list and the group list are the GICS names stored for the S&P 500 nam
 From the bar:
 
 - **Positions** lists each open lot, its cost, the latest price, the net profit, and whether it is ready to sell. A row is marked when the net profit is at or above the threshold and the price is recent enough.
-- **Buy** records a lot. The fields are symbol, quantity, price, commissions, and taxes. An empty price uses the latest stored close. Empty commissions use the preference. Empty taxes stay zero: the tax on the gain is applied when the lot is sold. The amount cannot exceed the maximum investment.
+- **Buy** records a lot with `POST /buy`. The fields are symbol, quantity, price, commissions, and taxes. An empty price uses the latest stored close. Empty commissions use the preference. Empty taxes stay zero: the tax on the gain is applied when the lot is sold. The amount cannot exceed the maximum investment.
 - **Transactions** lists the latest buys and sales. A sale is the same table with type `sell`.
-- The refresh button starts `cycle.py`: download missing closed sessions, then apply the sell rule.
-- The checklist button runs only the sell rule.
-- **Preferences** and **Sign out** are in the main menu. The language menu is the flag button just before it.
+- The update button is `POST /update`. It starts `cycle.py`: download missing closed sessions, then apply the sell rule.
+- The checklist button is `POST /cycle`. It runs only the sell rule.
+- **Preferences** (`POST /prefs`) and **Sign out** (`POST /exit`) are in the main menu. The language menu is the flag button just before it.
 
 Net profit subtracts the sale commission and the tax on the gain from the proceeds, then compares that with the cost of the buy (price plus the commissions and taxes already stored). The threshold, the commission, the tax, and the maximum age of a price are preferences.
 
-Preferences are two groups. Operations: threshold, investment, commission, tax, flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, the maximum price age, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving closes the dialog first. A spinner covers the page until it reloads.
+Preferences are two groups. Operations: threshold, investment, commission, tax, flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, the maximum price age, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving is `POST /prefs` and closes the dialog first. A spinner covers the page until it reloads.
 
 Theme **Automatic** follows the browser’s local time: light from 07:00 to 19:00, dark otherwise. Light and Dark stay fixed. The first paint uses the server clock; the page then follows the browser.
 
