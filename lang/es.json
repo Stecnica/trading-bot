@@ -106,7 +106,7 @@
   "period.30": "1M",
   "period.90": "3M",
   "period.180": "6M",
-  "period.ytd": "YTD",
+  "period.ytd": "Año",
   "period.365": "1A",
   "period.730": "2A",
   "period.hint.1": "Día",
