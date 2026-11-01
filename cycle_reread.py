@@ -4,12 +4,13 @@
 import os
 import sys
 
-SITE = "/var/www/clients/client0/web5/home/default_botmanager/.local/lib/python3.10/site-packages"
-if SITE not in sys.path:
-    sys.path.insert(0, SITE)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+os.chdir(_HERE)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+from bot_config import install_import_path
 
-os.chdir("/var/www/clients/client0/web5/web")
-sys.path.insert(0, "/var/www/clients/client0/web5/web")
+install_import_path()
 
 import socket
 

@@ -2,10 +2,11 @@
 
 import logging
 import os
+import sys
 from pathlib import Path
 
-ROOT = Path("/var/www/clients/client0/web5")
-WEB = ROOT / "web"
+WEB = Path(__file__).resolve().parent
+ROOT = WEB.parent
 PRIVATE = ROOT / "private"
 LOG_PATH = PRIVATE / "trading-bot.log"
 STATUS_PATH = PRIVATE / "cycle_status.json"
@@ -17,9 +18,28 @@ NAMES_CACHE = PRIVATE / "sp500_names.tsv"
 CLASSES_CACHE = PRIVATE / "sp500_classes.tsv"
 MPLCONFIG = PRIVATE / "mplconfig"
 
-SITE_PACKAGES = (
-    "/var/www/clients/client0/web5/home/default_botmanager/.local/lib/python3.10/site-packages"
-)
+def site_packages():
+    chosen = os.environ.get("SITE_PACKAGES")
+    if chosen:
+        return chosen
+    version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    home = Path.home() / ".local" / "lib" / version / "site-packages"
+    if home.is_dir():
+        return str(home)
+    homes = ROOT / "home"
+    if homes.is_dir():
+        found = sorted(homes.glob(f"*/.local/lib/{version}/site-packages"))
+        if found:
+            return str(found[0])
+    return str(home)
+
+
+SITE_PACKAGES = site_packages()
+
+
+def install_import_path():
+    if os.path.isdir(SITE_PACKAGES) and SITE_PACKAGES not in sys.path:
+        sys.path.insert(0, SITE_PACKAGES)
 
 
 def env_first(*keys, default=None):
@@ -30,12 +50,19 @@ def env_first(*keys, default=None):
     return default
 
 
+def env_db(base, default=None):
+    prefixed = [value for key, value in sorted(os.environ.items()) if key.startswith(base + "_") and value]
+    if prefixed:
+        return prefixed[0]
+    return env_first(base, default=default)
+
+
 def db_config():
     return {
-        "user": env_first("DB_USERNAME_web5", "DB_USERNAME"),
-        "password": env_first("DB_PASSWORD_web5", "DB_PASSWORD"),
-        "host": env_first("DB_SERVER_web5", "DB_SERVER", default="localhost"),
-        "database": env_first("DB_NAME_web5", "DB_NAME"),
+        "user": env_db("DB_USERNAME"),
+        "password": env_db("DB_PASSWORD"),
+        "host": env_db("DB_SERVER", default="localhost"),
+        "database": env_db("DB_NAME"),
         "charset": "utf8mb4",
     }
 

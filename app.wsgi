@@ -1,15 +1,14 @@
 import sys
 import os
 
-# Imposta la directory di lavoro
-os.chdir('/var/www/clients/client0/web5/web')
+here = os.path.dirname(os.path.abspath(__file__))
+os.chdir(here)
+if here not in sys.path:
+    sys.path.insert(0, here)
 
-# Aggiungi la directory corrente a sys.path
-sys.path.insert(0, '.')
+import bot_config
 
-path_to_libs = '/var/www/clients/client0/web5/home/default_botmanager/.local/lib/python3.10/site-packages'
-if path_to_libs not in sys.path:
-    sys.path.insert(0, path_to_libs)
+bot_config.install_import_path()
 
 try:
     import index

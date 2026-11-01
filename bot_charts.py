@@ -4,7 +4,9 @@ import io
 import os
 from contextlib import contextmanager
 
-os.environ.setdefault("MPLCONFIGDIR", "/var/www/clients/client0/web5/private/mplconfig")
+from bot_config import MPLCONFIG
+
+os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG))
 os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import matplotlib
@@ -182,7 +184,7 @@ def _num(value):
 def history_png(series, asset, chart_type, width=1280, height=720, scale=100, theme="light", weight=400):
     with _appearance(theme, scale, weight):
         if not series:
-            return _message_png(f"Nessuno storico per {asset}.", width, height)
+            return _message_png(tr("chart.empty", asset=asset), width, height)
         has_ohlc = all(row.get("open_price") and row.get("high_price") and row.get("low_price") for row in series)
         if chart_type == "candle" and has_ohlc:
             return _candle_png(series, asset, width, height)

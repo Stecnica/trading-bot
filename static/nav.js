@@ -36,15 +36,15 @@ function uiText(key, vars) {
       document.body.classList.toggle("bg-body", theme === "dark");
       document.body.classList.toggle("bg-light", theme !== "dark");
     }
-    var img = document.getElementById("grafico");
+    var img = document.getElementById("chart");
     if (!img || !img.getAttribute("src")) {
       return;
     }
     var url = new URL(img.getAttribute("src"), location.origin);
-    if (url.searchParams.get("tema") === theme) {
+    if (url.searchParams.get("theme") === theme) {
       return;
     }
-    url.searchParams.set("tema", theme);
+    url.searchParams.set("theme", theme);
     img.src = url.pathname + url.search;
   }
 
@@ -111,7 +111,7 @@ function uiText(key, vars) {
     });
   });
 
-  var openPanel = document.body.dataset.pannello;
+  var openPanel = document.body.dataset.panel;
   if (openPanel) {
     var toggle = document.getElementById(openPanel + "-toggle");
     if (toggle) {
@@ -355,10 +355,10 @@ function uiText(key, vars) {
     });
   }
 
-  var frameEl = document.getElementById("grafico-frame");
-  var img = document.getElementById("grafico");
-  var svg = document.getElementById("grafico-svg");
-  var select = document.getElementById("titolo");
+  var frameEl = document.getElementById("chart-frame");
+  var img = document.getElementById("chart");
+  var svg = document.getElementById("chart-svg");
+  var select = document.getElementById("symbol");
   if (!img || !select || !frameEl) {
     return;
   }
@@ -386,32 +386,32 @@ function uiText(key, vars) {
   }
 
   function chartUrl(box) {
-    var url = new URL(img.dataset.chart, location.origin);
+    var url = new URL(img.dataset.history, location.origin);
     url.searchParams.set("asset", select.value);
-    url.searchParams.set("periodo", chosen("periodo"));
-    url.searchParams.set("grafico", chosen("grafico"));
+    url.searchParams.set("period", chosen("period"));
+    url.searchParams.set("chart", chosen("chart"));
     url.searchParams.set("w", String(box.w));
     url.searchParams.set("h", String(box.h));
-    url.searchParams.set("scala", document.documentElement.dataset.scale || "100");
-    url.searchParams.set("tema", document.documentElement.getAttribute("data-bs-theme") || "light");
-    url.searchParams.set("peso", getComputedStyle(document.documentElement).getPropertyValue("--bs-body-font-weight").trim() || "400");
+    url.searchParams.set("scale", document.documentElement.dataset.scale || "100");
+    url.searchParams.set("theme", document.documentElement.getAttribute("data-bs-theme") || "light");
+    url.searchParams.set("weight", getComputedStyle(document.documentElement).getPropertyValue("--bs-body-font-weight").trim() || "400");
     return url.pathname + url.search;
   }
 
-  function remember(vista) {
+  function remember(view) {
     var params = new URLSearchParams(location.search);
-    params.set("vista", vista);
+    params.set("view", view);
     params.set("asset", select.value);
-    params.set("periodo", chosen("periodo"));
-    params.set("grafico", chosen("grafico"));
+    params.set("period", chosen("period"));
+    params.set("chart", chosen("chart"));
     params.delete("ok");
     params.delete("err");
     history.replaceState(null, "", location.pathname + "?" + params.toString());
   }
 
   var drawn = "";
-  var statsBox = document.getElementById("statistiche");
-  var statsKey = select.value + "|" + chosen("periodo");
+  var statsBox = document.getElementById("stats");
+  var statsKey = select.value + "|" + chosen("period");
 
   function fillStats(data) {
     ["change", "last", "low", "high", "sessions"].forEach(function (name) {
@@ -429,13 +429,13 @@ function uiText(key, vars) {
     if (!statsBox) {
       return;
     }
-    var key = select.value + "|" + chosen("periodo");
+    var key = select.value + "|" + chosen("period");
     if (key === statsKey) {
       return;
     }
     var url = new URL(statsBox.dataset.stats, location.origin);
     url.searchParams.set("asset", select.value);
-    url.searchParams.set("periodo", chosen("periodo"));
+    url.searchParams.set("period", chosen("period"));
     fetch(url.pathname + url.search, { headers: { Accept: "application/json" } })
       .then(function (response) {
         if (!response.ok) {
@@ -444,7 +444,7 @@ function uiText(key, vars) {
         return response.json();
       })
       .then(function (data) {
-        if (select.value + "|" + chosen("periodo") !== key) {
+        if (select.value + "|" + chosen("period") !== key) {
           return;
         }
         statsKey = key;
@@ -453,7 +453,7 @@ function uiText(key, vars) {
       .catch(function () {});
   }
 
-  var hitLayer = document.getElementById("grafico-hit");
+  var hitLayer = document.getElementById("chart-hit");
   var hitsDrawn = "";
   var note = document.createElement("div");
   note.className = "position-absolute z-3 d-none pe-none bg-body text-body border rounded-2 px-2 py-1 shadow";
@@ -509,8 +509,8 @@ function uiText(key, vars) {
     }
     var url = new URL(hitLayer.dataset.hits, location.origin);
     url.searchParams.set("asset", select.value);
-    url.searchParams.set("periodo", chosen("periodo"));
-    url.searchParams.set("grafico", chosen("grafico"));
+    url.searchParams.set("period", chosen("period"));
+    url.searchParams.set("chart", chosen("chart"));
     var key = url.pathname + url.search;
     if (key === hitsDrawn) {
       return;
@@ -833,8 +833,8 @@ function uiText(key, vars) {
   function seriesUrl() {
     var url = new URL(frameEl.dataset.series, location.origin);
     url.searchParams.set("asset", select.value);
-    url.searchParams.set("periodo", chosen("periodo"));
-    url.searchParams.set("grafico", chosen("grafico"));
+    url.searchParams.set("period", chosen("period"));
+    url.searchParams.set("chart", chosen("chart"));
     return url.pathname + url.search;
   }
 
@@ -884,15 +884,15 @@ function uiText(key, vars) {
       img.alt = uiText("history.alt", { asset: select.value });
       paintHits();
     }
-    remember("storico");
+    remember("history");
     loadStats();
   }
 
   select.addEventListener("change", paint);
 
-  document.querySelectorAll("[data-periodo], [data-grafico]").forEach(function (button) {
+  document.querySelectorAll("[data-period], [data-chart]").forEach(function (button) {
     button.addEventListener("click", function () {
-      var name = button.hasAttribute("data-periodo") ? "periodo" : "grafico";
+      var name = button.hasAttribute("data-period") ? "period" : "chart";
       document.querySelectorAll("[data-" + name + "]").forEach(function (other) {
         other.classList.remove("active");
       });
@@ -902,14 +902,14 @@ function uiText(key, vars) {
   });
 
   var volumeTab = document.getElementById("volume-tab");
-  var storicoTab = document.getElementById("storico-tab");
+  var historyTab = document.getElementById("history-tab");
   if (volumeTab) {
     volumeTab.addEventListener("shown.bs.tab", function () {
       remember("volume");
     });
   }
-  if (storicoTab) {
-    storicoTab.addEventListener("shown.bs.tab", function () {
+  if (historyTab) {
+    historyTab.addEventListener("shown.bs.tab", function () {
       paint();
     });
   }
@@ -929,7 +929,7 @@ function uiText(key, vars) {
 })();
 
 (function () {
-  var modal = document.getElementById("preferenze");
+  var modal = document.getElementById("prefs");
   var form = modal ? modal.querySelector("form") : null;
   var wait = document.getElementById("pref-wait");
   if (!modal || !form) {

@@ -8,7 +8,7 @@
 	<link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='flag-icon/css/flag-icon.css') }}">
-	{% if running and request.args.get('anteprima') != 'messaggi' %}<meta http-equiv="refresh" content="20;url={{ url_for('home', vista=vista, asset=asset, periodo=period, grafico=grafico) }}">{% endif %}
+	{% if running and request.args.get('preview') != 'messages' %}<meta http-equiv="refresh" content="20;url={{ url_for('home', view=view, asset=asset, period=period, chart=chart) }}">{% endif %}
 	<style>
 		.slide-note {
 			width: min(36rem, calc(100% - 2rem));
@@ -59,7 +59,7 @@
 			height: var(--h);
 		}
 		.tile.tiny span, .tile.mid span.full, .tile.big span.short { display: none; }
-		.slide-note.anteprima {
+		.slide-note.preview {
 			animation: none;
 			transform: translateY(0.7rem);
 		}
@@ -72,18 +72,18 @@
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
 		.panel-note { opacity: 0.62; }
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
-		#grafico-svg { min-height: 280px; }
+		#chart-svg { min-height: 280px; }
 		.pref-foot { flex: 1 1 16rem; min-width: 0; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
 	</style>
 </head>
-<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}"{% if request.args.get('pannello') == 'acquisto' %} data-pannello="acquisto"{% endif %}>
+<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}"{% if request.args.get('panel') == 'buy' %} data-panel="buy"{% endif %}>
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid d-flex flex-wrap">
 				<div class="d-flex align-items-center flex-shrink-0 mb-2 mb-md-0">
-					<a class="navbar-brand" href="{{ url_for('home', vista='volume') }}" aria-label="Trading bot">
+					<a class="navbar-brand" href="{{ url_for('home', view='volume') }}" aria-label="Trading bot">
 						<img src="{{ url_for('static', filename='icona.png') }}" alt="" width="32" height="32">
 					</a>
 					<span class="navbar-brand pt-2 pb-0 me-1">Trading bot</span>
@@ -148,10 +148,10 @@
 						</div>
 					</div>
 					<div class="dropdown">
-						<button class="btn btn-outline-light btn-nav-menu" type="button" id="acquisto-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.buy') }}</button>
-						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="acquisto-toggle">
+						<button class="btn btn-outline-light btn-nav-menu" type="button" id="buy-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.buy') }}</button>
+						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="buy-toggle">
 							<h2 class="h6 mb-3">{{ t('buy.title') }}</h2>
-							{% if request.args.get('pannello') == 'acquisto' and (err or ok) %}
+							{% if request.args.get('panel') == 'buy' and (err or ok) %}
 							<div class="panel-note border rounded-4 text-center px-3 py-2 mb-3 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' }}" role="status">{{ err or ok }}</div>
 							{% endif %}
 							<p class="mb-3">{{ t('buy.help') }}</p>
@@ -222,7 +222,7 @@
 							<li><h6 class="dropdown-header">{{ t('nav.language') }}</h6></li>
 							<li><hr class="dropdown-divider"></li>
 							{% for item in languages %}
-							<li><a class="dropdown-item d-flex align-items-center{% if lang == item.code %} active{% endif %}" href="{{ url_for('home', lang=item.code, vista=vista, asset=asset) }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a></li>
+							<li><a class="dropdown-item d-flex align-items-center{% if lang == item.code %} active{% endif %}" href="{{ url_for('home', lang=item.code, view=view, asset=asset) }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a></li>
 							{% endfor %}
 						</ul>
 					</div>
@@ -232,7 +232,7 @@
 							<span aria-hidden="true">{% include "menu.svg" %}</span>
 						</button>
 						<ul class="dropdown-menu dropdown-menu-end">
-							<li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#preferenze">{{ t('nav.preferences') }}</button></li>
+							<li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#prefs">{{ t('nav.preferences') }}</button></li>
 							<li><hr class="dropdown-divider"></li>
 							<li>
 								<form method="post" action="{{ url_for('logout') }}">
@@ -245,11 +245,11 @@
 				</div>
 			</div>
 		</nav>
-		{% if request.args.get('anteprima') == 'messaggi' %}
+		{% if request.args.get('preview') == 'messages' %}
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
-			<div class="slide-note anteprima border rounded-4 text-center pe-none px-3 py-2" data-anteprima role="status"></div>
+			<div class="slide-note preview border rounded-4 text-center pe-none px-3 py-2" data-preview role="status"></div>
 		</div>
-		{% elif (err or ok or sync_notice) and request.args.get('pannello') != 'acquisto' %}
+		{% elif (err or ok or sync_notice) and request.args.get('panel') != 'buy' %}
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
 			<div class="slide-note border rounded-4 text-center pe-none px-3 py-2 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' if ok or status.state == 'ok' else 'text-primary bg-info border-primary opacity-50' }}{{ ' stay' if running and not ok and not err else '' }}" style="--linger: {{ prefs.notice_seconds }}s" role="status">
 				{% if err %}{{ err }}{% elif ok %}{{ ok }}{% else %}{{ status.message }}{% endif %}
@@ -263,15 +263,15 @@
 		<div class="card-header">
 			<ul class="nav nav-tabs card-header-tabs" role="tablist">
 				<li class="nav-item" role="presentation">
-					<button class="nav-link{% if vista != 'storico' %} active{% endif %}" id="volume-tab" data-bs-toggle="tab" data-bs-target="#volume" type="button" role="tab" aria-controls="volume" aria-selected="{{ 'true' if vista != 'storico' else 'false' }}">{{ t('tab.volume') }}</button>
+					<button class="nav-link{% if view != 'history' %} active{% endif %}" id="volume-tab" data-bs-toggle="tab" data-bs-target="#volume" type="button" role="tab" aria-controls="volume" aria-selected="{{ 'true' if view != 'history' else 'false' }}">{{ t('tab.volume') }}</button>
 				</li>
 				<li class="nav-item" role="presentation">
-					<button class="nav-link{% if vista == 'storico' %} active{% endif %}" id="storico-tab" data-bs-toggle="tab" data-bs-target="#storico" type="button" role="tab" aria-controls="storico" aria-selected="{{ 'true' if vista == 'storico' else 'false' }}">{{ t('tab.history') }}</button>
+					<button class="nav-link{% if view == 'history' %} active{% endif %}" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" aria-controls="history" aria-selected="{{ 'true' if view == 'history' else 'false' }}">{{ t('tab.history') }}</button>
 				</li>
 			</ul>
 		</div>
 		<div class="card-body tab-content">
-			<div class="tab-pane fade{% if vista != 'storico' %} show active{% endif %}" id="volume" role="tabpanel" aria-labelledby="volume-tab">
+			<div class="tab-pane fade{% if view != 'history' %} show active{% endif %}" id="volume" role="tabpanel" aria-labelledby="volume-tab">
 				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
 					<h2 class="h5 mb-0">{{ t('volume.heading') }}</h2>
 					<div class="d-flex flex-wrap align-items-end gap-3" id="volume-controls" data-volume="{{ url_for('volume_view') }}">
@@ -347,11 +347,11 @@
 					<p class="small text-secondary mb-0" id="volume-caption">{{ volume_caption_text }}</p>
 				</div>
 			</div>
-			<div class="tab-pane fade{% if vista == 'storico' %} show active{% endif %}" id="storico" role="tabpanel" aria-labelledby="storico-tab">
+			<div class="tab-pane fade{% if view == 'history' %} show active{% endif %}" id="history" role="tabpanel" aria-labelledby="history-tab">
 				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
 					<div>
-						<label class="form-label" for="titolo">{{ t('history.symbol') }}</label>
-						<select class="form-select form-select-sm" id="titolo">
+						<label class="form-label" for="symbol">{{ t('history.symbol') }}</label>
+						<select class="form-select form-select-sm" id="symbol">
 							{% if asset not in assets %}<option value="{{ asset }}" selected>{{ asset }}</option>{% endif %}
 							{% for item in asset_options %}
 							<option value="{{ item.symbol }}" {% if item.symbol == asset %}selected{% endif %}>{{ item.label }}</option>
@@ -362,18 +362,18 @@
 						<div class="form-label">{{ t('history.period') }}</div>
 						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('history.period') }}">
 							{% for key in period_keys %}
-							<button class="btn btn-outline-primary{% if period == key %} active{% endif %}" type="button" data-periodo="{{ key }}" title="{{ t('period.hint.' ~ key) }}">{{ period_label(key) }}</button>
+							<button class="btn btn-outline-primary{% if period == key %} active{% endif %}" type="button" data-period="{{ key }}" title="{{ t('period.hint.' ~ key) }}">{{ period_label(key) }}</button>
 							{% endfor %}
 						</div>
 					</div>
 					<div>
 						<div class="form-label">{{ t('history.chart') }}</div>
 						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('history.chart') }}">
-							<button class="btn btn-outline-primary{% if grafico == 'line' %} active{% endif %}" type="button" data-grafico="line">{{ t('history.line') }}</button>
-							<button class="btn btn-outline-primary{% if grafico == 'candle' %} active{% endif %}" type="button" data-grafico="candle">{{ t('history.candle') }}</button>
+							<button class="btn btn-outline-primary{% if chart == 'line' %} active{% endif %}" type="button" data-chart="line">{{ t('history.line') }}</button>
+							<button class="btn btn-outline-primary{% if chart == 'candle' %} active{% endif %}" type="button" data-chart="candle">{{ t('history.candle') }}</button>
 						</div>
 					</div>
-					<div id="statistiche" class="d-flex flex-wrap align-items-end gap-3 text-end" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
+					<div id="stats" class="d-flex flex-wrap align-items-end gap-3 text-end" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
 						<div>
 							<div class="form-label">{{ t('history.change') }}</div>
 							<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
@@ -396,20 +396,20 @@
 						</div>
 					</div>
 				</div>
-				<div id="grafico-frame" class="position-relative" data-render="{{ prefs.chart_render }}" data-series="{{ url_for('chart_series') }}">
-				<img id="grafico" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="{{ t('history.alt', asset=asset) }}" data-chart="{{ url_for('chart_history') }}"{% if prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, periodo=period, grafico=grafico, scala=prefs.ui_scale, tema=theme, peso=prefs.ui_weight) }}"{% endif %}>
-				<svg id="grafico-svg" class="d-block w-100{% if prefs.chart_render != 'vector' %} d-none{% endif %}" role="img" aria-label="{{ t('history.alt', asset=asset) }}"></svg>
-				<div id="grafico-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1{% if prefs.chart_render == 'vector' %} d-none{% endif %}" data-hits="{{ url_for('chart_hits') }}"></div>
+				<div id="chart-frame" class="position-relative" data-render="{{ prefs.chart_render }}" data-series="{{ url_for('chart_series') }}">
+				<img id="chart" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="{{ t('history.alt', asset=asset) }}" data-history="{{ url_for('chart_history') }}"{% if prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, period=period, chart=chart, scale=prefs.ui_scale, theme=theme, weight=prefs.ui_weight) }}"{% endif %}>
+				<svg id="chart-svg" class="d-block w-100{% if prefs.chart_render != 'vector' %} d-none{% endif %}" role="img" aria-label="{{ t('history.alt', asset=asset) }}"></svg>
+				<div id="chart-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1{% if prefs.chart_render == 'vector' %} d-none{% endif %}" data-hits="{{ url_for('chart_hits') }}"></div>
 				</div>
 			</div>
 		</div>
 	</div>
 
-	<div class="modal fade" id="preferenze" tabindex="-1" aria-labelledby="preferenze-title" aria-hidden="true">
+	<div class="modal fade" id="prefs" tabindex="-1" aria-labelledby="prefs-title" aria-hidden="true">
 		<div class="modal-dialog modal-lg modal-dialog-scrollable">
 		<div class="modal-content">
 		<div class="modal-header">
-			<h2 class="modal-title h5" id="preferenze-title">{{ t('prefs.title') }}</h2>
+			<h2 class="modal-title h5" id="prefs-title">{{ t('prefs.title') }}</h2>
 			<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('nav.close') }}"></button>
 		</div>
 		<div class="modal-body">
@@ -539,9 +539,9 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=20) }}"></script>
-{% if request.args.get('anteprima') == 'messaggi' %}
-<script src="{{ url_for('static', filename='anteprima.js', v=4) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=21) }}"></script>
+{% if request.args.get('preview') == 'messages' %}
+<script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}
 </body>
 </html>
