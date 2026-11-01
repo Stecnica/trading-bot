@@ -8,4 +8,4 @@ The interface, the price archive, and the sell rule are in place. The items belo
 - A broker. Buys and sales are rows written through the HTTP interface. Nothing here submits an order.
 - A loss limit, an exchange holiday calendar, and a reconciliation of database quantities with an account.
 
-A buy is a `POST /acquisto` from a person, from a schedule, or from an agent. A sale is recorded when `cycle.py` or `POST /ciclo` finds a lot at or above the net threshold.
+A buy is a `POST /buy` from a person, from a schedule, or from an agent. A sale is recorded when `cycle.py` or `POST /sells` finds a lot at or above the net threshold.
