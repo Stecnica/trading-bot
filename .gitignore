@@ -1,4 +1,6 @@
 .htaccess
+design/
+error/
 .env
 *.env
 *.log
