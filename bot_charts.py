@@ -11,6 +11,7 @@ import matplotlib
 
 matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
+from bot_i18n import tr
 from matplotlib.dates import date2num
 from matplotlib.patches import Rectangle
 
@@ -148,15 +149,13 @@ def treemap_png(blocks):
 def history_model(series, asset, chart_type):
     """Stessi numeri del PNG, in forma che il vettore SVG disegna da sé."""
     if not series:
-        return {"asset": asset, "draw": "line", "title": f"Nessuno storico per {asset}.", "points": []}
+        return {"asset": asset, "draw": "line", "title": tr("chart.empty", asset=asset), "points": []}
     has_ohlc = all(row.get("open_price") and row.get("high_price") and row.get("low_price") for row in series)
     draw = "candle" if chart_type == "candle" and has_ohlc else "line"
     if draw == "candle":
-        title = asset + " — candele"
+        title = tr("chart.candle", asset=asset)
     else:
-        title = asset + " — chiusure giornaliere"
-        if chart_type == "candle" and not has_ohlc:
-            title += " (mancano i prezzi per le candele)"
+        title = tr("chart.line_no_ohlc" if chart_type == "candle" and not has_ohlc else "chart.line", asset=asset)
     points = []
     for row in series:
         points.append(
@@ -203,9 +202,7 @@ def _line_png(series, asset, missing_ohlc, width, height):
     ax.plot(dates, prices, **style)
     ax.set_ylim(low - pad, high + pad)
     ax.margins(x=LINE_MARGIN)
-    title = asset + " — chiusure giornaliere"
-    if missing_ohlc:
-        title += " (mancano i prezzi per le candele)"
+    title = tr("chart.line_no_ohlc" if missing_ohlc else "chart.line", asset=asset)
     _decorate(ax, title, tick, title_px)
     _date_labels(ax, dates, series, tick, indexed=False)
     _volume_strip(volume, dates, series, 0.72)
@@ -226,7 +223,7 @@ def _candle_png(series, asset, width, height):
         body = abs(close - open_price) or (close * 0.0005)
         ax.add_patch(Rectangle((index - 0.3, body_low), 0.6, body, facecolor=color, edgecolor=color))
     ax.margins(x=CANDLE_MARGIN)
-    _decorate(ax, asset + " — candele", tick, title_px)
+    _decorate(ax, tr("chart.candle", asset=asset), tick, title_px)
     _date_labels(ax, None, series, tick, indexed=True)
     _volume_strip(volume, list(range(len(series))), series, 0.6)
     _finish_history(fig, ax, volume)

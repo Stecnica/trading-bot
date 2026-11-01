@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-bs-theme="{{ theme }}" data-theme="{{ prefs.ui_theme }}" data-font="{{ prefs.font_family }}" data-scale="{{ prefs.ui_scale }}" style="--ui-scale: {{ prefs.ui_scale }}; --bs-body-font-weight: {{ prefs.ui_weight }}">
+<html lang="{{ lang }}" data-bs-theme="{{ theme }}" data-theme="{{ prefs.ui_theme }}" data-font="{{ prefs.font_family }}" data-scale="{{ prefs.ui_scale }}" style="--ui-scale: {{ prefs.ui_scale }}; --bs-body-font-weight: {{ prefs.ui_weight }}">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,6 +7,7 @@
 	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
 	<link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
+	<link rel="stylesheet" href="{{ url_for('static', filename='flag-icon/css/flag-icon.css') }}">
 	{% if running and request.args.get('anteprima') != 'messaggi' %}<meta http-equiv="refresh" content="20;url={{ url_for('home', vista=vista, asset=asset, periodo=period, grafico=grafico) }}">{% endif %}
 	<style>
 		.slide-note {
@@ -33,6 +34,9 @@
 			align-items: center;
 			justify-content: center;
 		}
+		.navbar .btn-nav-menu { --bs-btn-bg: rgba(0, 0, 0, 0.1); }
+		.navbar .flag-icon { vertical-align: middle; }
+		.lang-menu { max-height: min(70vh, 24rem); overflow: auto; }
 		.navbar .icon-btn {
 			--bs-btn-padding-x: 0;
 			width: 2rem;
@@ -64,30 +68,50 @@
 		#grafico-svg { min-height: 280px; }
 		.pref-foot { flex: 1 1 16rem; min-width: 0; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
+		.form-label { margin-bottom: .15rem; }
 	</style>
 </head>
 <body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}"{% if request.args.get('pannello') == 'acquisto' %} data-pannello="acquisto"{% endif %}>
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
-			<div class="container-fluid">
-				<a class="navbar-brand" href="{{ url_for('home', vista='volume') }}">Trading bot</a>
-				<div class="ms-auto d-flex flex-wrap align-items-center justify-content-end gap-2">
+			<div class="container-fluid d-flex flex-wrap">
+				<div class="d-flex align-items-center flex-shrink-0">
+					<a class="navbar-brand" href="{{ url_for('home', vista='volume') }}" aria-label="Trading bot">
+						<img src="{{ url_for('static', filename='icona.png') }}" alt="" width="32" height="32">
+					</a>
+					<a class="navbar-brand pt-2 pb-0" href="{{ url_for('home', vista='volume') }}">Trading bot</a>
+				</div>
+				<div class="d-flex flex-grow-1 flex-wrap align-items-end justify-content-end gap-2">
+					<div class="flex-grow-1" style="max-width:1vw;"></div>
+					<form method="post" action="{{ url_for('refresh') }}">
+						<input type="hidden" name="csrf" value="{{ csrf }}">
+						<button class="btn btn-outline-light icon-btn{% if running %} spin{% endif %}" type="submit" title="{{ t('nav.refresh') }}" aria-label="{{ t('nav.refresh') }}" {% if running %}disabled{% endif %}>
+							<span aria-hidden="true">{% include "refresh-cw.svg" %}</span>
+						</button>
+					</form>
+					<form method="post" action="{{ url_for('cycle_sells') }}">
+						<input type="hidden" name="csrf" value="{{ csrf }}">
+						<button class="btn btn-outline-light icon-btn" type="submit" title="{{ t('nav.sells') }}" aria-label="{{ t('nav.sells') }}" {% if running %}disabled{% endif %}>
+							<span aria-hidden="true">{% include "list-checks.svg" %}</span>
+						</button>
+					</form>
+					<div class="flex-grow-1" style="max-width:1vw;"></div>
 					<div class="dropdown">
-						<button class="btn btn-outline-light" type="button" id="posizioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">Posizioni</button>
+						<button class="btn btn-outline-light btn-nav-menu" type="button" id="posizioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.positions') }}</button>
 						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="posizioni-toggle">
-							<h2 class="h6 mb-3">Posizioni aperte</h2>
-							<p class="mb-3">Il profitto è netto: dal ricavo si tolgono la commissione di vendita e l'imposta sul guadagno, e si confronta con il costo di acquisto (prezzo più commissioni e tasse già registrate). Soglia attuale: {{ prefs.profit_threshold|pct }}.</p>
+							<h2 class="h6 mb-3">{{ t('positions.title') }}</h2>
+							<p class="mb-3">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}</p>
 							{% if positions %}
 							<div class="table-responsive">
 							<table class="table table-sm align-middle mb-0">
 								<thead>
 									<tr>
-										<th>Titolo</th>
-										<th>Quantità</th>
-										<th>Prezzo di carico</th>
-										<th>Prezzo ora</th>
-										<th>Profitto netto</th>
-										<th>Esito</th>
+										<th>{{ t('positions.symbol') }}</th>
+										<th>{{ t('positions.quantity') }}</th>
+										<th>{{ t('positions.cost') }}</th>
+										<th>{{ t('positions.now') }}</th>
+										<th>{{ t('positions.profit') }}</th>
+										<th>{{ t('positions.outcome') }}</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -105,61 +129,61 @@
 							</table>
 							</div>
 							{% else %}
-							<p class="mb-0">Nessun acquisto aperto.</p>
+							<p class="mb-0">{{ t('positions.empty') }}</p>
 							{% endif %}
 						</div>
 					</div>
 					<div class="dropdown">
-						<button class="btn btn-outline-light" type="button" id="acquisto-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">Acquisto</button>
+						<button class="btn btn-outline-light btn-nav-menu" type="button" id="acquisto-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.buy') }}</button>
 						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="acquisto-toggle">
-							<h2 class="h6 mb-3">Registra un acquisto</h2>
+							<h2 class="h6 mb-3">{{ t('buy.title') }}</h2>
 							{% if request.args.get('pannello') == 'acquisto' and (err or ok) %}
 							<div class="panel-note border rounded-4 text-center px-3 py-2 mb-3 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' }}" role="status">{{ err or ok }}</div>
 							{% endif %}
-							<p class="mb-3">È il record iniziale del lotto. Se lasci vuoti prezzo e commissioni, il bot usa l'ultimo prezzo in archivio e la commissione delle preferenze. Le tasse in acquisto, se non le indichi, restano zero: l'imposta sul guadagno si calcola in vendita.</p>
+							<p class="mb-3">{{ t('buy.help') }}</p>
 							<form class="row g-3" method="post" action="{{ url_for('buy') }}">
 								<input type="hidden" name="csrf" value="{{ csrf }}">
 								<div class="col-12 col-sm-6">
-									<label class="form-label" for="buy-asset">Titolo</label>
+									<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
 									<input class="form-control" id="buy-asset" name="asset" value="{{ asset }}" required>
 								</div>
 								<div class="col-6">
-									<label class="form-label" for="buy-amount">Quantità</label>
+									<label class="form-label" for="buy-amount">{{ t('buy.quantity') }}</label>
 									<input class="form-control" id="buy-amount" name="amount" inputmode="decimal" required>
 								</div>
 								<div class="col-6">
-									<label class="form-label" for="buy-price">Prezzo</label>
-									<input class="form-control" id="buy-price" name="price" inputmode="decimal" placeholder="ultimo prezzo">
+									<label class="form-label" for="buy-price">{{ t('buy.price') }}</label>
+									<input class="form-control" id="buy-price" name="price" inputmode="decimal" placeholder="{{ t('buy.price_ph') }}">
 								</div>
 								<div class="col-6">
-									<label class="form-label" for="buy-fees">Commissioni</label>
-									<input class="form-control" id="buy-fees" name="fees" inputmode="decimal" placeholder="automatiche">
+									<label class="form-label" for="buy-fees">{{ t('buy.fees') }}</label>
+									<input class="form-control" id="buy-fees" name="fees" inputmode="decimal" placeholder="{{ t('buy.fees_ph') }}">
 								</div>
 								<div class="col-6">
-									<label class="form-label" for="buy-taxes">Tasse</label>
+									<label class="form-label" for="buy-taxes">{{ t('buy.taxes') }}</label>
 									<input class="form-control" id="buy-taxes" name="taxes" inputmode="decimal" placeholder="0">
 								</div>
 								<div class="col-12">
-									<button class="btn btn-primary" type="submit">Registra acquisto</button>
+									<button class="btn btn-primary" type="submit">{{ t('buy.submit') }}</button>
 								</div>
 							</form>
 						</div>
 					</div>
 					<div class="dropdown">
-						<button class="btn btn-outline-light" type="button" id="transazioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">Transazioni</button>
+						<button class="btn btn-outline-light btn-nav-menu" type="button" id="transazioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.transactions') }}</button>
 						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="transazioni-toggle">
-							<h2 class="h6 mb-3">Ultime transazioni</h2>
+							<h2 class="h6 mb-3">{{ t('tx.title') }}</h2>
 							{% if transactions %}
 							<div class="table-responsive">
 							<table class="table table-sm align-middle mb-0">
 								<thead>
-									<tr><th>Data</th><th>Tipo</th><th>Titolo</th><th>Quantità</th><th>Prezzo</th><th>Commissioni</th><th>Tasse</th></tr>
+									<tr><th>{{ t('tx.date') }}</th><th>{{ t('tx.type') }}</th><th>{{ t('tx.symbol') }}</th><th>{{ t('tx.quantity') }}</th><th>{{ t('tx.price') }}</th><th>{{ t('tx.fees') }}</th><th>{{ t('tx.taxes') }}</th></tr>
 								</thead>
 								<tbody>
 									{% for tx in transactions %}
 									<tr>
 										<td>{{ tx.timestamp|when }}</td>
-										<td>{{ tx.type }}</td>
+										<td>{{ t('tx.buy') if tx.type == 'buy' else t('tx.sell') }}</td>
 										<td>{{ tx.asset_name }}</td>
 										<td>{{ tx.amount|qty }}</td>
 										<td>{{ tx.price|px }}</td>
@@ -171,32 +195,35 @@
 							</table>
 							</div>
 							{% else %}
-							<p class="mb-0">Ancora nessuna transazione.</p>
+							<p class="mb-0">{{ t('tx.empty') }}</p>
 							{% endif %}
 						</div>
 					</div>
-					<form method="post" action="{{ url_for('refresh') }}">
-						<input type="hidden" name="csrf" value="{{ csrf }}">
-						<button class="btn btn-outline-light icon-btn{% if running %} spin{% endif %}" type="submit" title="Aggiorna prezzi e controlla vendite" aria-label="Aggiorna prezzi e controlla vendite" {% if running %}disabled{% endif %}>
-							<span aria-hidden="true">{% include "refresh-cw.svg" %}</span>
-						</button>
-					</form>
-					<form method="post" action="{{ url_for('cycle_sells') }}">
-						<input type="hidden" name="csrf" value="{{ csrf }}">
-						<button class="btn btn-outline-light icon-btn" type="submit" title="Solo controllo vendite" aria-label="Solo controllo vendite" {% if running %}disabled{% endif %}>
-							<span aria-hidden="true">{% include "list-checks.svg" %}</span>
-						</button>
-					</form>
+					<div class="flex-grow-1" style="max-width:1vw;"></div>
 					<div class="dropdown">
-						<button class="btn btn-outline-light icon-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Menu" aria-label="Menu">
+						<button class="btn btn-outline-light btn-nav-menu icon-btn" type="button" id="lingua-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="{{ t('nav.language_current', name=language.name) }}" aria-label="{{ t('nav.language_current', name=language.name) }}">
+							<span class="flag-icon flag-icon-{{ language.flag }} m-1" aria-hidden="true"></span>
+						</button>
+						<ul class="dropdown-menu dropdown-menu-end lang-menu" aria-labelledby="lingua-toggle">
+							<li><h6 class="dropdown-header">{{ t('nav.language') }}</h6></li>
+							<li><hr class="dropdown-divider"></li>
+							{% for item in languages %}
+							<li><a class="dropdown-item d-flex align-items-center{% if lang == item.code %} active{% endif %}" href="{{ url_for('home', lang=item.code, vista=vista, asset=asset) }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a></li>
+							{% endfor %}
+						</ul>
+					</div>
+					<div class="flex-grow-1" style="max-width:1vw;"></div>
+					<div class="dropdown">
+						<button class="btn btn-outline-light btn-nav-menu icon-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="{{ t('nav.menu') }}" aria-label="{{ t('nav.menu') }}">
 							<span aria-hidden="true">{% include "menu.svg" %}</span>
 						</button>
 						<ul class="dropdown-menu dropdown-menu-end">
-							<li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#preferenze">Preferenze</button></li>
+							<li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#preferenze">{{ t('nav.preferences') }}</button></li>
+							<li><hr class="dropdown-divider"></li>
 							<li>
 								<form method="post" action="{{ url_for('logout') }}">
 									<input type="hidden" name="csrf" value="{{ csrf }}">
-									<button class="dropdown-item" type="submit">Esci</button>
+									<button class="dropdown-item" type="submit">{{ t('nav.logout') }}</button>
 								</form>
 							</li>
 						</ul>
@@ -222,41 +249,41 @@
 		<div class="card-header">
 			<ul class="nav nav-tabs card-header-tabs" role="tablist">
 				<li class="nav-item" role="presentation">
-					<button class="nav-link{% if vista != 'storico' %} active{% endif %}" id="volume-tab" data-bs-toggle="tab" data-bs-target="#volume" type="button" role="tab" aria-controls="volume" aria-selected="{{ 'true' if vista != 'storico' else 'false' }}">Volume</button>
+					<button class="nav-link{% if vista != 'storico' %} active{% endif %}" id="volume-tab" data-bs-toggle="tab" data-bs-target="#volume" type="button" role="tab" aria-controls="volume" aria-selected="{{ 'true' if vista != 'storico' else 'false' }}">{{ t('tab.volume') }}</button>
 				</li>
 				<li class="nav-item" role="presentation">
-					<button class="nav-link{% if vista == 'storico' %} active{% endif %}" id="storico-tab" data-bs-toggle="tab" data-bs-target="#storico" type="button" role="tab" aria-controls="storico" aria-selected="{{ 'true' if vista == 'storico' else 'false' }}">Storico</button>
+					<button class="nav-link{% if vista == 'storico' %} active{% endif %}" id="storico-tab" data-bs-toggle="tab" data-bs-target="#storico" type="button" role="tab" aria-controls="storico" aria-selected="{{ 'true' if vista == 'storico' else 'false' }}">{{ t('tab.history') }}</button>
 				</li>
 			</ul>
 		</div>
 		<div class="card-body tab-content">
 			<div class="tab-pane fade{% if vista != 'storico' %} show active{% endif %}" id="volume" role="tabpanel" aria-labelledby="volume-tab">
 				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
-					<h2 class="h5 mb-0">Volume e stato</h2>
+					<h2 class="h5 mb-0">{{ t('volume.heading') }}</h2>
 					<div class="d-flex flex-wrap align-items-end gap-3" id="volume-controls" data-volume="{{ url_for('volume_view') }}">
 						<div>
-							<label class="form-label" for="volume-sessions">Sedute</label>
+							<label class="form-label" for="volume-sessions">{{ t('volume.sessions') }}</label>
 							<div class="input-group input-group-sm volume-step">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="-1" aria-label="Meno sedute">−</button>
+								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="-1" aria-label="{{ t('volume.less_sessions') }}">−</button>
 								<input class="form-control text-center" id="volume-sessions" inputmode="numeric" value="{{ prefs.return_days }}" autocomplete="off">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="1" aria-label="Più sedute">+</button>
+								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="1" aria-label="{{ t('volume.more_sessions') }}">+</button>
 							</div>
 						</div>
 						{% set chosen = prefs.volume_class or '' %}
 						{% set sector_code = chosen[2:].split('|')[0] if chosen[:2] in ['s:', 'u:'] else '' %}
 						<div>
-							<label class="form-label" for="volume-sector">Settore</label>
+							<label class="form-label" for="volume-sector">{{ t('volume.sector') }}</label>
 							<select class="form-select form-select-sm volume-group" id="volume-sector">
-								<option value="" {% if not sector_code %}selected{% endif %}>Tutti</option>
+								<option value="" {% if not sector_code %}selected{% endif %}>{{ t('volume.all') }}</option>
 								{% for sector in class_tree %}
 								<option value="{{ sector.code }}" {% if sector.code == sector_code %}selected{% endif %}>{{ sector.name }}</option>
 								{% endfor %}
 							</select>
 						</div>
 						<div>
-							<label class="form-label" for="volume-group">Gruppo</label>
+							<label class="form-label" for="volume-group">{{ t('volume.group') }}</label>
 							<select class="form-select form-select-sm volume-group" id="volume-group">
-								<option value="" {% if not chosen.startswith('u:') %}selected{% endif %}>Tutti</option>
+								<option value="" {% if not chosen.startswith('u:') %}selected{% endif %}>{{ t('volume.all') }}</option>
 								{% for sector in class_tree if not sector_code or sector.code == sector_code %}
 								<optgroup label="{{ sector.name }}" data-sector="{{ sector.code }}">
 									{% for sub in sector.subs %}
@@ -276,17 +303,17 @@
 							</select>
 						</div>
 						<div>
-							<label class="form-label" for="volume-titles">Titoli</label>
+							<label class="form-label" for="volume-titles">{{ t('volume.titles') }}</label>
 							<div class="input-group input-group-sm volume-step">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="-1" aria-label="Meno titoli">−</button>
+								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="-1" aria-label="{{ t('volume.less_titles') }}">−</button>
 								<input class="form-control text-center" id="volume-titles" inputmode="numeric" value="{{ prefs.universe_size }}" autocomplete="off">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="Più titoli">+</button>
+								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="{{ t('volume.more_titles') }}">+</button>
 							</div>
 						</div>
 					</div>
 				</div>
 				<div class="position-relative">
-				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary" role="img" aria-label="Blocchi dei titoli per volume">
+				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary" role="img" aria-label="{{ t('volume.map') }}">
 					{% for tile in tiles %}
 					<div class="tile {{ tile.kind }} {{ tile.tone }} position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white" title="{{ tile.title }}" style="--x:{{ tile.x }}%;--y:{{ tile.y }}%;--w:{{ tile.w }}%;--h:{{ tile.h }}%">
 						<span class="full">{{ tile.label }}<br><span class="chg text-nowrap">{{ tile.change }}</span></span>
@@ -296,20 +323,20 @@
 				</div>
 				<div id="volume-wait" class="position-absolute top-0 start-0 w-100 h-100 d-none bg-body align-items-center justify-content-center rounded" style="--bs-bg-opacity: .55" role="status">
 					<div class="spinner-border text-primary" aria-hidden="true"></div>
-					<span class="visually-hidden">Aggiorno il grafico</span>
+					<span class="visually-hidden">{{ t('volume.updating') }}</span>
 				</div>
 				</div>
 				<div class="small d-flex flex-wrap align-items-center gap-3 my-3">
-					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-success">&nbsp;</span>in crescita</span>
-					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-danger">&nbsp;</span>in perdita</span>
-					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-primary">&nbsp;</span>stabile (± {{ prefs.stable_band|pct }})</span>
+					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-success">&nbsp;</span>{{ t('volume.up') }}</span>
+					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-danger">&nbsp;</span>{{ t('volume.down') }}</span>
+					<span class="small d-inline-flex align-items-center gap-1"><span class="badge bg-primary">&nbsp;</span>{{ t('volume.flat', band=prefs.stable_band|pct) }}</span>
 					<p class="small text-secondary mb-0" id="volume-caption">{{ volume_caption_text }}</p>
 				</div>
 			</div>
 			<div class="tab-pane fade{% if vista == 'storico' %} show active{% endif %}" id="storico" role="tabpanel" aria-labelledby="storico-tab">
 				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
 					<div>
-						<label class="form-label" for="titolo">Titolo</label>
+						<label class="form-label" for="titolo">{{ t('history.symbol') }}</label>
 						<select class="form-select form-select-sm" id="titolo">
 							{% if asset not in assets %}<option value="{{ asset }}" selected>{{ asset }}</option>{% endif %}
 							{% for item in asset_options %}
@@ -318,46 +345,46 @@
 						</select>
 					</div>
 					<div>
-						<div class="form-label">Periodo</div>
-						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="Periodo">
-							{% for key, label, hint in periods %}
-							<button class="btn btn-outline-primary{% if period == key %} active{% endif %}" type="button" data-periodo="{{ key }}" title="{{ hint }}">{{ label }}</button>
+						<div class="form-label">{{ t('history.period') }}</div>
+						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('history.period') }}">
+							{% for key in period_keys %}
+							<button class="btn btn-outline-primary{% if period == key %} active{% endif %}" type="button" data-periodo="{{ key }}" title="{{ t('period.hint.' ~ key) }}">{{ t('period.' ~ key) }}</button>
 							{% endfor %}
 						</div>
 					</div>
 					<div>
-						<div class="form-label">Grafico</div>
-						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="Grafico">
-							<button class="btn btn-outline-primary{% if grafico == 'line' %} active{% endif %}" type="button" data-grafico="line">Linea</button>
-							<button class="btn btn-outline-primary{% if grafico == 'candle' %} active{% endif %}" type="button" data-grafico="candle">Candele</button>
+						<div class="form-label">{{ t('history.chart') }}</div>
+						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('history.chart') }}">
+							<button class="btn btn-outline-primary{% if grafico == 'line' %} active{% endif %}" type="button" data-grafico="line">{{ t('history.line') }}</button>
+							<button class="btn btn-outline-primary{% if grafico == 'candle' %} active{% endif %}" type="button" data-grafico="candle">{{ t('history.candle') }}</button>
 						</div>
 					</div>
 					<div id="statistiche" class="d-flex flex-wrap align-items-end gap-3 text-end" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
 						<div>
-							<div class="form-label">Variazione</div>
+							<div class="form-label">{{ t('history.change') }}</div>
 							<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
 						</div>
 						<div>
-							<div class="form-label">Ultimo</div>
+							<div class="form-label">{{ t('history.last') }}</div>
 							<div class="fw-semibold" data-stat="last">{{ stats.last }}</div>
 						</div>
 						<div>
-							<div class="form-label">Minimo</div>
+							<div class="form-label">{{ t('history.low') }}</div>
 							<div class="fw-semibold" data-stat="low">{{ stats.low }}</div>
 						</div>
 						<div>
-							<div class="form-label">Massimo</div>
+							<div class="form-label">{{ t('history.high') }}</div>
 							<div class="fw-semibold" data-stat="high">{{ stats.high }}</div>
 						</div>
 						<div>
-							<div class="form-label">Sedute</div>
+							<div class="form-label">{{ t('history.sessions') }}</div>
 							<div class="fw-semibold" data-stat="sessions">{{ stats.sessions }}</div>
 						</div>
 					</div>
 				</div>
 				<div id="grafico-frame" class="position-relative" data-render="{{ prefs.chart_render }}" data-series="{{ url_for('chart_series') }}">
-				<img id="grafico" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="Andamento e volumi di {{ asset }}" data-chart="{{ url_for('chart_history') }}"{% if prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, periodo=period, grafico=grafico, scala=prefs.ui_scale, tema=theme, peso=prefs.ui_weight) }}"{% endif %}>
-				<svg id="grafico-svg" class="d-block w-100{% if prefs.chart_render != 'vector' %} d-none{% endif %}" role="img" aria-label="Andamento e volumi di {{ asset }}"></svg>
+				<img id="grafico" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="{{ t('history.alt', asset=asset) }}" data-chart="{{ url_for('chart_history') }}"{% if prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, periodo=period, grafico=grafico, scala=prefs.ui_scale, tema=theme, peso=prefs.ui_weight) }}"{% endif %}>
+				<svg id="grafico-svg" class="d-block w-100{% if prefs.chart_render != 'vector' %} d-none{% endif %}" role="img" aria-label="{{ t('history.alt', asset=asset) }}"></svg>
 				<div id="grafico-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1{% if prefs.chart_render == 'vector' %} d-none{% endif %}" data-hits="{{ url_for('chart_hits') }}"></div>
 				</div>
 			</div>
@@ -368,51 +395,51 @@
 		<div class="modal-dialog modal-lg modal-dialog-scrollable">
 		<div class="modal-content">
 		<div class="modal-header">
-			<h2 class="modal-title h5" id="preferenze-title">Preferenze</h2>
-			<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+			<h2 class="modal-title h5" id="preferenze-title">{{ t('prefs.title') }}</h2>
+			<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('nav.close') }}"></button>
 		</div>
 		<div class="modal-body">
 		<form method="post" action="{{ url_for('save_prefs') }}">
 			<input type="hidden" name="csrf" value="{{ csrf }}">
 			<div class="row row-cols-4 g-3 align-items-end">
 				<div class="col d-flex align-items-end">
-					<h3 class="h5 mb-5">Operatività</h3>
+					<h3 class="h5 mb-5">{{ t('prefs.operations') }}</h3>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-profit" title="{{ labels.profit_threshold }}">Soglia</label>
-					<input class="form-control" id="pref-profit" name="profit_threshold" title="{{ labels.profit_threshold }}" value="{{ prefs.profit_threshold }}" required>
+					<label class="form-label" for="pref-profit" title="{{ t('prefs.threshold_title') }}">{{ t('prefs.threshold') }}</label>
+					<input class="form-control" id="pref-profit" name="profit_threshold" title="{{ t('prefs.threshold_title') }}" value="{{ prefs.profit_threshold }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-invest" title="{{ labels.max_investment }}">Investimento</label>
-					<input class="form-control" id="pref-invest" name="max_investment" title="{{ labels.max_investment }}" value="{{ prefs.max_investment }}" required>
+					<label class="form-label" for="pref-invest" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
+					<input class="form-control" id="pref-invest" name="max_investment" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-fee" title="{{ labels.fee_rate }}">Commissione</label>
-					<input class="form-control" id="pref-fee" name="fee_rate" title="{{ labels.fee_rate }}" value="{{ prefs.fee_rate }}" required>
+					<label class="form-label" for="pref-fee" title="{{ t('prefs.fee_title') }}">{{ t('prefs.fee') }}</label>
+					<input class="form-control" id="pref-fee" name="fee_rate" title="{{ t('prefs.fee_title') }}" value="{{ prefs.fee_rate }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-tax" title="{{ labels.tax_rate }}">Imposta</label>
-					<input class="form-control" id="pref-tax" name="tax_rate" title="{{ labels.tax_rate }}" value="{{ prefs.tax_rate }}" required>
+					<label class="form-label" for="pref-tax" title="{{ t('prefs.tax_title') }}">{{ t('prefs.tax') }}</label>
+					<input class="form-control" id="pref-tax" name="tax_rate" title="{{ t('prefs.tax_title') }}" value="{{ prefs.tax_rate }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-band" title="{{ labels.stable_band }}">Banda</label>
-					<input class="form-control" id="pref-band" name="stable_band" title="{{ labels.stable_band }}" value="{{ prefs.stable_band }}" required>
+					<label class="form-label" for="pref-band" title="{{ t('prefs.band_title') }}">{{ t('prefs.band') }}</label>
+					<input class="form-control" id="pref-band" name="stable_band" title="{{ t('prefs.band_title') }}" value="{{ prefs.stable_band }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-universe" title="{{ labels.universe_size }}">Volume Titoli</label>
-					<input class="form-control" id="pref-universe" name="universe_size" title="{{ labels.universe_size }}" type="number" min="10" max="500" step="10" value="{{ prefs.universe_size }}" required>
+					<label class="form-label" for="pref-universe" title="{{ t('prefs.names_title') }}">{{ t('prefs.names') }}</label>
+					<input class="form-control" id="pref-universe" name="universe_size" title="{{ t('prefs.names_title') }}" type="number" min="10" max="500" step="10" value="{{ prefs.universe_size }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-history" title="{{ labels.history_days }}">Giorni</label>
-					<input class="form-control" id="pref-history" name="history_days" title="{{ labels.history_days }}" value="{{ prefs.history_days }}" required>
+					<label class="form-label" for="pref-history" title="{{ t('prefs.days_title') }}">{{ t('prefs.days') }}</label>
+					<input class="form-control" id="pref-history" name="history_days" title="{{ t('prefs.days_title') }}" value="{{ prefs.history_days }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-return" title="{{ labels.return_days }}">Sedute</label>
-					<input class="form-control" id="pref-return" name="return_days" title="{{ labels.return_days }}" value="{{ prefs.return_days }}" required>
+					<label class="form-label" for="pref-return" title="{{ t('prefs.sessions_title') }}">{{ t('prefs.sessions') }}</label>
+					<input class="form-control" id="pref-return" name="return_days" title="{{ t('prefs.sessions_title') }}" value="{{ prefs.return_days }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-focus" title="{{ labels.focus_asset }}">Titolo</label>
-					<select class="form-select" id="pref-focus" name="focus_asset" title="{{ labels.focus_asset }}" required>
+					<label class="form-label" for="pref-focus" title="{{ t('prefs.symbol_title') }}">{{ t('prefs.symbol') }}</label>
+					<select class="form-select" id="pref-focus" name="focus_asset" title="{{ t('prefs.symbol_title') }}" required>
 						{% if prefs.focus_asset not in assets %}<option value="{{ prefs.focus_asset }}" selected>{{ prefs.focus_asset }}</option>{% endif %}
 						{% for item in asset_options %}
 						<option value="{{ item.symbol }}" {% if item.symbol == prefs.focus_asset %}selected{% endif %}>{{ item.label }}</option>
@@ -420,64 +447,64 @@
 					</select>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-age" title="{{ labels.max_price_age_hours }}">Età</label>
-					<input class="form-control" id="pref-age" name="max_price_age_hours" title="{{ labels.max_price_age_hours }}" value="{{ prefs.max_price_age_hours }}" required>
+					<label class="form-label" for="pref-age" title="{{ t('prefs.age_title') }}">{{ t('prefs.age') }}</label>
+					<input class="form-control" id="pref-age" name="max_price_age_hours" title="{{ t('prefs.age_title') }}" value="{{ prefs.max_price_age_hours }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-notice" title="{{ labels.notice_seconds }}">Secondi</label>
-					<input class="form-control" id="pref-notice" name="notice_seconds" title="{{ labels.notice_seconds }}" value="{{ prefs.notice_seconds }}" required>
+					<label class="form-label" for="pref-notice" title="{{ t('prefs.seconds_title') }}">{{ t('prefs.seconds') }}</label>
+					<input class="form-control" id="pref-notice" name="notice_seconds" title="{{ t('prefs.seconds_title') }}" value="{{ prefs.notice_seconds }}" required>
 				</div>
 			</div>
 			<div class="row row-cols-4 g-3 align-items-end border-top my-4 pt-2 pb-4 border-bottom">
 				<div class="col d-flex align-items-end">
-					<h3 class="h5 mb-5">Aspetto</h3>
+					<h3 class="h5 mb-5">{{ t('prefs.appearance') }}</h3>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-font" title="Carattere dell'interfaccia">Carattere</label>
-					<select class="form-select" id="pref-font" name="font_family" title="Carattere dell'interfaccia">
+					<label class="form-label" for="pref-font" title="{{ t('prefs.font_title') }}">{{ t('prefs.font') }}</label>
+					<select class="form-select" id="pref-font" name="font_family" title="{{ t('prefs.font_title') }}">
 						{% for face in fonts %}
-						<option value="{{ face.id }}" {% if prefs.font_family == face.id %}selected{% endif %}{% if face.family %} style="font-family: '{{ face.family }}', sans-serif"{% endif %}>{{ face.label }}</option>
+						<option value="{{ face.id }}" {% if prefs.font_family == face.id %}selected{% endif %}{% if face.family %} style="font-family: '{{ face.family }}', sans-serif"{% endif %}>{{ t('font.' ~ face.id) }}</option>
 						{% endfor %}
 					</select>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-scale" title="Dimensione e interlinea (%). La percentuale vale insieme per il carattere e per l'interlinea.">Dimensione</label>
-					<input class="form-control" id="pref-scale" name="ui_scale" title="Dimensione e interlinea (%). La percentuale vale insieme per il carattere e per l'interlinea." type="number" min="80" max="120" step="5" value="{{ prefs.ui_scale }}" required>
+					<label class="form-label" for="pref-scale" title="{{ t('prefs.scale_title') }}">{{ t('prefs.scale') }}</label>
+					<input class="form-control" id="pref-scale" name="ui_scale" title="{{ t('prefs.scale_title') }}" type="number" min="80" max="120" step="5" value="{{ prefs.ui_scale }}" required>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-weight" title="Peso del carattere">Peso</label>
-					<select class="form-select" id="pref-weight" name="ui_weight" title="Peso del carattere">
+					<label class="form-label" for="pref-weight" title="{{ t('prefs.weight_title') }}">{{ t('prefs.weight') }}</label>
+					<select class="form-select" id="pref-weight" name="ui_weight" title="{{ t('prefs.weight_title') }}">
 						{% for item in weights %}
-						<option value="{{ item.id }}" {% if prefs.ui_weight == item.id %}selected{% endif %}>{{ item.label }}</option>
+						<option value="{{ item.id }}" {% if prefs.ui_weight == item.id %}selected{% endif %}>{{ t('weight.' ~ item.id) }}</option>
 						{% endfor %}
 					</select>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-theme" title="Chiaro e Scuro restano fissi. Automatico segue l'ora locale: chiaro dalle 7 alle 19, scuro dalle 19 alle 7.">Tema</label>
-					<select class="form-select" id="pref-theme" name="ui_theme" title="Chiaro e Scuro restano fissi. Automatico segue l'ora locale: chiaro dalle 7 alle 19, scuro dalle 19 alle 7.">
-						<option value="light" {% if prefs.ui_theme == 'light' %}selected{% endif %}>Chiaro</option>
-						<option value="dark" {% if prefs.ui_theme == 'dark' %}selected{% endif %}>Scuro</option>
-						<option value="auto" {% if prefs.ui_theme == 'auto' %}selected{% endif %}>Automatico</option>
+					<label class="form-label" for="pref-theme" title="{{ t('prefs.theme_title') }}">{{ t('prefs.theme') }}</label>
+					<select class="form-select" id="pref-theme" name="ui_theme" title="{{ t('prefs.theme_title') }}">
+						<option value="light" {% if prefs.ui_theme == 'light' %}selected{% endif %}>{{ t('prefs.light') }}</option>
+						<option value="dark" {% if prefs.ui_theme == 'dark' %}selected{% endif %}>{{ t('prefs.dark') }}</option>
+						<option value="auto" {% if prefs.ui_theme == 'auto' %}selected{% endif %}>{{ t('prefs.auto') }}</option>
 					</select>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-chart" title="{{ labels.chart_type }}">Grafico</label>
-					<select class="form-select" id="pref-chart" name="chart_type" title="{{ labels.chart_type }}">
-						<option value="line" {% if prefs.chart_type == 'line' %}selected{% endif %}>Lineare</option>
-						<option value="candle" {% if prefs.chart_type == 'candle' %}selected{% endif %}>Candele</option>
+					<label class="form-label" for="pref-chart" title="{{ t('prefs.chart_title') }}">{{ t('prefs.chart') }}</label>
+					<select class="form-select" id="pref-chart" name="chart_type" title="{{ t('prefs.chart_title') }}">
+						<option value="line" {% if prefs.chart_type == 'line' %}selected{% endif %}>{{ t('prefs.line') }}</option>
+						<option value="candle" {% if prefs.chart_type == 'candle' %}selected{% endif %}>{{ t('history.candle') }}</option>
 					</select>
 				</div>
 				<div class="col">
-					<label class="form-label" for="pref-draw" title="{{ labels.chart_render }}">Disegno</label>
-					<select class="form-select" id="pref-draw" name="chart_render" title="{{ labels.chart_render }}">
-						<option value="image" {% if prefs.chart_render == 'image' %}selected{% endif %}>Immagine</option>
-						<option value="vector" {% if prefs.chart_render == 'vector' %}selected{% endif %}>Vettore</option>
+					<label class="form-label" for="pref-draw" title="{{ t('prefs.draw_title') }}">{{ t('prefs.draw') }}</label>
+					<select class="form-select" id="pref-draw" name="chart_render" title="{{ t('prefs.draw_title') }}">
+						<option value="image" {% if prefs.chart_render == 'image' %}selected{% endif %}>{{ t('prefs.image') }}</option>
+						<option value="vector" {% if prefs.chart_render == 'vector' %}selected{% endif %}>{{ t('prefs.vector') }}</option>
 					</select>
 				</div>
 			</div>
 			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mt-3">
-				<p class="pref-foot small text-secondary mb-0">La commissione iniziale è 0,1% e l'imposta 26% del guadagno. Con 100 titoli l'aggiornamento è più corto; 500 può richiedere diversi minuti.</p>
-				<button class="btn btn-primary flex-shrink-0" type="submit">Salva preferenze</button>
+				<p class="pref-foot small text-secondary mb-0">{{ t('prefs.foot') }}</p>
+				<button class="btn btn-primary flex-shrink-0" type="submit">{{ t('prefs.save') }}</button>
 			</div>
 		</form>
 		</div>
@@ -486,13 +513,21 @@
 	</div>
 	<div id="pref-wait" class="position-fixed top-0 start-0 w-100 h-100 d-none bg-body align-items-center justify-content-center" style="--bs-bg-opacity: .55; z-index: 2000" role="status">
 		<div class="spinner-border text-primary" aria-hidden="true"></div>
-		<span class="visually-hidden">Salvo le preferenze</span>
+		<span class="visually-hidden">{{ t('prefs.saving') }}</span>
 	</div>
 </main>
+<script type="application/json" id="i18n">{{ {
+	"history.alt": t("history.alt"),
+	"chart.unavailable": t("chart.unavailable"),
+	"preview.message": t("preview.message"),
+	"preview.success": t("preview.success"),
+	"preview.warning": t("preview.warning"),
+	"preview.alert": t("preview.alert")
+}|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=18) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=19) }}"></script>
 {% if request.args.get('anteprima') == 'messaggi' %}
-<script src="{{ url_for('static', filename='anteprima.js', v=3) }}"></script>
+<script src="{{ url_for('static', filename='anteprima.js', v=4) }}"></script>
 {% endif %}
 </body>
 </html>

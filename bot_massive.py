@@ -31,18 +31,15 @@ def update_from_massive(conn, on_progress, max_dates=None):
     pending = _pending(conn, wanted, end)
     chosen = pending if max_dates is None else pending[:max_dates]
     if not chosen:
-        on_progress("Prezzi già aggiornati.")
+        on_progress("prices.current")
         return 0, None
-    on_progress(
-        f"Massive: {len(pending)} sedute chiuse da completare. "
-        f"Questo giro ne chiede {len(chosen)}. La seduta in corso non è inclusa."
-    )
+    on_progress(f"prices.queue|{len(pending)}|{len(chosen)}")
     client = RESTClient(api_key=secret, retries=0, connect_timeout=15, read_timeout=90)
     stored = 0
     for index, day in enumerate(chosen):
         if index:
             time.sleep(PAUSE_SECONDS)
-        on_progress(f"Scarico la seduta {day.isoformat()}, {index + 1} di {len(chosen)}.")
+        on_progress(f"prices.fetch|{day.isoformat()}|{index + 1}|{len(chosen)}")
         try:
             aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
         except (AuthError, BadResponse, OSError) as exc:
@@ -51,28 +48,25 @@ def update_from_massive(conn, on_progress, max_dates=None):
             if kind == "plan" and day < end:
                 _remember(CLOSED_PATH, day)
                 log.info("massive seduta %s fuori dal piano, segnata chiusa", day.isoformat())
-                on_progress(f"La seduta {day.isoformat()} è fuori dalla storia del piano. Non la richiedo più.")
+                on_progress(f"prices.plan|{day.isoformat()}")
                 continue
             if kind == "auth":
-                return stored, "Massive ha rifiutato la chiave. Le barre già scritte restano."
+                return stored, "prices.auth"
             if kind == "rate":
-                return stored, "Massive ha chiesto di rallentare. Le barre già scritte restano."
-            return stored, "Massive non ha completato lo scarico. Le barre già scritte restano."
+                return stored, "prices.rate"
+            return stored, "prices.incomplete"
         rows = _rows(aggs, wanted, day)
         if not rows:
             if day < end:
                 _remember(CLOSED_PATH, day)
                 log.info("massive seduta %s senza barre, segnata chiusa", day.isoformat())
-                on_progress(f"La seduta {day.isoformat()} non ha barre. Non la richiedo più.")
+                on_progress(f"prices.empty|{day.isoformat()}")
             else:
-                on_progress(f"La seduta {day.isoformat()} non è ancora pubblicata.")
+                on_progress(f"prices.unpublished|{day.isoformat()}")
             continue
         if len(rows) < ENOUGH:
             log.warning("massive seduta %s solo %s simboli dell'elenco", day.isoformat(), len(rows))
-            return stored, (
-                f"La seduta {day.isoformat()} ha restituito solo {len(rows)} titoli dell'elenco. "
-                "Mi fermo prima di segnarla come completa."
-            )
+            return stored, f"prices.partial|{day.isoformat()}|{len(rows)}"
         stored += upsert_bars(conn, rows)
         _remember(SESSIONS_PATH, day)
         missing = sorted(wanted - {row["asset_name"] for row in rows})
@@ -94,18 +88,15 @@ def reread_stored_sessions(conn, on_progress):
     end = last_completed_session()
     chosen = _unfilled(conn, end)
     if not chosen:
-        on_progress("I campi aggiuntivi sono già su tutte le sedute in archivio.")
+        on_progress("reread.ready")
         return 0, None
-    on_progress(
-        f"Rileggo {len(chosen)} sedute già in archivio. "
-        "La risposta non ha altri campi oltre a quelli che ora salviamo."
-    )
+    on_progress(f"reread.queue|{len(chosen)}")
     client = RESTClient(api_key=secret, retries=0, connect_timeout=15, read_timeout=90)
     stored = 0
     for index, day in enumerate(chosen):
         if index:
             time.sleep(PAUSE_SECONDS)
-        on_progress(f"Rileggo la seduta {day.isoformat()}, {index + 1} di {len(chosen)}.")
+        on_progress(f"reread.fetch|{day.isoformat()}|{index + 1}|{len(chosen)}")
         try:
             aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
         except (AuthError, BadResponse, OSError) as exc:
@@ -113,19 +104,18 @@ def reread_stored_sessions(conn, on_progress):
             log.warning("massive rilettura %s rifiutata: %s", day.isoformat(), _quiet(exc, secret))
             if kind == "plan":
                 _remember(CLOSED_PATH, day)
-                on_progress(f"La seduta {day.isoformat()} è fuori dalla storia del piano. Non la richiedo più.")
+                on_progress(f"prices.plan|{day.isoformat()}")
                 continue
             if kind == "auth":
-                return stored, "Massive ha rifiutato la chiave. Le barre già scritte restano."
+                return stored, "prices.auth"
             if kind == "rate":
-                return stored, "Massive ha chiesto di rallentare. Le barre già scritte restano."
-            return stored, "Massive non ha completato la rilettura. Le barre già scritte restano."
+                return stored, "prices.rate"
+            return stored, "prices.incomplete"
         rows = _rows(aggs, wanted, day)
         if len(rows) < ENOUGH:
             log.warning("massive rilettura %s solo %s simboli dell'elenco", day.isoformat(), len(rows))
             return stored, (
-                f"La seduta {day.isoformat()} ha restituito solo {len(rows)} titoli dell'elenco. "
-                "Mi fermo. Le barre già scritte restano."
+                f"prices.partial|{day.isoformat()}|{len(rows)}"
             )
         stored += upsert_bars(conn, rows)
         log.info("massive rilettura %s aggiornati %s", day.isoformat(), len(rows))

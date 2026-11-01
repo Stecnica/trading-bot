@@ -35,7 +35,7 @@ def main():
     LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
     conn = None
     try:
-        write_status("running", "Connessione al database.")
+        write_status("running", "prices.db")
         conn = connect()
         ensure_schema(conn)
         seed_preferences(conn)
@@ -52,15 +52,15 @@ def main():
             write_status("error", warning)
             log.warning("ciclo incompleto, barre %s vendite %s", stored, sold)
         elif stored == 0:
-            write_status("ok", f"Prezzi già aggiornati. Vendite registrate: {sold}.")
+            write_status("ok", f"prices.fresh|{sold}")
             log.info("ciclo concluso, nessuna barra nuova, vendite %s", sold)
         else:
-            write_status("ok", f"Aggiornamento concluso. Barre scritte: {stored}. Vendite registrate: {sold}.")
+            write_status("ok", f"prices.done|{stored}|{sold}")
             log.info("ciclo concluso, barre %s vendite %s", stored, sold)
         return 0
     except Exception as exc:
         log.exception("ciclo fallito")
-        write_status("error", "Aggiornamento interrotto. Dettaglio nel log.")
+        write_status("error", "prices.stopped")
         print(exc, file=sys.stderr)
         return 1
     finally:
