@@ -5,6 +5,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
+from html import escape
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
@@ -657,12 +658,62 @@ def refresh():
     return redirect(url_for("home"))
 
 
+_ERROR_PAGE = WEB / "error" / "error-page-03" / "index.html"
+_ERROR_TITLE = {
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    405: "Method Not Allowed",
+    500: "Internal Server Error",
+    502: "Bad Gateway",
+    503: "Service Unavailable",
+}
+_ERROR_TEXT = {
+    400: "The request syntax is not valid.",
+    401: "This address requires a signed-in session.",
+    403: "You are not allowed to open this address.",
+    404: "Nothing is published at this address.",
+    405: "This address does not accept that method.",
+    500: "Internal error. The detail is in the bot log.",
+    502: "The server received an invalid response while handling the request.",
+    503: "The bot is temporarily unavailable. Try again shortly.",
+}
+
+
+def _error_page(code, description):
+    title = _ERROR_TITLE.get(code, "Error")
+    try:
+        body = _ERROR_PAGE.read_text(encoding="utf-8").format(
+            error_code=int(code),
+            error_title=escape(title),
+            error_description=escape(description),
+        )
+    except (OSError, ValueError, KeyError):
+        log.exception("error page not rendered")
+        body = escape(description)
+    return Response(body, status=code, mimetype="text/html; charset=utf-8")
+
+
+def _http_text(exc, code):
+    stock = getattr(type(exc), "description", None)
+    given = (exc.description or "").strip()
+    if given and given != stock:
+        return given
+    if code == 500:
+        return tr("error.internal")
+    return _ERROR_TEXT.get(code, given or "Error")
+
+
 @app.errorhandler(Exception)
 def on_error(exc):
     if isinstance(exc, HTTPException):
-        return exc
+        code = exc.code or 500
+        if code < 400:
+            return exc
+        return _error_page(code, _http_text(exc, code))
     log.exception("page error")
-    return Response(tr("error.internal"), 500)
+    return _error_page(500, tr("error.internal"))
 
 
 def _required_money(value):

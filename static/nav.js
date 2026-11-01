@@ -652,13 +652,28 @@ function uiText(key, vars) {
     var low = Math.min.apply(null, lows);
     var high = Math.max.apply(null, highs);
     var range = high - low;
-    var pad = range * 0.22 || high * 0.012 || 1;
-    low -= pad;
-    high += pad;
-    var sample = priceText(high);
-    var left = Math.ceil(10 + sample.length * tick * 0.62);
+    var padTop = range * 0.04 || high * 0.004 || 1;
+    var padBottom = range * 0.16 || high * 0.008 || 1;
+    low -= padBottom;
+    high += padTop;
+    var ticks = axisTicks(low, high);
+    var probe = svgEl("text", {
+      "font-size": tick + "px",
+      "font-weight": String(weight)
+    });
+    var labelWidth = 0;
+    ticks.forEach(function (value) {
+      probe.textContent = priceText(value);
+      svg.appendChild(probe);
+      labelWidth = Math.max(labelWidth, probe.getBBox().width);
+      probe.remove();
+    });
+    if (!labelWidth) {
+      labelWidth = priceText(high).length * tick * 0.56;
+    }
+    var left = Math.ceil(labelWidth + 14);
     var right = width - 12;
-    var top = tick + 22;
+    var top = 8;
     var volumeH = Math.max(32, Math.round(height * 0.12));
     var dateBand = points.length > 12 ? tick * 3.2 : tick * 1.7;
     var plotBottom = height - 10 - volumeH - dateBand;
@@ -679,46 +694,6 @@ function uiText(key, vars) {
     function yAt(value) {
       return plotBottom - (value - low) / (high - low) * plotH;
     }
-
-    var title = svgEl("text", {
-      x: left,
-      y: tick + 4,
-      fill: "var(--bs-body-color)",
-      "font-size": (tick + 2) + "px",
-      "font-weight": String(titleWeight)
-    });
-    title.textContent = data.title;
-    svg.appendChild(title);
-
-    axisTicks(low, high).forEach(function (value) {
-      var y = yAt(value);
-      svg.appendChild(svgEl("line", {
-        x1: left,
-        x2: right,
-        y1: y,
-        y2: y,
-        stroke: "var(--bs-border-color)",
-        "stroke-width": "1"
-      }));
-      var label = svgEl("text", {
-        x: left - 8,
-        y: y + tick * 0.35,
-        "text-anchor": "end",
-        fill: "var(--bs-body-color)",
-        "font-size": tick + "px",
-        "font-weight": String(weight)
-      });
-      label.textContent = priceText(value);
-      svg.appendChild(label);
-    });
-    svg.appendChild(svgEl("line", {
-      x1: left, y1: top, x2: left, y2: plotBottom,
-      stroke: "var(--bs-border-color)", "stroke-width": "1"
-    }));
-    svg.appendChild(svgEl("line", {
-      x1: left, y1: plotBottom, x2: right, y2: plotBottom,
-      stroke: "var(--bs-border-color)", "stroke-width": "1"
-    }));
 
     if (data.draw === "candle") {
       var bodyW = Math.max(1, 0.6 / view * plotW);
@@ -810,6 +785,36 @@ function uiText(key, vars) {
         previous = Number(point.c);
       });
     }
+
+    ticks.forEach(function (value) {
+      var y = yAt(value);
+      svg.appendChild(svgEl("line", {
+        x1: left,
+        x2: right,
+        y1: y,
+        y2: y,
+        stroke: "var(--bs-border-color)",
+        "stroke-width": "1"
+      }));
+      var label = svgEl("text", {
+        x: left - 8,
+        y: y + tick * 0.35,
+        "text-anchor": "end",
+        fill: "var(--bs-body-color)",
+        "font-size": tick + "px",
+        "font-weight": String(weight)
+      });
+      label.textContent = priceText(value);
+      svg.appendChild(label);
+    });
+    svg.appendChild(svgEl("line", {
+      x1: left, y1: top, x2: left, y2: plotBottom,
+      stroke: "var(--bs-border-color)", "stroke-width": "1"
+    }));
+    svg.appendChild(svgEl("line", {
+      x1: left, y1: plotBottom, x2: right, y2: plotBottom,
+      stroke: "var(--bs-border-color)", "stroke-width": "1"
+    }));
 
     points.forEach(function (point, index) {
       var start = index === 0 ? left : (xAt(index - 1) + xAt(index)) / 2;

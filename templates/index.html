@@ -49,6 +49,16 @@
 			width: 2rem;
 		}
 		.icon-btn svg { width: 1.15rem; height: 1.15rem; display: block; }
+		.dropdown-item .menu-icon {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 1.15rem;
+			height: 1.15rem;
+			flex: 0 0 1.15rem;
+			margin-right: 0.5rem;
+		}
+		.dropdown-item .menu-icon svg { width: 1.15rem; height: 1.15rem; display: block; }
 		.spin svg { animation: spin 1s linear infinite; }
 		@keyframes spin { to { transform: rotate(360deg); } }
 		.treemap { aspect-ratio: 16 / 9; }
@@ -73,6 +83,13 @@
 		.panel-note { opacity: 0.62; }
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
 		#chart-svg { min-height: 280px; }
+		#stats {
+			z-index: 2;
+			background: rgba(134, 219, 255, 0.25);
+			pointer-events: none;
+			border-radius: 1rem;
+			opacity: 0.65;
+		}
 		.pref-foot { flex: 1 1 16rem; min-width: 0; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
@@ -232,12 +249,12 @@
 							<span aria-hidden="true">{% include "menu.svg" %}</span>
 						</button>
 						<ul class="dropdown-menu dropdown-menu-end">
-							<li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#prefs">{{ t('nav.preferences') }}</button></li>
+							<li><button class="dropdown-item d-flex align-items-center" type="button" data-bs-toggle="modal" data-bs-target="#prefs"><span class="menu-icon" aria-hidden="true">{% include "settings.svg" %}</span>{{ t('nav.preferences') }}</button></li>
 							<li><hr class="dropdown-divider"></li>
 							<li>
 								<form method="post" action="{{ url_for('logout') }}">
 									<input type="hidden" name="csrf" value="{{ csrf }}">
-									<button class="dropdown-item" type="submit">{{ t('nav.logout') }}</button>
+									<button class="dropdown-item d-flex align-items-center" type="submit"><span class="menu-icon" aria-hidden="true">{% include "log-out.svg" %}</span>{{ t('nav.logout') }}</button>
 								</form>
 							</li>
 						</ul>
@@ -348,7 +365,7 @@
 				</div>
 			</div>
 			<div class="tab-pane fade{% if view == 'history' %} show active{% endif %}" id="history" role="tabpanel" aria-labelledby="history-tab">
-				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+				<div class="d-flex flex-wrap align-items-end gap-3 mb-3">
 					<div>
 						<label class="form-label" for="symbol">{{ t('history.symbol') }}</label>
 						<select class="form-select form-select-sm" id="symbol">
@@ -358,6 +375,7 @@
 							{% endfor %}
 						</select>
 					</div>
+					<div class="flex-grow-1"></div>
 					<div>
 						<div class="form-label">{{ t('history.period') }}</div>
 						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('history.period') }}">
@@ -373,30 +391,30 @@
 							<button class="btn btn-outline-primary{% if chart == 'candle' %} active{% endif %}" type="button" data-chart="candle">{{ t('history.candle') }}</button>
 						</div>
 					</div>
-					<div id="stats" class="d-flex flex-wrap align-items-end gap-3 text-end" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
-						<div>
-							<div class="form-label">{{ t('history.change') }}</div>
-							<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
-						</div>
-						<div>
-							<div class="form-label">{{ t('history.last') }}</div>
-							<div class="fw-semibold" data-stat="last">{{ stats.last }}</div>
-						</div>
-						<div>
-							<div class="form-label">{{ t('history.low') }}</div>
-							<div class="fw-semibold" data-stat="low">{{ stats.low }}</div>
-						</div>
-						<div>
-							<div class="form-label">{{ t('history.high') }}</div>
-							<div class="fw-semibold" data-stat="high">{{ stats.high }}</div>
-						</div>
-						<div>
-							<div class="form-label">{{ t('history.sessions') }}</div>
-							<div class="fw-semibold" data-stat="sessions">{{ stats.sessions }}</div>
-						</div>
-					</div>
 				</div>
 				<div id="chart-frame" class="position-relative" data-render="{{ prefs.chart_render }}" data-series="{{ url_for('chart_series') }}">
+				<div id="stats" class="position-absolute top-0 end-0 d-flex flex-wrap align-items-end justify-content-end gap-3 text-end px-3 py-1" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
+					<div>
+						<div class="form-label">{{ t('history.change') }}</div>
+						<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
+					</div>
+					<div>
+						<div class="form-label">{{ t('history.last') }}</div>
+						<div class="fw-semibold" data-stat="last">{{ stats.last }}</div>
+					</div>
+					<div>
+						<div class="form-label">{{ t('history.low') }}</div>
+						<div class="fw-semibold" data-stat="low">{{ stats.low }}</div>
+					</div>
+					<div>
+						<div class="form-label">{{ t('history.high') }}</div>
+						<div class="fw-semibold" data-stat="high">{{ stats.high }}</div>
+					</div>
+					<div>
+						<div class="form-label">{{ t('history.sessions') }}</div>
+						<div class="fw-semibold" data-stat="sessions">{{ stats.sessions }}</div>
+					</div>
+				</div>
 				<img id="chart" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="{{ t('history.alt', asset=asset) }}" data-history="{{ url_for('chart_history') }}"{% if prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, period=period, chart=chart, scale=prefs.ui_scale, theme=theme, weight=prefs.ui_weight) }}"{% endif %}>
 				<svg id="chart-svg" class="d-block w-100{% if prefs.chart_render != 'vector' %} d-none{% endif %}" role="img" aria-label="{{ t('history.alt', asset=asset) }}"></svg>
 				<div id="chart-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1{% if prefs.chart_render == 'vector' %} d-none{% endif %}" data-hits="{{ url_for('chart_hits') }}"></div>
@@ -539,7 +557,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=21) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=26) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

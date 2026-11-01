@@ -188,11 +188,11 @@ def history_png(series, asset, chart_type, width=1280, height=720, scale=100, th
         has_ohlc = all(row.get("open_price") and row.get("high_price") and row.get("low_price") for row in series)
         if chart_type == "candle" and has_ohlc:
             return _candle_png(series, asset, width, height)
-        return _line_png(series, asset, chart_type == "candle" and not has_ohlc, width, height)
+        return _line_png(series, asset, width, height)
 
 
-def _line_png(series, asset, missing_ohlc, width, height):
-    fig, ax, volume, tick, title_px = _history_figure(width, height)
+def _line_png(series, asset, width, height):
+    fig, ax, volume, tick, _title_px = _history_figure(width, height)
     dates = [row["timestamp"] for row in series]
     prices = [float(row["price"]) for row in series]
     low, high = min(prices), max(prices)
@@ -204,8 +204,7 @@ def _line_png(series, asset, missing_ohlc, width, height):
     ax.plot(dates, prices, **style)
     ax.set_ylim(low - pad, high + pad)
     ax.margins(x=LINE_MARGIN)
-    title = tr("chart.line_no_ohlc" if missing_ohlc else "chart.line", asset=asset)
-    _decorate(ax, title, tick, title_px)
+    _decorate(ax, tick)
     _date_labels(ax, dates, series, tick, indexed=False)
     _volume_strip(volume, dates, series, 0.72)
     _finish_history(fig, ax, volume)
@@ -213,7 +212,7 @@ def _line_png(series, asset, missing_ohlc, width, height):
 
 
 def _candle_png(series, asset, width, height):
-    fig, ax, volume, tick, title_px = _history_figure(width, height)
+    fig, ax, volume, tick, _title_px = _history_figure(width, height)
     for index, row in enumerate(series):
         open_price = float(row["open_price"])
         close = float(row["price"])
@@ -225,7 +224,7 @@ def _candle_png(series, asset, width, height):
         body = abs(close - open_price) or (close * 0.0005)
         ax.add_patch(Rectangle((index - 0.3, body_low), 0.6, body, facecolor=color, edgecolor=color))
     ax.margins(x=CANDLE_MARGIN)
-    _decorate(ax, tr("chart.candle", asset=asset), tick, title_px)
+    _decorate(ax, tick)
     _date_labels(ax, None, series, tick, indexed=True)
     _volume_strip(volume, list(range(len(series))), series, 0.6)
     _finish_history(fig, ax, volume)
@@ -362,7 +361,7 @@ def _session_lines(row):
 
 
 def _finish_history(fig, price, volume):
-    fig.subplots_adjust(left=AXIS_LEFT, right=AXIS_RIGHT, top=0.90, bottom=0.025)
+    fig.subplots_adjust(left=AXIS_LEFT, right=AXIS_RIGHT, top=0.97, bottom=0.025)
     fig.canvas.draw()
     price.tick_params(axis="x", labelbottom=True)
     box = price.get_position()
@@ -370,8 +369,7 @@ def _finish_history(fig, price, volume):
     volume.set_position([box.x0, band.y0, box.width, band.height])
 
 
-def _decorate(ax, title, tick, title_px):
-    ax.set_title(title, loc="left", fontsize=_pt(title_px), color=INK, pad=_pt(8))
+def _decorate(ax, tick):
     ax.grid(True, axis="y", color=RULE, linewidth=_pt(1))
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
