@@ -19,7 +19,7 @@ from jinja2 import ChoiceLoader, FileSystemLoader
 from werkzeug.exceptions import HTTPException
 
 from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_session
-from bot_charts import history_hits, history_model, history_png, treemap_layout, treemap_png
+from bot_charts import history_hits, history_model, history_png, treemap_grouped, treemap_grouped_png, treemap_layout, treemap_png
 from bot_market import constituents, security_names
 from bot_config import (
     FLASK_SECRET_PATH,
@@ -55,10 +55,12 @@ from bot_db import (
     save_preferences,
     seed_preferences,
     sell_ready_lots,
+    symbol_places,
     validate_preferences,
     write_status,
     read_status,
 )
+from bot_decide import score_label, scores_for
 from bot_logic import money
 
 log = get_logger()
@@ -371,10 +373,12 @@ def home():
         prefs = load_preferences(conn)
         asset = asset or prefs["focus_asset"]
         order = _pack_choice()
-        prefs, blocks, tiles, volume_caption_text = _volume_board(conn, prefs, order)
+        scope = _scope_choice()
+        prefs, blocks, tiles, volume_caption_text, frames = _volume_board(conn, prefs, order, scope)
         catalog = security_names()
         class_tree = classification_tree(conn)
         positions = position_rows(conn, prefs)
+        _attach_score(conn, positions)
         transactions = recent_transactions(conn)
         assets = list_assets(conn)
         period, days = _span(request.args.get("period"))
@@ -430,6 +434,8 @@ def home():
         class_tree=class_tree,
         volume_caption_text=volume_caption_text,
         order=order,
+        scope=scope,
+        frames=frames,
     )
 
 
@@ -438,19 +444,29 @@ def _pack_choice():
     return order if order in ("rank", "volume") else "rank"
 
 
+def _scope_choice():
+    scope = request.values.get("scope")
+    return scope if scope in ("all", "sector") else "sector"
+
+
 @app.route("/chart/volume.png")
 def chart_blocks():
     conn = connect()
     try:
         prefs = load_preferences(conn)
         order = _pack_choice()
-        _prefs, blocks, _tiles, _caption = _volume_board(conn, prefs, order)
+        scope = _scope_choice()
+        _prefs, blocks, tiles, _caption, frames = _volume_board(conn, prefs, order, scope)
     finally:
         conn.close()
+    if scope == "all":
+        return _png(treemap_grouped_png(frames, tiles))
     return _png(treemap_png(blocks, order))
 
 
-def volume_caption(prefs, shown):
+def volume_caption(prefs, shown, scope="sector"):
+    if scope == "all":
+        return tr("volume.caption_all", shown=shown)
     chosen = prefs.get("volume_class") or ""
     if chosen.startswith("s:"):
         where = tr("volume.where_named", name=chosen[2:])
@@ -467,16 +483,37 @@ def volume_caption(prefs, shown):
     )
 
 
-def _volume_board(conn, prefs, order="rank"):
+def _volume_board(conn, prefs, order="rank", scope="sector"):
     prefs = dict(prefs)
     prefs["volume_class"] = accepted_volume_class(conn, prefs.get("volume_class"))
     # History length is not part of this: the ranking sessions are enough.
     # Three calendar days per session cover weekends.
     window_days = max(prefs["return_days"] * 3, 40)
-    allowed = class_symbols(conn, prefs["volume_class"])
-    blocks = build_blocks(load_bars_since(conn, window_days), prefs, allowed)
-    tiles = treemap_layout(blocks, security_names(), order)
-    return prefs, blocks, tiles, volume_caption(prefs, len(blocks))
+    wide = scope == "all"
+    allowed = None if wide else class_symbols(conn, prefs["volume_class"])
+    blocks = build_blocks(load_bars_since(conn, window_days), prefs, allowed, limit=not wide)
+    if wide:
+        places = symbol_places(conn)
+        for block in blocks:
+            sector, group = places.get(block["asset"], ("", ""))
+            block["sector"] = sector
+            block["group"] = group
+    _attach_score(conn, blocks)
+    names = security_names()
+    if wide:
+        frames, tiles = treemap_grouped(blocks, names, order)
+    else:
+        frames = []
+        tiles = treemap_layout(blocks, names, order)
+    return prefs, blocks, tiles, volume_caption(prefs, len(tiles), scope), frames
+
+
+def _attach_score(conn, rows):
+    found = scores_for(conn, [row["asset"] for row in rows])
+    for row in rows:
+        short, detail = score_label(found.get(row["asset"]))
+        row["score"] = short
+        row["score_detail"] = detail
 
 
 @app.route("/volume", methods=["POST"])
@@ -509,10 +546,20 @@ def volume_view():
             },
         )
         order = _pack_choice()
-        prefs, blocks, tiles, caption = _volume_board(conn, prefs, order)
+        scope = _scope_choice()
+        prefs, blocks, tiles, caption, frames = _volume_board(conn, prefs, order, scope)
     finally:
         conn.close()
-    return jsonify(tiles=tiles, sessions=sessions, count=count, group=chosen, caption=caption, order=order)
+    return jsonify(
+        tiles=tiles,
+        frames=frames,
+        sessions=sessions,
+        count=count,
+        group=chosen,
+        caption=caption,
+        order=order,
+        scope=scope,
+    )
 
 
 @app.route("/chart/stats.json")

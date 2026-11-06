@@ -106,15 +106,17 @@ Five tables. `deploy/schema.sql` creates them. On startup `ensure_schema` create
 
 ## Deploy
 
-Requirements: Python 3.10, MariaDB, and the packages imported by the application (Flask, mysql-connector, pandas, matplotlib, massive). `yfinance` may be installed. The price update does not call it.
+Requirements: Python 3.10, MariaDB, and the packages in `requirements.txt`. `yfinance` is imported when the application starts. The price update does not call it.
 
-1. Create an empty database and a user that can create tables in it.
-2. Apply `deploy/schema.sql`, or start the application once and let `ensure_schema` create the tables.
-3. Copy `deploy/database.env.example` into the process environment. Fill `DB_SERVER`, `DB_USERNAME`, `DB_PASSWORD`, and `DB_NAME`. A suffixed form of the same name is used first.
-4. Copy `deploy/massive.env.example` to `private/massive_api.env` and set `MASSIVE_API_KEY`.
-5. Put the interface password in `private/ui_password`. The first successful sign-in hashes it.
-6. `ROOT` is the parent of the directory that contains the application, and `private/` sits next to `web/`. `SITE_PACKAGES` is the `SITE_PACKAGES` environment variable, or the process user’s own site-packages. The WSGI entry is `app.wsgi`. A generated session secret is written to `private/flask_secret` on first use.
-7. Serve `app.wsgi`. Static files, including Bootstrap and the fonts, are under `static/` and are not loaded from a third party.
+1. `pip install -r requirements.txt`
+2. Create an empty database and a user that can create tables in it.
+3. Apply `deploy/schema.sql`, or start the application once and let `ensure_schema` create the tables.
+4. Copy `deploy/database.env.example` into the process environment. Fill `DB_SERVER`, `DB_USERNAME`, `DB_PASSWORD`, and `DB_NAME`. A suffixed form of the same name is used first.
+5. With those variables set, `python deploy/sample_archive.py` loads six invented sessions for eight names, one sector, and one buy. It refuses to write when `market_history` already has rows. The rows are not market prices and not a Massive download. The page can be opened before any price update.
+6. Copy `deploy/massive.env.example` to `private/massive_api.env` and set `MASSIVE_API_KEY`. A real update uses that key and the caller's own plan.
+7. Put the interface password in `private/ui_password`. The first successful sign-in hashes it.
+8. `ROOT` is the parent of the directory that contains the application, and `private/` sits next to `web/`. `SITE_PACKAGES` is the `SITE_PACKAGES` environment variable, or the process user’s own site-packages. The WSGI entry is `app.wsgi`. A generated session secret is written to `private/flask_secret` on first use.
+9. Serve `app.wsgi`. Static files, including Bootstrap and the fonts, are under `static/` and are not loaded from a third party.
 
 Nothing in those example files is a live credential. Do not commit a filled copy. `private/` stays outside the repository.
 

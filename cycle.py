@@ -14,6 +14,7 @@ install_import_path()
 import socket
 
 from bot_config import LOCK_PATH, get_logger
+from bot_decide import apply_once
 from bot_db import (
     connect,
     cycle_running,
@@ -49,6 +50,13 @@ def main():
 
         stored, warning = update_from_massive(conn, progress)
         sold = sell_ready_lots(conn, prefs)
+        decision = apply_once(conn)
+        bought = decision["bought"]
+        log.info(
+            "score decision buy=%s score_sold=%s",
+            bought["symbol"] if bought else "none",
+            ",".join(decision["sold"]) or "none",
+        )
         if warning:
             write_status("error", warning)
             log.warning("cycle incomplete, bars %s sales %s", stored, sold)

@@ -138,8 +138,25 @@ function uiText(key, vars) {
       return Math.min(500, Math.max(10, snapped));
     }
 
-    function paintVolume(tiles) {
+    function paintFrame(frame) {
+      var node = document.createElement("div");
+      node.className = "map-frame " + frame.level + " position-absolute";
+      node.style.setProperty("--x", frame.x + "%");
+      node.style.setProperty("--y", frame.y + "%");
+      node.style.setProperty("--w", frame.w + "%");
+      node.style.setProperty("--h", frame.h + "%");
+      if (frame.title || frame.label) {
+        node.title = frame.title || frame.label;
+        var span = document.createElement("span");
+        span.textContent = frame.label;
+        node.append(span);
+      }
+      volumeMap.append(node);
+    }
+
+    function paintVolume(tiles, frames) {
       volumeMap.replaceChildren();
+      (frames || []).forEach(paintFrame);
       tiles.forEach(function (tile) {
         var node = document.createElement("button");
         node.type = "button";
@@ -150,6 +167,7 @@ function uiText(key, vars) {
         node.style.setProperty("--y", tile.y + "%");
         node.style.setProperty("--w", tile.w + "%");
         node.style.setProperty("--h", tile.h + "%");
+        node.style.setProperty("--fs", (tile.fs || 11) + "px");
         var full = document.createElement("span");
         full.className = "full";
         full.append(document.createTextNode(tile.label), document.createElement("br"));
@@ -157,17 +175,66 @@ function uiText(key, vars) {
         change.className = "chg text-nowrap";
         change.textContent = tile.change;
         full.append(change);
+        if (tile.score) {
+          full.append(document.createElement("br"));
+          var score = document.createElement("span");
+          score.className = "chg text-nowrap";
+          score.textContent = tile.score;
+          full.append(score);
+        }
         var short = document.createElement("span");
         short.className = "short";
-        short.textContent = tile.label;
-        node.append(full, short);
+        short.append(document.createTextNode(tile.label));
+        if (tile.score) {
+          short.append(document.createElement("br"));
+          var shortScore = document.createElement("span");
+          shortScore.className = "chg text-nowrap";
+          shortScore.textContent = tile.score;
+          short.append(shortScore);
+        }
+        var line = document.createElement("span");
+        line.className = "line text-nowrap";
+        line.append(document.createTextNode(tile.label + " " + tile.change));
+        if (tile.score) {
+          line.append(document.createTextNode(" " + tile.score));
+        }
+        var mark = document.createElement("span");
+        mark.className = "face";
+        mark.append(document.createTextNode(tile.label), document.createElement("br"));
+        var markChange = document.createElement("span");
+        markChange.className = "chg text-nowrap";
+        markChange.textContent = tile.change;
+        mark.append(markChange);
+        node.append(full, short, line, mark);
         volumeMap.append(node);
       });
+      if (volumeMap.classList.contains("all-map")) {
+        tiles.forEach(paintHair);
+      }
+    }
+
+    function paintHair(tile) {
+      var vertical = document.createElement("span");
+      vertical.className = "tile-hair v";
+      vertical.style.setProperty("--x", (tile.x + tile.w) + "%");
+      vertical.style.setProperty("--y", tile.y + "%");
+      vertical.style.setProperty("--h", tile.h + "%");
+      var horizontal = document.createElement("span");
+      horizontal.className = "tile-hair h";
+      horizontal.style.setProperty("--x", tile.x + "%");
+      horizontal.style.setProperty("--y", (tile.y + tile.h) + "%");
+      horizontal.style.setProperty("--w", tile.w + "%");
+      volumeMap.append(vertical, horizontal);
     }
 
     function volumeOrder() {
       var active = volumeControls.querySelector("[data-order].active");
       return active ? active.getAttribute("data-order") : "rank";
+    }
+
+    function volumeScope() {
+      var active = volumeControls.querySelector("[data-scope].active");
+      return active ? active.getAttribute("data-scope") : "sector";
     }
 
     function setVolumeOrder(order) {
@@ -176,19 +243,42 @@ function uiText(key, vars) {
       });
     }
 
+    function setVolumeScope(scope) {
+      var all = scope === "all";
+      volumeControls.querySelectorAll("[data-scope]").forEach(function (button) {
+        button.classList.toggle("active", button.getAttribute("data-scope") === scope);
+      });
+      var sectorWrap = document.getElementById("volume-sector-wrap");
+      var groupWrap = document.getElementById("volume-group-wrap");
+      var orderWrap = document.getElementById("volume-order-wrap");
+      if (sectorWrap) {
+        sectorWrap.classList.toggle("d-none", all);
+      }
+      if (groupWrap) {
+        groupWrap.classList.toggle("d-none", all);
+      }
+      if (orderWrap) {
+        orderWrap.classList.toggle("d-none", all);
+      }
+      if (volumeMap) {
+        volumeMap.classList.toggle("all-map", all);
+      }
+    }
+
     var volumeSaved = {
       sessions: volumeSessions.value,
       titles: volumeTitles.value,
       sector: volumeSector.value,
       group: volumeGroup.value,
-      order: volumeOrder()
+      order: volumeOrder(),
+      scope: volumeScope()
     };
 
     function fillGroups(sector, groupValue) {
       volumeGroup.replaceChildren();
       var all = document.createElement("option");
       all.value = "";
-      all.textContent = "Tutti";
+      all.textContent = volumeGroup.getAttribute("data-all") || "";
       volumeGroup.append(all);
       [].forEach.call(volumeCatalog.children, function (group) {
         if (group.tagName !== "OPTGROUP") {
@@ -244,6 +334,7 @@ function uiText(key, vars) {
       volumeSector.value = volumeSaved.sector;
       fillGroups(volumeSaved.sector, volumeSaved.group);
       setVolumeOrder(volumeSaved.order);
+      setVolumeScope(volumeSaved.scope);
     }
 
     var volumeWait = document.getElementById("volume-wait");
@@ -266,6 +357,7 @@ function uiText(key, vars) {
       body.set("names", volumeTitles.value);
       body.set("volume_class", composeClass());
       body.set("order", volumeOrder());
+      body.set("scope", volumeScope());
       fetch(volumeControls.dataset.volume, {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
@@ -289,7 +381,9 @@ function uiText(key, vars) {
           volumeSaved.sector = volumeSector.value;
           volumeSaved.group = volumeGroup.value;
           volumeSaved.order = data.order || volumeOrder();
+          volumeSaved.scope = data.scope || volumeScope();
           setVolumeOrder(volumeSaved.order);
+          setVolumeScope(volumeSaved.scope);
           var prefSessions = document.getElementById("pref-return");
           var prefTitles = document.getElementById("pref-names");
           if (prefSessions) {
@@ -301,7 +395,7 @@ function uiText(key, vars) {
           if (volumeCaption) {
             volumeCaption.textContent = data.caption;
           }
-          paintVolume(data.tiles || []);
+          paintVolume(data.tiles || [], data.frames || []);
           setVolumeBusy(false);
           remember("volume");
         })
@@ -381,6 +475,15 @@ function uiText(key, vars) {
         pushVolume();
       });
     });
+    volumeControls.querySelectorAll("[data-scope]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        if (button.classList.contains("active")) {
+          return;
+        }
+        setVolumeScope(button.getAttribute("data-scope"));
+        pushVolume();
+      });
+    });
   }
 
   var frameEl = document.getElementById("chart-frame");
@@ -435,6 +538,10 @@ function uiText(key, vars) {
     var orderButton = document.querySelector("[data-order].active");
     if (orderButton) {
       params.set("order", orderButton.getAttribute("data-order"));
+    }
+    var scopeButton = document.querySelector("[data-scope].active");
+    if (scopeButton) {
+      params.set("scope", scopeButton.getAttribute("data-scope"));
     }
     params.delete("ok");
     params.delete("err");

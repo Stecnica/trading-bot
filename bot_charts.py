@@ -92,6 +92,9 @@ def treemap_layout(blocks, names=None, order="rank"):
             kind = "tiny"
         company = (names or {}).get(block["asset"], "")
         title = f"{block['asset']} — {company} {change}" if company else f"{block['asset']} {change}"
+        detail = block.get("score_detail") or ""
+        if detail:
+            title = f"{title} · {detail}"
         laid.append(
             {
                 "asset": block["asset"],
@@ -101,6 +104,7 @@ def treemap_layout(blocks, names=None, order="rank"):
                 "h": round(height * 100, 3),
                 "tone": TONES[block["state"]],
                 "change": change,
+                "score": block.get("score") or "",
                 "label": _tile_label(block["asset"], company, kind, width),
                 "title": title,
                 "kind": kind,
@@ -118,6 +122,65 @@ def _tile_label(symbol, company, kind, width):
     if kind == "big" and len(company) <= max(10, int(width / 0.012)):
         return company
     return symbol
+
+
+def treemap_grouped_png(frames, tiles):
+    """The grouped map on the 16/9 sheet. Percentages are already the ones drawn in the page."""
+    if not tiles:
+        return _message_png(tr("volume.none"))
+    tone_color = {
+        "bg-primary": COLORS["stabile"],
+        "bg-success": COLORS["crescita"],
+        "bg-danger": COLORS["perdita"],
+    }
+    fig, ax, _tick, _title = _figure()
+    ax.set_xlim(0, 100)
+    ax.set_ylim(100, 0)
+    ax.axis("off")
+    for frame in frames:
+        ax.add_patch(
+            Rectangle(
+                (frame["x"], frame["y"]),
+                frame["w"],
+                frame["h"],
+                facecolor="none",
+                edgecolor=INK if frame["level"] == "sector" else RULE,
+                linewidth=1.0 if frame["level"] == "sector" else 0.6,
+            )
+        )
+        if frame.get("label") and frame["w"] >= 8 and frame["h"] >= 6:
+            ax.text(
+                frame["x"] + 0.4,
+                frame["y"] + 1.2,
+                frame["label"],
+                ha="left",
+                va="top",
+                color=INK,
+                fontsize=7,
+            )
+    for tile in tiles:
+        ax.add_patch(
+            Rectangle(
+                (tile["x"], tile["y"]),
+                tile["w"],
+                tile["h"],
+                facecolor=tone_color.get(tile["tone"], COLORS["stabile"]),
+                edgecolor=PAPER,
+                linewidth=0.4,
+            )
+        )
+        if tile["w"] > 7 and tile["h"] > 5.5:
+            ax.text(
+                tile["x"] + tile["w"] / 2,
+                tile["y"] + tile["h"] / 2,
+                f"{tile['asset']}\n{tile['change']}",
+                ha="center",
+                va="center",
+                color="white",
+                fontsize=6,
+            )
+    fig.tight_layout()
+    return _png(fig)
 
 
 def treemap_png(blocks, order="rank"):
@@ -440,11 +503,12 @@ def _worst(row, side):
     return max((side * side * worst) / (total * total), (total * total) / (side * side * best))
 
 
-def _squarify(sizes):
+def _squarify(sizes, x=0, y=0, width=1, height=1):
     total = sum(sizes)
-    if total <= 0:
+    if total <= 0 or width <= 0 or height <= 0:
         return []
-    areas = [size / total for size in sizes]
+    scale = (width * height) / total
+    areas = [size * scale for size in sizes]
     rects = []
 
     def layout(items, x, y, width, height):
@@ -483,5 +547,134 @@ def _squarify(sizes):
                 cursor += row_height
             layout(rest, x + row_width, y, width - row_width, height)
 
-    layout(areas, 0, 0, 1, 1)
+    layout(areas, x, y, width, height)
     return rects
+
+
+FRAME_W = 16.0
+FRAME_H = 9.0
+# Shorter than this, the tile is a strip. It is left out and the space goes to the blocks.
+MIN_SIDE = 0.36
+
+
+def treemap_grouped(blocks, names=None, order="rank"):
+    """Sectors, then groups, then names. Coordinates match the 16/9 frame, so a square stays a square."""
+    if not blocks:
+        return [], []
+    sectors = {}
+    for block in blocks:
+        sector = block.get("sector") or ""
+        group = block.get("group") or ""
+        sectors.setdefault(sector, {}).setdefault(group, []).append(block)
+    sector_rows = []
+    for sector, groups in sectors.items():
+        group_rows = []
+        total = 0.0
+        for group, items in groups.items():
+            packed = _pack_order(items, order)
+            volume = sum(float(item["volume"]) for item in packed)
+            total += volume
+            group_rows.append((group, volume, packed))
+        group_rows.sort(key=lambda item: (-item[1], item[0]))
+        sector_rows.append((sector, total, group_rows))
+    sector_rows.sort(key=lambda item: (-item[1], item[0]))
+    frames = []
+    tiles = []
+    sector_rects = _squarify([row[1] for row in sector_rows], 0, 0, FRAME_W, FRAME_H)
+    for (x, y, width, height), (sector, _total, group_rows) in zip(sector_rects, sector_rows):
+        label, ix, iy, iw, ih = _pocket(x, y, width, height, sector, True)
+        frames.append(_frame(x, y, width, height, label, "sector", sector))
+        if iw <= 0 or ih <= 0:
+            ix, iy, iw, ih = x, y, width, height
+        if iw <= 0 or ih <= 0:
+            continue
+        symbols = [block for _group, _volume, packed in group_rows for block in packed]
+        for rect, block in _fit_squarify(symbols, ix, iy, iw, ih):
+            tiles.append(_tile_at(rect, block, names, FRAME_W, FRAME_H, name=True))
+    _scale_fonts(tiles)
+    return frames, tiles
+
+
+def _fit_squarify(items, x, y, width, height):
+    """Squarify, drop any tile that comes out as a strip, and pack again."""
+    if width <= 0 or height <= 0 or min(width, height) < MIN_SIDE:
+        return []
+    chosen = sorted(items, key=lambda block: float(block["volume"]), reverse=True)
+    while chosen:
+        rects = _squarify([float(block["volume"]) for block in chosen], x, y, width, height)
+        bad = None
+        for index, (_rx, _ry, rw, rh) in enumerate(rects):
+            short = min(rw, rh)
+            long = max(rw, rh)
+            strip = short < MIN_SIDE or (len(rects) > 1 and short > 0 and long / short > 3)
+            if strip and (bad is None or float(chosen[index]["volume"]) < float(chosen[bad]["volume"])):
+                bad = index
+        if bad is None:
+            return list(zip(rects, chosen))
+        chosen.pop(bad)
+    return []
+
+
+def _pocket(x, y, width, height, name, sector):
+    """The name sits on the blocks. The tiles fill the sector, so the page does not show through."""
+    show = bool(name) and width >= (0.9 if sector else 1.3) and height >= (0.8 if sector else 0.8)
+    return name if show else "", x, y, width, height
+
+
+def _frame(x, y, width, height, label, level, title=""):
+    px, py, pw, ph = _percent(x, y, width, height, FRAME_W, FRAME_H)
+    return {"x": px, "y": py, "w": pw, "h": ph, "label": label, "title": title or label, "level": level}
+
+
+def _scale_fonts(tiles):
+    """11px on the largest volume, 8px on the smallest. 11 is the ceiling."""
+    if not tiles:
+        return
+    areas = [float(tile["w"]) * float(tile["h"]) for tile in tiles]
+    biggest = max(areas) or 1.0
+    for tile, area in zip(tiles, areas):
+        share = (area / biggest) ** 0.5
+        tile["fs"] = round(8 + 3 * share, 2)
+
+
+def _percent(x, y, width, height, frame_w, frame_h):
+    return (
+        round(x / frame_w * 100, 3),
+        round(y / frame_h * 100, 3),
+        round(width / frame_w * 100, 3),
+        round(height / frame_h * 100, 3),
+    )
+
+
+def _tile_at(rect, block, names, frame_w, frame_h, name=False):
+    x, y, width, height = rect
+    px, py, pw, ph = _percent(x, y, width, height, frame_w, frame_h)
+    fw = width / frame_w
+    fh = height / frame_h
+    if fw >= 0.07 and fh >= 0.055:
+        kind = "big"
+    elif fw >= 0.028 and fh >= 0.028:
+        kind = "mid"
+    else:
+        kind = "tiny"
+    daily = float(block["daily"])
+    sign = "+" if daily > 0 else ""
+    change = f"{sign}{daily * 100:.1f}%"
+    company = (names or {}).get(block["asset"], "")
+    title = f"{block['asset']} — {company} {change}" if company else f"{block['asset']} {change}"
+    detail = block.get("score_detail") or ""
+    if detail:
+        title = f"{title} · {detail}"
+    return {
+        "asset": block["asset"],
+        "x": px,
+        "y": py,
+        "w": pw,
+        "h": ph,
+        "tone": TONES[block["state"]],
+        "change": change,
+        "score": block.get("score") or "",
+        "label": (company or block["asset"]) if name else _tile_label(block["asset"], company, kind, fw),
+        "title": title,
+        "kind": kind,
+    }

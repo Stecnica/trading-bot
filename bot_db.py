@@ -662,7 +662,23 @@ def class_symbols(conn, volume_class):
     return names
 
 
-def build_blocks(rows, prefs, allowed=None):
+def symbol_places(conn):
+    """Symbol to its sector name and group name."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT ac.asset_name, sector.name, sub.name
+        FROM asset_class ac
+        JOIN classification sub ON sub.code = ac.classification_code
+        JOIN classification sector ON sector.code = sub.parent_code
+        """
+    )
+    places = {asset: (sector, group) for asset, sector, group in cur.fetchall()}
+    cur.close()
+    return places
+
+
+def build_blocks(rows, prefs, allowed=None, limit=True):
     grouped = {}
     for row in rows:
         grouped.setdefault(row["asset_name"], []).append(row)
@@ -703,7 +719,9 @@ def build_blocks(rows, prefs, allowed=None):
             }
         )
     blocks.sort(key=lambda item: item["trail"], reverse=True)
-    return blocks[: prefs["names"]]
+    if limit:
+        return blocks[: prefs["names"]]
+    return blocks
 
 
 def position_rows(conn, prefs):
