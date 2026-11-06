@@ -367,14 +367,35 @@
 		<div class="card-body tab-content">
 			<div class="tab-pane fade{% if view != 'history' %} show active{% endif %}" id="volume" role="tabpanel" aria-labelledby="volume-tab">
 				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
-					<h2 class="h5 mb-0">{{ t('volume.heading') }}</h2>
 					<div class="d-flex flex-wrap align-items-end gap-3" id="volume-controls" data-volume="{{ url_for('volume_view') }}">
 						<div>
+							<div class="form-label" aria-hidden="true">&nbsp;</div>
+							<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('volume.sector') }}">
+								<button class="btn btn-outline-primary{% if scope == 'all' %} active{% endif %}" type="button" data-scope="all" title="{{ t('volume.scope.all_title') }}">{{ t('volume.all') }}</button>
+								<button class="btn btn-outline-primary{% if scope != 'all' %} active{% endif %}" type="button" data-scope="sector" title="{{ t('volume.scope.sector_title') }}">{{ t('volume.sector') }}</button>
+							</div>
+						</div>
+						<div id="volume-order-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
+							<div class="form-label">{{ t('volume.order') }}</div>
+							<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('volume.order') }}">
+								<button class="btn btn-outline-primary{% if order != 'volume' %} active{% endif %}" type="button" data-order="rank" title="{{ t('volume.order.rank_title') }}">{{ t('volume.order.rank') }}</button>
+								<button class="btn btn-outline-primary{% if order == 'volume' %} active{% endif %}" type="button" data-order="volume" title="{{ t('volume.order.volume_title') }}">{{ t('volume.order.volume') }}</button>
+							</div>
+						</div>
+						<div id="volume-sessions-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
 							<label class="form-label" for="volume-sessions" title="{{ t('prefs.sessions_title') }}">{{ t('volume.sessions') }}</label>
 							<div class="input-group input-group-sm volume-step">
 								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="-1" aria-label="{{ t('volume.less_sessions') }}">−</button>
 								<input class="form-control text-center" id="volume-sessions" inputmode="numeric" min="1" max="240" title="{{ t('prefs.sessions_title') }}" value="{{ prefs.return_days }}" autocomplete="off">
 								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="1" aria-label="{{ t('volume.more_sessions') }}">+</button>
+							</div>
+						</div>
+						<div id="volume-titles-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
+							<label class="form-label" for="volume-titles">{{ t('volume.titles') }}</label>
+							<div class="input-group input-group-sm volume-step">
+								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="-1" aria-label="{{ t('volume.less_titles') }}">−</button>
+								<input class="form-control text-center" id="volume-titles" inputmode="numeric" value="{{ prefs.names }}" autocomplete="off">
+								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="{{ t('volume.more_titles') }}">+</button>
 							</div>
 						</div>
 						{% set chosen = prefs.volume_class or '' %}
@@ -409,28 +430,6 @@
 								</optgroup>
 								{% endfor %}
 							</select>
-						</div>
-						<div>
-							<label class="form-label" for="volume-titles">{{ t('volume.titles') }}</label>
-							<div class="input-group input-group-sm volume-step">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="-1" aria-label="{{ t('volume.less_titles') }}">−</button>
-								<input class="form-control text-center" id="volume-titles" inputmode="numeric" value="{{ prefs.names }}" autocomplete="off">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="{{ t('volume.more_titles') }}">+</button>
-							</div>
-						</div>
-						<div id="volume-order-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
-							<div class="form-label">{{ t('volume.order') }}</div>
-							<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('volume.order') }}">
-								<button class="btn btn-outline-primary{% if order != 'volume' %} active{% endif %}" type="button" data-order="rank" title="{{ t('volume.order.rank_title') }}">{{ t('volume.order.rank') }}</button>
-								<button class="btn btn-outline-primary{% if order == 'volume' %} active{% endif %}" type="button" data-order="volume" title="{{ t('volume.order.volume_title') }}">{{ t('volume.order.volume') }}</button>
-							</div>
-						</div>
-						<div>
-							<div class="form-label" aria-hidden="true">&nbsp;</div>
-							<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('volume.sector') }}">
-								<button class="btn btn-outline-primary{% if scope == 'all' %} active{% endif %}" type="button" data-scope="all" title="{{ t('volume.scope.all_title') }}">{{ t('volume.all') }}</button>
-								<button class="btn btn-outline-primary{% if scope != 'all' %} active{% endif %}" type="button" data-scope="sector" title="{{ t('volume.scope.sector_title') }}">{{ t('volume.sector') }}</button>
-							</div>
 						</div>
 					</div>
 				</div>
@@ -660,7 +659,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=39) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=40) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

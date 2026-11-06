@@ -251,6 +251,8 @@ function uiText(key, vars) {
       var sectorWrap = document.getElementById("volume-sector-wrap");
       var groupWrap = document.getElementById("volume-group-wrap");
       var orderWrap = document.getElementById("volume-order-wrap");
+      var sessionsWrap = document.getElementById("volume-sessions-wrap");
+      var titlesWrap = document.getElementById("volume-titles-wrap");
       if (sectorWrap) {
         sectorWrap.classList.toggle("d-none", all);
       }
@@ -259,6 +261,12 @@ function uiText(key, vars) {
       }
       if (orderWrap) {
         orderWrap.classList.toggle("d-none", all);
+      }
+      if (sessionsWrap) {
+        sessionsWrap.classList.toggle("d-none", all);
+      }
+      if (titlesWrap) {
+        titlesWrap.classList.toggle("d-none", all);
       }
       if (volumeMap) {
         volumeMap.classList.toggle("all-map", all);
