@@ -9,3 +9,4 @@ __pycache__/
 *.pyc
 stats/
 media/
+.DS_Store
