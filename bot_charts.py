@@ -28,6 +28,20 @@ COLORS = {
     "crescita": "#198754",
     "perdita": "#dc3545",
 }
+# Scale On: a compressed square moves halfway from its daily color toward cyan, yellow, or magenta.
+SCALED = {
+    "bg-primary": "#0792e9",
+    "bg-success": "#8cc32a",
+    "bg-danger": "#ee1aa2",
+}
+# Scale Off: the earlier divisor, one step lighter, so the daily color still reads.
+SCALED_SOFT = {
+    "bg-primary": "#6ea8fe",
+    "bg-success": "#75b798",
+    "bg-danger": "#ea868f",
+}
+# Long side / short side. Above this, the block is drawn as a square and marked (xR).
+PHI = 1.618
 INK = "#212529"
 RULE = "#dee2e6"
 PAPER = "#ffffff"
@@ -164,7 +178,7 @@ def treemap_grouped_png(frames, tiles):
                 (tile["x"], tile["y"]),
                 tile["w"],
                 tile["h"],
-                facecolor=tone_color.get(tile["tone"], COLORS["stabile"]),
+                facecolor=((SCALED if tile.get("cmy") else SCALED_SOFT) if tile.get("scaled") else tone_color).get(tile["tone"], COLORS["stabile"]),
                 edgecolor=PAPER,
                 linewidth=0.4,
             )
@@ -176,7 +190,7 @@ def treemap_grouped_png(frames, tiles):
                 f"{tile['asset']}\n{tile['change']}",
                 ha="center",
                 va="center",
-                color="white",
+                color="#000" if tile.get("cmy") and tile.get("tone") == "bg-success" else "white",
                 fontsize=6,
             )
     fig.tight_layout()
@@ -551,13 +565,82 @@ def _squarify(sizes, x=0, y=0, width=1, height=1):
     return rects
 
 
+def _lower_contiguous(rects):
+    """Two contiguous blocks share one rectangle. Keep the cut whose long side is the smaller multiple of the short side."""
+    eps = 1e-6
+    rects = [tuple(rect) for rect in rects]
+
+    def ratio(width, height):
+        short = min(width, height)
+        if short <= eps:
+            return 0.0
+        return max(width, height) / short
+
+    def clear(box, skip):
+        x, y, width, height = box
+        for index, (ox, oy, ow, oh) in enumerate(rects):
+            if index in skip:
+                continue
+            if ox + eps < x + width and ox + ow > x + eps and oy + eps < y + height and oy + oh > y + eps:
+                return False
+        return True
+
+    guard = 0
+    while guard < len(rects) * len(rects):
+        guard += 1
+        best = None
+        for i in range(len(rects)):
+            x1, y1, w1, h1 = rects[i]
+            for j in range(i + 1, len(rects)):
+                x2, y2, w2, h2 = rects[j]
+                stacked = abs(x1 - x2) <= eps and abs(w1 - w2) <= eps and (
+                    abs((y1 + h1) - y2) <= eps or abs((y2 + h2) - y1) <= eps
+                )
+                beside = abs(y1 - y2) <= eps and abs(h1 - h2) <= eps and (
+                    abs((x1 + w1) - x2) <= eps or abs((x2 + w2) - x1) <= eps
+                )
+                if not stacked and not beside:
+                    continue
+                current = max(ratio(w1, h1), ratio(w2, h2))
+                if stacked:
+                    top, bottom = (i, j) if y1 <= y2 else (j, i)
+                    tx, ty, tw, th = rects[top]
+                    bx, by, bw, bh = rects[bottom]
+                    union = (tx, ty, tw, th + bh)
+                    if not clear(union, {top, bottom}) or th + bh <= eps:
+                        continue
+                    left = rects[top][2] * rects[top][3] / (th + bh)
+                    alt = (union[0], union[1], left, th + bh), (union[0] + left, union[1], tw - left, th + bh)
+                else:
+                    left, right = (i, j) if x1 <= x2 else (j, i)
+                    lx, ly, lw, lh = rects[left]
+                    rx, ry, rw, rh = rects[right]
+                    union = (lx, ly, lw + rw, lh)
+                    if not clear(union, {left, right}) or lw + rw <= eps:
+                        continue
+                    top_h = rects[left][2] * rects[left][3] / (lw + rw)
+                    alt = (union[0], union[1], lw + rw, top_h), (union[0], union[1] + top_h, lw + rw, lh - top_h)
+                    top, bottom = left, right
+                if min(alt[0][2], alt[0][3], alt[1][2], alt[1][3]) <= eps:
+                    continue
+                proposed = max(ratio(alt[0][2], alt[0][3]), ratio(alt[1][2], alt[1][3]))
+                if proposed + 1e-9 < current and (best is None or current - proposed > best[0]):
+                    best = (current - proposed, top, bottom, alt)
+        if best is None:
+            break
+        _gain, top, bottom, alt = best
+        rects[top] = alt[0]
+        rects[bottom] = alt[1]
+    return rects
+
+
 FRAME_W = 16.0
 FRAME_H = 9.0
 # Shorter than this, the tile is a strip. It is left out and the space goes to the blocks.
 MIN_SIDE = 0.36
 
 
-def treemap_grouped(blocks, names=None, order="rank"):
+def treemap_grouped(blocks, names=None, order="rank", min_side=MIN_SIDE, divide=False, scale=False):
     """Sectors, then groups, then names. Coordinates match the 16/9 frame, so a square stays a square."""
     if not blocks:
         return [], []
@@ -581,6 +664,8 @@ def treemap_grouped(blocks, names=None, order="rank"):
     frames = []
     tiles = []
     sector_rects = _squarify([row[1] for row in sector_rows], 0, 0, FRAME_W, FRAME_H)
+    if divide:
+        sector_rects = _lower_contiguous(sector_rects)
     for (x, y, width, height), (sector, _total, group_rows) in zip(sector_rects, sector_rows):
         label, ix, iy, iw, ih = _pocket(x, y, width, height, sector, True)
         frames.append(_frame(x, y, width, height, label, "sector", sector))
@@ -589,15 +674,23 @@ def treemap_grouped(blocks, names=None, order="rank"):
         if iw <= 0 or ih <= 0:
             continue
         symbols = [block for _group, _volume, packed in group_rows for block in packed]
-        for rect, block in _fit_squarify(symbols, ix, iy, iw, ih):
-            tiles.append(_tile_at(rect, block, names, FRAME_W, FRAME_H, name=True))
+        for rect, block, mult in _fit_sector(symbols, ix, iy, iw, ih, min_side, divide, scale):
+            tile = _tile_at(rect, block, names, FRAME_W, FRAME_H, name=True)
+            if mult > 1:
+                mark = _factor(mult)
+                tile["label"] = f"{tile['label']} {mark}"
+                tile["title"] = f"{tile['title']} {mark}"
+                tile["scaled"] = True
+                if scale:
+                    tile["cmy"] = True
+            tiles.append(tile)
     _scale_fonts(tiles)
     return frames, tiles
 
 
-def _fit_squarify(items, x, y, width, height):
+def _fit_squarify(items, x, y, width, height, min_side=MIN_SIDE):
     """Squarify, drop any tile that comes out as a strip, and pack again."""
-    if width <= 0 or height <= 0 or min(width, height) < MIN_SIDE:
+    if width <= 0 or height <= 0 or min(width, height) < min_side:
         return []
     chosen = sorted(items, key=lambda block: float(block["volume"]), reverse=True)
     while chosen:
@@ -606,13 +699,365 @@ def _fit_squarify(items, x, y, width, height):
         for index, (_rx, _ry, rw, rh) in enumerate(rects):
             short = min(rw, rh)
             long = max(rw, rh)
-            strip = short < MIN_SIDE or (len(rects) > 1 and short > 0 and long / short > 3)
+            strip = short < min_side or (len(rects) > 1 and short > 0 and long / short > 3)
             if strip and (bad is None or float(chosen[index]["volume"]) < float(chosen[bad]["volume"])):
                 bad = index
         if bad is None:
             return list(zip(rects, chosen))
         chosen.pop(bad)
     return []
+
+
+def _aspect(width, height):
+    short = min(width, height)
+    long = max(width, height)
+    if short <= 0:
+        return 0.0
+    return long / short
+
+
+def _factor(ratio):
+    text = f"{ratio:.1f}"
+    if text.endswith(".0"):
+        text = text[:-2]
+    return f"(x{text})"
+
+
+def _pack_scale(items, x, y, width, height, min_side):
+    """Every name is drawn. The cut keeps the lower ratio. A cell longer than 1.618 becomes a square."""
+    del min_side
+    items = [block for block in items if float(block["volume"]) > 0]
+    if not items or width <= 1e-6 or height <= 1e-6:
+        return []
+    items = sorted(items, key=lambda block: float(block["volume"]), reverse=True)
+    if len(items) == 1:
+        aspect = _aspect(width, height)
+        if aspect <= PHI:
+            return [((x, y, width, height), items[0], 1.0)]
+        side = min(width, height)
+        return [((x, y, side, side), items[0], aspect)]
+    total = sum(float(block["volume"]) for block in items)
+    if _aspect(width, height) > PHI:
+        side = min(width, height)
+        target = side * side / (width * height) * total
+        acc = 0.0
+        cut = 0
+        for block in items[:-1]:
+            acc += float(block["volume"])
+            cut += 1
+            if acc >= target:
+                break
+        cut = min(max(cut, 1), len(items) - 1)
+        if width >= height:
+            return _pack_scale(items[:cut], x, y, side, side, 0) + _pack_scale(items[cut:], x + side, y, width - side, height, 0)
+        return _pack_scale(items[:cut], x, y, side, side, 0) + _pack_scale(items[cut:], x, y + side, width, height - side, 0)
+    best = None
+    for vertical in (True, False):
+        length = width if vertical else height
+        cross = height if vertical else width
+        acc = 0.0
+        for index in range(len(items) - 1):
+            acc += float(items[index]["volume"])
+            span = acc / total * length
+            rest = length - span
+            if span <= 1e-6 or rest <= 1e-6:
+                continue
+            score = max(_aspect(span, cross), _aspect(rest, cross))
+            balance = abs((index + 1) - len(items) / 2.0)
+            if best is None or score < best[0] - 1e-9 or (abs(score - best[0]) <= 1e-9 and balance < best[2]):
+                best = (score, vertical, balance, index + 1, span)
+    if best is None:
+        aspect = _aspect(width, height)
+        return [((x, y, width, height), items[0], aspect if aspect > PHI else 1.0)]
+    _score, vertical, _balance, cut, span = best
+    if vertical:
+        return _pack_scale(items[:cut], x, y, span, height, 0) + _pack_scale(items[cut:], x + span, y, width - span, height, 0)
+    return _pack_scale(items[:cut], x, y, width, span, 0) + _pack_scale(items[cut:], x, y + span, width, height - span, 0)
+
+
+def _white_rects(rects, x, y, width, height):
+    """Empty rectangles inside the box. A gap is a box of its own."""
+    eps = 1e-6
+    ys = {y, y + height}
+    for rx, ry, rw, rh in rects:
+        ys.add(min(max(ry, y), y + height))
+        ys.add(min(max(ry + rh, y), y + height))
+    ordered = sorted(ys)
+    bands = []
+    for y0, y1 in zip(ordered, ordered[1:]):
+        if y1 - y0 <= eps:
+            continue
+        mid = (y0 + y1) / 2
+        occupied = []
+        for rx, ry, rw, rh in rects:
+            if ry <= mid < ry + rh:
+                occupied.append((max(rx, x), min(rx + rw, x + width)))
+        occupied.sort()
+        cursor = x
+        for left, right in occupied:
+            if left > cursor + eps:
+                bands.append([cursor, y0, left - cursor, y1 - y0])
+            cursor = max(cursor, right)
+        if cursor < x + width - eps:
+            bands.append([cursor, y0, x + width - cursor, y1 - y0])
+    bands.sort(key=lambda rect: (round(rect[0], 5), round(rect[2], 5), rect[1]))
+    merged = []
+    for band in bands:
+        if (
+            merged
+            and abs(merged[-1][0] - band[0]) <= 1e-4
+            and abs(merged[-1][2] - band[2]) <= 1e-4
+            and abs((merged[-1][1] + merged[-1][3]) - band[1]) <= 1e-4
+        ):
+            merged[-1][3] += band[3]
+        else:
+            merged.append(band)
+    return [band for band in merged if band[2] * band[3] > 1e-5]
+
+
+def _grow_move(it, hole):
+    """The empty box covers one full side of the block, so the block can take that strip and stay a rectangle."""
+    tx, ty, tw, th = it[0], it[1], it[2], it[3]
+    hx, hy, hw, hh = hole
+    if abs((tx + tw) - hx) <= 1e-4 and hy <= ty + 1e-4 and hy + hh >= ty + th - 1e-4:
+        return ("r", hw, th)
+    if abs((hx + hw) - tx) <= 1e-4 and hy <= ty + 1e-4 and hy + hh >= ty + th - 1e-4:
+        return ("l", hw, th)
+    if abs((ty + th) - hy) <= 1e-4 and hx <= tx + 1e-4 and hx + hw >= tx + tw - 1e-4:
+        return ("d", hh, tw)
+    if abs((hy + hh) - ty) <= 1e-4 and hx <= tx + 1e-4 and hx + hw >= tx + tw - 1e-4:
+        return ("u", hh, tw)
+    return None
+
+
+def _apply_grow(it, direction, depth):
+    if direction == "r":
+        it[2] += depth
+    elif direction == "l":
+        it[0] -= depth
+        it[2] += depth
+    elif direction == "d":
+        it[3] += depth
+    else:
+        it[1] -= depth
+        it[3] += depth
+    area = it[2] * it[3]
+    it[5] = it[6] / area if area else 1.0
+    if it[5] < 1:
+        it[5] = 1.0
+
+
+def _reclaim_scale(placed, x, y, width, height):
+    """Give the empty box back to the compressed block on its side. The factor falls as the area comes back."""
+    if not placed:
+        return []
+    items = []
+    for rect, block, mult in placed:
+        rx, ry, rw, rh = rect
+        factor = mult if mult > 1 else 1.0
+        items.append([rx, ry, rw, rh, block, factor, rw * rh * factor])
+    for _guard in range(len(items) * 2 + 4):
+        holes = _white_rects([(it[0], it[1], it[2], it[3]) for it in items], x, y, width, height)
+        best = None
+        for hole in holes:
+            for index, it in enumerate(items):
+                if it[5] <= 1 + 1e-6:
+                    continue
+                move = _grow_move(it, hole)
+                if not move:
+                    continue
+                direction, depth, side = move
+                room = it[6] - it[2] * it[3]
+                if room <= 1e-6 or side <= 0:
+                    continue
+                depth = min(depth, room / side)
+                if depth <= 1e-4:
+                    continue
+                cover = depth * side
+                if best is None or cover > best[0]:
+                    best = (cover, index, direction, depth)
+        if best is None:
+            break
+        _cover, index, direction, depth = best
+        _apply_grow(items[index], direction, depth)
+    for _guard in range(len(items) + 4):
+        holes = _white_rects([(it[0], it[1], it[2], it[3]) for it in items], x, y, width, height)
+        best = None
+        for hole in holes:
+            for index, it in enumerate(items):
+                move = _grow_move(it, hole)
+                if not move:
+                    continue
+                direction, depth, side = move
+                if depth <= 1e-4 or side <= 0:
+                    continue
+                cover = depth * side
+                rank = (it[5], cover)
+                if best is None or rank > best[0]:
+                    best = (rank, index, direction, depth)
+        if best is None:
+            break
+        _rank, index, direction, depth = best
+        _apply_grow(items[index], direction, depth)
+    return [((it[0], it[1], it[2], it[3]), it[4], it[5] if it[5] > 1 + 1e-6 else 1.0) for it in items]
+
+
+def _fit_sector(items, x, y, width, height, min_side, divide, scale=False):
+    """Scale compresses a cell longer than 1.618. Divide keeps the shorter of the two cuts."""
+    if scale:
+        return _reclaim_scale(_pack_scale(items, x, y, width, height, min_side), x, y, width, height)
+    classic = _fit_squarify(items, x, y, width, height, min_side)
+    if divide and classic:
+        classic = list(zip(_lower_contiguous([rect for rect, _block in classic]), [block for _rect, block in classic]))
+    return [(rect, block, 1.0) for rect, block in classic]
+
+
+def _fill_share(items, x, y, width, height, min_side):
+    """Names along the freed strip, each one as wide as its volume. A span longer than three times the short side is drawn as a square."""
+    ordered = sorted(items, key=lambda block: float(block["volume"]), reverse=True)
+    total = sum(float(block["volume"]) for block in ordered)
+    if total <= 0 or width <= 0 or height <= 0:
+        return []
+    area = width * height
+    horizontal = width >= height
+    side = height if horizontal else width
+    length = width if horizontal else height
+    cursor = 0.0
+    placed = []
+    for block in ordered:
+        room = length - cursor
+        if room <= 0 or side <= 0:
+            break
+        span = float(block["volume"]) / total * area / side
+        mult = 1.0
+        draw = span
+        if span > 3 * side:
+            draw = side
+            mult = span / side
+        if draw > room:
+            draw = room
+            mult = 1.0
+        if min(draw, side) < min_side:
+            break
+        if horizontal:
+            rect = (x + cursor, y, draw, side)
+        else:
+            rect = (x, y + cursor, side, draw)
+        placed.append((rect, block, mult))
+        cursor += draw
+    return placed
+
+
+def _pack_phi(items, x, y, width, height, min_side):
+    """Lay names along the long side. A share longer than 1.618 times the short side is a square; the next names take the rest."""
+    ordered = sorted(
+        (block for block in items if float(block["volume"]) > 0),
+        key=lambda block: float(block["volume"]),
+        reverse=True,
+    )
+    placed, _index = _pack_phi_from(ordered, 0, x, y, width, height, min_side)
+    return placed
+
+
+def _fill_freed(items, index, x, y, width, height, parent_room, min_side):
+    """The next names take the freed part of a compressed block, each at the size it would have on the strip. A name that does not fit goes back to the strip."""
+    floor = max(min_side, 1e-4)
+    if index >= len(items) or parent_room <= 1e-9 or min(width, height) < floor:
+        return [], index
+    horizontal = width >= height
+    side = height if horizontal else width
+    length = width if horizontal else height
+    placed = []
+    cursor = 0.0
+    while index < len(items):
+        room = length - cursor
+        if room < floor:
+            break
+        total = sum(float(block["volume"]) for block in items[index:])
+        if total <= 0:
+            break
+        span = float(items[index]["volume"]) / total * parent_room
+        if span < floor or span > room + 1e-9 or span > side + 1e-9:
+            break
+        block = items[index]
+        aspect = max(span, side) / min(span, side)
+        if aspect > PHI:
+            edge = span
+            if horizontal:
+                rect = (x + cursor, y, edge, edge)
+                fx, fy, fw, fh = x + cursor, y + edge, edge, max(side - edge, 0.0)
+            else:
+                rect = (x, y + cursor, edge, edge)
+                fx, fy, fw, fh = x + edge, y + cursor, max(side - edge, 0.0), edge
+            placed.append((rect, block, aspect))
+            index += 1
+            cursor += edge
+            if fw > 0 and fh > 0:
+                sub, index = _fill_freed(items, index, fx, fy, fw, fh, parent_room, min_side)
+                placed.extend(sub)
+            continue
+        if horizontal:
+            rect = (x + cursor, y, span, side)
+        else:
+            rect = (x, y + cursor, side, span)
+        placed.append((rect, block, 1.0))
+        cursor += span
+        index += 1
+    return placed, index
+
+
+def _pack_phi_from(items, index, x, y, width, height, min_side):
+    if index >= len(items) or width <= 0 or height <= 0 or min(width, height) < min_side:
+        return [], index
+    horizontal = width >= height
+    side = height if horizontal else width
+    length = width if horizontal else height
+    placed = []
+    cursor = 0.0
+    while index < len(items):
+        room = length - cursor
+        if room <= 1e-9 or side <= 0:
+            break
+        rest = items[index:]
+        total = sum(float(block["volume"]) for block in rest)
+        if total <= 0:
+            break
+        block = items[index]
+        span = float(block["volume"]) / total * room
+        if span <= 1e-9:
+            index += 1
+            continue
+        short = min(span, side)
+        aspect = max(span, side) / short
+        if aspect > PHI:
+            edge = min(short, room)
+            mult = aspect
+            if edge < max(min_side, 1e-4):
+                break
+            if horizontal:
+                rect = (x + cursor, y, edge, edge)
+                fx, fy, fw, fh = x + cursor, y + edge, edge, max(side - edge, 0.0)
+            else:
+                rect = (x, y + cursor, edge, edge)
+                fx, fy, fw, fh = x + edge, y + cursor, max(side - edge, 0.0), edge
+            placed.append((rect, block, mult))
+            index += 1
+            cursor += edge
+            if fw > 0 and fh > 0:
+                sub, index = _fill_freed(items, index, fx, fy, fw, fh, length - cursor, min_side)
+                placed.extend(sub)
+            continue
+        draw = min(span, room)
+        if min(draw, side) < max(min_side, 1e-4):
+            break
+        if horizontal:
+            rect = (x + cursor, y, draw, side)
+        else:
+            rect = (x, y + cursor, side, draw)
+        placed.append((rect, block, 1.0))
+        cursor += draw
+        index += 1
+    return placed, index
 
 
 def _pocket(x, y, width, height, name, sector):

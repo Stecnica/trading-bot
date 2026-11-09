@@ -8,26 +8,39 @@ English is the default language. Every other language is a file in `lang/`.
 
 ## What you see
 
-The page is a bar and two tabs. The icon links home. The title is the words Trading bot followed by the selected list, `S&P500`. Opening that word shows the entry and a disabled line, `next idea...`. The page, the prices, and the names in this document are those of the selected entry.
+The page is a bar and two tabs. The icon links home. The title is the words Trading bot followed by the selected list, `S&P500`. Opening that word shows the entry and a disabled line, `next idea...`. The pictures below are the light theme.
 
-**Volume** is a treemap of the names with the highest trailing return. The tile size is the volume of the latest stored session. Arrangement is Rank, which places rectangles in return order, or Volume, which places the largest first. Green is up, red is down, and blue is inside the flat band from preferences. Sector and group filters apply before the ranking. Sessions and the number of names can be typed or stepped, and that filter is `POST /volume`. The caption under the legend states the filter, the count, and how many tiles were drawn.
+![All](static/screenshot/Volume%20All.png)
 
-The sector list and the group list are the GICS names stored for the S&P 500 names in this database. Choosing a sector limits the groups to that sector. **All** clears that level. A filtered board is the same picture as an unfiltered one: fewer tiles, the same colour rule, and a caption that names the sector or the group.
+**All** draws the names in the archive as blocks. The first control is the switch All | Sector. Beside it, on All and on Sector, is the flat band: the same value as in preferences. A block’s size is the volume of the latest stored session. Its colour and the percentage on it are that session against the one before: green up, red down, blue inside the flat band from preferences. The company name sits on the block. The sector name sits on the blocks of that sector. A block that would come out as a strip is left out and the space goes to the blocks that remain. In this picture: 77 blocks.
 
-**History** is one symbol, as a line of daily closes or as candles, with the volume of each session underneath. Periods are built from `period.abbr.*` in the active language. Beside the chart: change, last, low, high, and the number of sessions in the window. Hover reads the session date, the close, and the traded value (shares times VWAP, or times the close when VWAP is missing). The drawing is either a generated image or an SVG in the page. The volume treemap stays HTML. The chart title follows the language, for example `TSLA — daily closes` or `TSLA — candles`.
+![Sector](static/screenshot/Volume%20Sector.png)
 
-From the bar:
+**Sector** is the other side of the same switch. The controls after it are Rank | Volume, Sessions, Names, the sector list, the group list, and the flat band. Rank places the rectangles in return order. Volume places the largest first. Sessions is how many sessions that return uses. Names is how many of those names are drawn. The sector list and the group list are the GICS names stored for this database. Choosing a sector limits the groups to that sector. The first entry of each list, All, clears that level. In this picture Rank is selected, Sessions is 240, Names is 40, and both lists are on All: the 40 names with the highest return over those sessions. The tile also shows the score. The same colour rule as All. `POST /volume` saves sessions, names, the sector or group, and the flat band. The switch and Rank | Volume are not saved.
 
-- **Positions** lists each open lot, its cost, the latest price, the net profit, and whether it is ready to sell. A row is marked when the net profit is at or above the threshold and the price is recent enough.
-- **Buy** records a lot with `POST /buy`. The fields are symbol, quantity, price, commissions, and taxes. An empty price uses the latest stored close. Empty commissions use the preference. Empty taxes stay zero: the tax on the gain is applied when the lot is sold. The amount cannot exceed the maximum investment.
-- **Transactions** lists the latest buys and sales. A sale is the same table with type `sell`.
-- The update button is `POST /update`. It starts `cycle.py`: download missing closed sessions, then apply the sell rule.
-- The checklist button is `POST /cycle`. It runs only the sell rule.
-- **Preferences** (`POST /prefs`) and **Sign out** (`POST /exit`) are in the main menu. The language menu is the flag button just before it.
+![History](static/screenshot/History%20Line.png)
+
+**History** is one symbol, as a line of daily closes or as candles, with the volume of each session underneath. Periods are built from `period.abbr.*` in the active language. Beside the chart: change, last, low, high, and the number of sessions in the window. This picture is MRNA, the line, six months: the change is +356.62%, the last close is 241.46, the low is 43.9, the high is 261, and the window has 125 sessions. Hover reads the session date, the close, and the traded value (shares times VWAP, or times the close when VWAP is missing). The drawing is either a generated image or an SVG in the page. The volume treemap stays HTML. The chart title follows the language, for example `TSLA — daily closes` or `TSLA — candles`. The same view as candles is `static/screenshot/History Candles.png`. The open sector list is `static/screenshot/Volume Sector - Sector Menu.png` and the open group list is `static/screenshot/Volume Sector - Group Menu.png`.
+
+![Positions](static/screenshot/Positions.png)
+
+**Positions** lists each open lot, its cost, the latest price, the net profit, and whether it is ready to sell. A row is marked when the net profit is at or above the threshold and the price is recent enough. This picture is the open lot IDXX, bought on 02/11/2026: quantity 1.48889285, cost 671.64, latest price 670.71 on 05/11/2026, net profit −0.34%, under the threshold of 5.00%.
 
 Net profit subtracts the sale commission and the tax on the gain from the proceeds, then compares that with the cost of the buy (price plus the commissions and taxes already stored). The threshold, the commission, the tax, and the maximum age of a price are preferences.
 
-Preferences are two groups. Operations: threshold, investment, commission, tax, flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, the maximum price age, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving is `POST /prefs` and closes the dialog first. A spinner covers the page until it reloads.
+![Buy](static/screenshot/Buy.png)
+
+**Buy** records a lot with `POST /buy`. The fields are symbol, quantity, price, commissions, and taxes. An empty price uses the latest stored close. Empty commissions use the preference. Empty taxes stay zero: the tax on the gain is applied when the lot is sold. The amount cannot exceed the maximum investment. In this picture the panel is open over the IDXX candle chart. The symbol field contains MRNA. Quantity, price, and commissions are empty, and taxes are 0.
+
+![Transactions](static/screenshot/Transactions.png)
+
+**Transactions** lists the latest buys and sales. A sale is the same table with type `sell`. This picture is the one stored buy, over the IDXX line: 02/11/2026, IDXX, quantity 1.48889285, price 671.64, commissions 1, taxes 0.
+
+The update button is `POST /update`. It starts `cycle.py`: download missing closed sessions, then apply the sell rule. The checklist button is `POST /cycle`. It runs only the sell rule. **Preferences** and **Sign out** are in the main menu, shown open in `static/screenshot/Menu.png`. The language menu is the flag button just before it, shown open in `static/screenshot/Languages.png`: English, Español, Français, Italiano, Latina.
+
+![Preferences](static/screenshot/Preferences.png)
+
+Preferences are three groups. Operations: threshold, investment, commission, tax, and the maximum price age. Page: flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving is `POST /prefs` and closes the dialog first. A spinner covers the page until it reloads. This picture: threshold 0.05, investment 1000, commission 0.001, tax 0.26, price age 120 hours, flat band 0.005, 50 volume names, 730 history days, 240 return sessions, history symbol MRNA, messages stay 8 seconds, typeface Outfit, size 100, weight regular, theme Light, chart Line, drawing Vector.
 
 Theme **Automatic** follows the browser’s local time: light from 07:00 to 19:00, dark otherwise. Light and Dark stay fixed. The first paint uses the server clock; the page then follows the browser.
 
@@ -47,7 +60,7 @@ Every POST carries the `csrf` value from the page. After sign-in the routes are:
 | `POST /cycle` | Apply the sell rule to lots that are ready. |
 | `POST /update` | Start one price update, which then applies the sell rule. |
 | `POST /prefs` | Save preferences. Field names match the inputs in the dialog. |
-| `POST /volume` | Save the volume filter: `return_days` (1–240), `names` (10–500, step 10), `volume_class`, `order` (`rank` or `volume`), `csrf`. |
+| `POST /volume` | Save the volume filter: `return_days` (1–240), `names` (10–500, step 10), `volume_class`, `stable_band` (0–0.2), `csrf`. `order` (`rank` or `volume`) and `scope` (`all` or `sector`) are sent with the picture and are not saved. |
 | `POST /exit` | End this session. |
 
 `volume_class` is empty for the whole archive, `s:` plus a sector name, or `u:` plus a sector, a pipe, and a group name.

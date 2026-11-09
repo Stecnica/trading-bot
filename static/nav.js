@@ -1,3 +1,25 @@
+function savePref(fields) {
+  var csrf = document.querySelector("input[name=csrf]");
+  var root = document.documentElement;
+  var body = new URLSearchParams();
+  body.set("csrf", csrf ? csrf.value : "");
+  Object.keys(fields).forEach(function (key) {
+    body.set(key, fields[key]);
+  });
+  return fetch(root.dataset.prefs, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString()
+  }).then(function (response) {
+    return response.json().then(function (data) {
+      if (!response.ok) {
+        throw new Error(data && data.error ? data.error : "prefs");
+      }
+      return data;
+    });
+  });
+}
+
 function uiText(key, vars) {
   if (!uiText.bag) {
     var node = document.getElementById("i18n");
@@ -122,6 +144,9 @@ function uiText(key, vars) {
   var volumeControls = document.getElementById("volume-controls");
   var volumeMap = document.getElementById("volume-map");
   var volumeCaption = document.getElementById("volume-caption");
+  var volumeFlat = document.getElementById("volume-flat");
+  var volumeBand = document.getElementById("volume-band");
+  var volumeSide = document.getElementById("volume-side");
   var volumeSessions = document.getElementById("volume-sessions");
   var volumeTitles = document.getElementById("volume-titles");
   var volumeSector = document.getElementById("volume-sector");
@@ -133,6 +158,14 @@ function uiText(key, vars) {
     function clampVolume(kind, value) {
       if (kind === "sessions") {
         return Math.min(240, Math.max(1, value));
+      }
+      if (kind === "band") {
+        var snapped = Math.round(value * 1000) / 1000;
+        return Math.min(0.2, Math.max(0, snapped));
+      }
+      if (kind === "side") {
+        var side = Math.round(value * 100) / 100;
+        return Math.min(2, Math.max(0, side));
       }
       var snapped = Math.round(value / 10) * 10;
       return Math.min(500, Math.max(10, snapped));
@@ -160,7 +193,7 @@ function uiText(key, vars) {
       tiles.forEach(function (tile) {
         var node = document.createElement("button");
         node.type = "button";
-        node.className = "tile " + tile.kind + " " + tile.tone + " position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white";
+        node.className = "tile " + tile.kind + " " + tile.tone + (tile.scaled ? " scaled" : "") + " position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white";
         node.setAttribute("data-asset", tile.asset);
         node.title = tile.title;
         node.style.setProperty("--x", tile.x + "%");
@@ -237,6 +270,41 @@ function uiText(key, vars) {
       return active ? active.getAttribute("data-scope") : "sector";
     }
 
+    function volumeDivide() {
+      var active = volumeControls.querySelector("[data-divide].active");
+      return active ? active.getAttribute("data-divide") : "off";
+    }
+
+    function setVolumeDivide(divide) {
+      volumeControls.querySelectorAll("[data-divide]").forEach(function (button) {
+        button.classList.toggle("active", button.getAttribute("data-divide") === divide);
+      });
+      syncScale();
+    }
+
+    function volumeScale() {
+      var active = volumeControls.querySelector("[data-scale].active");
+      return active ? active.getAttribute("data-scale") : "off";
+    }
+
+    function setVolumeScale(scale) {
+      volumeControls.querySelectorAll("[data-scale]").forEach(function (button) {
+        button.classList.toggle("active", button.getAttribute("data-scale") === scale);
+      });
+      syncScale();
+    }
+
+    function syncScale() {
+      var wrap = document.getElementById("volume-scale-wrap");
+      var show = volumeScope() === "all";
+      if (wrap) {
+        wrap.classList.toggle("d-none", !show);
+      }
+      if (volumeMap) {
+        volumeMap.classList.toggle("scale", show && volumeScale() === "on");
+      }
+    }
+
     function setVolumeOrder(order) {
       volumeControls.querySelectorAll("[data-order]").forEach(function (button) {
         button.classList.toggle("active", button.getAttribute("data-order") === order);
@@ -271,6 +339,43 @@ function uiText(key, vars) {
       if (volumeMap) {
         volumeMap.classList.toggle("all-map", all);
       }
+      var modeCol = document.getElementById("volume-mode");
+      if (modeCol) {
+        modeCol.classList.toggle("col-lg-2", all);
+        modeCol.classList.toggle("col-lg-3", !all);
+      }
+      var sideWrap = document.getElementById("volume-side-wrap");
+      if (sideWrap) {
+        sideWrap.classList.toggle("d-none", !all);
+      }
+      var divideWrap = document.getElementById("volume-divide-wrap");
+      if (divideWrap) {
+        divideWrap.classList.toggle("d-none", !all);
+      }
+      var bandWrap = document.getElementById("volume-band-wrap");
+      var mode = document.getElementById("volume-mode");
+      var filtersRow = document.getElementById("volume-filters-row");
+      if (bandWrap && mode && sectorWrap) {
+        if (all) {
+          mode.parentElement.appendChild(bandWrap);
+          if (sideWrap) {
+            mode.parentElement.appendChild(sideWrap);
+          }
+          if (divideWrap) {
+            mode.parentElement.appendChild(divideWrap);
+          }
+          var scaleWrap = document.getElementById("volume-scale-wrap");
+          if (scaleWrap) {
+            mode.parentElement.appendChild(scaleWrap);
+          }
+        } else {
+          sectorWrap.parentElement.appendChild(bandWrap);
+        }
+      }
+      if (filtersRow) {
+        filtersRow.classList.toggle("d-none", all);
+      }
+      syncScale();
     }
 
     var volumeSaved = {
@@ -279,7 +384,11 @@ function uiText(key, vars) {
       sector: volumeSector.value,
       group: volumeGroup.value,
       order: volumeOrder(),
-      scope: volumeScope()
+      scope: volumeScope(),
+      band: volumeBand ? volumeBand.value : "",
+      side: volumeSide ? volumeSide.value : "",
+      divide: volumeDivide(),
+      scale: volumeScale()
     };
 
     function fillGroups(sector, groupValue) {
@@ -339,10 +448,18 @@ function uiText(key, vars) {
     function restoreVolume() {
       volumeSessions.value = volumeSaved.sessions;
       volumeTitles.value = volumeSaved.titles;
+      if (volumeBand) {
+        volumeBand.value = volumeSaved.band;
+      }
+      if (volumeSide) {
+        volumeSide.value = volumeSaved.side;
+      }
       volumeSector.value = volumeSaved.sector;
       fillGroups(volumeSaved.sector, volumeSaved.group);
       setVolumeOrder(volumeSaved.order);
       setVolumeScope(volumeSaved.scope);
+      setVolumeDivide(volumeSaved.divide);
+      setVolumeScale(volumeSaved.scale);
     }
 
     var volumeWait = document.getElementById("volume-wait");
@@ -363,9 +480,13 @@ function uiText(key, vars) {
       body.set("csrf", csrf ? csrf.value : "");
       body.set("return_days", volumeSessions.value);
       body.set("names", volumeTitles.value);
+      body.set("stable_band", volumeBand ? volumeBand.value : "");
+      body.set("min_side", volumeSide ? volumeSide.value : "");
       body.set("volume_class", composeClass());
       body.set("order", volumeOrder());
       body.set("scope", volumeScope());
+      body.set("divide", volumeDivide());
+      body.set("scale", volumeScale());
       fetch(volumeControls.dataset.volume, {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
@@ -390,8 +511,12 @@ function uiText(key, vars) {
           volumeSaved.group = volumeGroup.value;
           volumeSaved.order = data.order || volumeOrder();
           volumeSaved.scope = data.scope || volumeScope();
+          volumeSaved.divide = data.divide || volumeDivide();
+          volumeSaved.scale = data.scale || volumeScale();
           setVolumeOrder(volumeSaved.order);
           setVolumeScope(volumeSaved.scope);
+          setVolumeDivide(volumeSaved.divide);
+          setVolumeScale(volumeSaved.scale);
           var prefSessions = document.getElementById("pref-return");
           var prefTitles = document.getElementById("pref-names");
           if (prefSessions) {
@@ -399,6 +524,21 @@ function uiText(key, vars) {
           }
           if (prefTitles) {
             prefTitles.value = volumeTitles.value;
+          }
+          if (volumeBand && data.band) {
+            volumeBand.value = data.band;
+            volumeSaved.band = data.band;
+          }
+          if (volumeSide && data.side) {
+            volumeSide.value = data.side;
+            volumeSaved.side = data.side;
+          }
+          var prefBand = document.getElementById("pref-band");
+          if (prefBand && data.band) {
+            prefBand.value = data.band;
+          }
+          if (volumeFlat && data.flat) {
+            volumeFlat.textContent = data.flat;
           }
           if (volumeCaption) {
             volumeCaption.textContent = data.caption;
@@ -419,11 +559,11 @@ function uiText(key, vars) {
       var raw = String(input.value).trim().replace(",", ".");
       var value = Number(raw);
       if (!raw || !isFinite(value)) {
-        input.value = kind === "sessions" ? volumeSaved.sessions : volumeSaved.titles;
+        input.value = kind === "sessions" ? volumeSaved.sessions : kind === "band" ? volumeSaved.band : kind === "side" ? volumeSaved.side : volumeSaved.titles;
         return;
       }
       input.value = String(clampVolume(kind, value));
-      var saved = kind === "sessions" ? volumeSaved.sessions : volumeSaved.titles;
+      var saved = kind === "sessions" ? volumeSaved.sessions : kind === "band" ? volumeSaved.band : kind === "side" ? volumeSaved.side : volumeSaved.titles;
       if (input.value !== saved) {
         pushVolume();
       }
@@ -444,12 +584,18 @@ function uiText(key, vars) {
 
     bindCommit(volumeSessions, "sessions");
     bindCommit(volumeTitles, "titles");
+    if (volumeBand) {
+      bindCommit(volumeBand, "band");
+    }
+    if (volumeSide) {
+      bindCommit(volumeSide, "side");
+    }
 
     volumeControls.querySelectorAll("[data-volume-step]").forEach(function (button) {
       button.addEventListener("click", function () {
         var kind = button.getAttribute("data-volume-step");
-        var input = kind === "sessions" ? volumeSessions : volumeTitles;
-        var step = kind === "sessions" ? 1 : 10;
+        var input = kind === "sessions" ? volumeSessions : kind === "band" ? volumeBand : kind === "side" ? volumeSide : volumeTitles;
+        var step = kind === "sessions" ? 1 : kind === "band" ? 0.001 : kind === "side" ? 0.01 : 10;
         var next = clampVolume(kind, Number(input.value) + step * Number(button.getAttribute("data-dir")));
         if (String(next) === input.value) {
           return;
@@ -483,6 +629,24 @@ function uiText(key, vars) {
         pushVolume();
       });
     });
+    volumeControls.querySelectorAll("[data-divide]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        if (button.classList.contains("active")) {
+          return;
+        }
+        setVolumeDivide(button.getAttribute("data-divide"));
+        pushVolume();
+      });
+    });
+    volumeControls.querySelectorAll("[data-scale]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        if (button.classList.contains("active")) {
+          return;
+        }
+        setVolumeScale(button.getAttribute("data-scale"));
+        pushVolume();
+      });
+    });
     volumeControls.querySelectorAll("[data-scope]").forEach(function (button) {
       button.addEventListener("click", function () {
         if (button.classList.contains("active")) {
@@ -497,11 +661,25 @@ function uiText(key, vars) {
   var frameEl = document.getElementById("chart-frame");
   var img = document.getElementById("chart");
   var svg = document.getElementById("chart-svg");
-  var select = document.getElementById("symbol");
+  var select = document.getElementById("pref-focus");
   if (!img || !select || !frameEl) {
     return;
   }
-  var vectorMode = frameEl.dataset.render === "vector";
+  function isVector() {
+    return frameEl.dataset.render === "vector";
+  }
+
+  function applyRender(mode) {
+    frameEl.dataset.render = mode;
+    img.classList.toggle("d-none", mode === "vector");
+    svg.classList.toggle("d-none", mode !== "vector");
+    var hit = document.getElementById("chart-hit");
+    if (hit) {
+      hit.classList.toggle("d-none", mode === "vector");
+    }
+    drawn = "";
+    seriesKey = "";
+  }
   var NS = "http://www.w3.org/2000/svg";
 
   function chosen(name) {
@@ -1025,7 +1203,7 @@ function uiText(key, vars) {
     if (box.w < 200) {
       return;
     }
-    if (vectorMode) {
+    if (isVector()) {
       paintVector(box);
     } else {
       var next = chartUrl(box);
@@ -1040,17 +1218,75 @@ function uiText(key, vars) {
     loadStats();
   }
 
-  select.addEventListener("change", paint);
+  function restoreGroup(group, name, saved) {
+    group.querySelectorAll("[data-" + name + "]").forEach(function (other) {
+      other.classList.toggle("active", other.getAttribute("data-" + name) === saved);
+    });
+  }
+
+  select.addEventListener("change", function () {
+    var previous = select.getAttribute("data-saved") || "";
+    if (select.value === previous) {
+      return;
+    }
+    savePref({ focus_asset: select.value }).then(function (data) {
+      select.value = data.values.focus_asset;
+      select.setAttribute("data-saved", select.value);
+      paint();
+    }).catch(function () {
+      select.value = previous;
+    });
+  });
 
   document.querySelectorAll("[data-period], [data-chart]").forEach(function (button) {
     button.addEventListener("click", function () {
       var name = button.hasAttribute("data-period") ? "period" : "chart";
-      document.querySelectorAll("[data-" + name + "]").forEach(function (other) {
-        other.classList.remove("active");
+      var key = name === "period" ? "history_period" : "chart_type";
+      var group = button.parentElement;
+      var previous = group.getAttribute("data-saved") || "";
+      var value = button.getAttribute("data-" + name);
+      restoreGroup(group, name, value);
+      if (value === previous) {
+        return;
+      }
+      var fields = {};
+      fields[key] = value;
+      savePref(fields).then(function (data) {
+        group.setAttribute("data-saved", data.values[key]);
+        restoreGroup(group, name, data.values[key]);
+        paint();
+      }).catch(function () {
+        restoreGroup(group, name, previous);
       });
-      button.classList.add("active");
-      paint();
     });
+  });
+
+  document.querySelectorAll("[data-render]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var group = button.parentElement;
+      var previous = group.getAttribute("data-saved") || "";
+      var value = button.getAttribute("data-render");
+      restoreGroup(group, "render", value);
+      if (value === previous) {
+        return;
+      }
+      savePref({ chart_render: value }).then(function (data) {
+        group.setAttribute("data-saved", data.values.chart_render);
+        applyRender(data.values.chart_render);
+        paint();
+      }).catch(function () {
+        restoreGroup(group, "render", previous);
+      });
+    });
+  });
+
+  document.addEventListener("prefs-applied", function (event) {
+    var key = event.detail && event.detail.key;
+    if (key === "ui_scale" || key === "ui_weight" || key === "ui_theme") {
+      drawn = "";
+      seriesKey = "";
+      paint();
+    }
   });
 
   var volumeTab = document.getElementById("volume-tab");
@@ -1058,10 +1294,12 @@ function uiText(key, vars) {
   if (volumeTab) {
     volumeTab.addEventListener("shown.bs.tab", function () {
       remember("volume");
+      savePref({ page_view: "volume" });
     });
   }
   if (historyTab) {
     historyTab.addEventListener("shown.bs.tab", function () {
+      savePref({ page_view: "history" });
       paint();
     });
   }
@@ -1070,6 +1308,7 @@ function uiText(key, vars) {
     if (!asset) {
       return;
     }
+    var previous = select.value;
     var exists = false;
     [].forEach.call(select.options, function (option) {
       if (option.value === asset) {
@@ -1083,14 +1322,29 @@ function uiText(key, vars) {
       select.add(extra);
     }
     select.value = asset;
-    document.querySelectorAll("[data-chart]").forEach(function (button) {
-      button.classList.toggle("active", button.getAttribute("data-chart") === "candle");
-    });
-    if (historyTab && !historyTab.classList.contains("active")) {
-      bootstrap.Tab.getOrCreateInstance(historyTab).show();
-      return;
+    var chartGroup = document.querySelector("[data-chart]");
+    chartGroup = chartGroup ? chartGroup.parentElement : null;
+    var previousChart = chartGroup ? chartGroup.getAttribute("data-saved") : "";
+    if (chartGroup) {
+      restoreGroup(chartGroup, "chart", "candle");
     }
-    paint();
+    savePref({ focus_asset: asset, chart_type: "candle" }).then(function (data) {
+      select.value = data.values.focus_asset;
+      select.setAttribute("data-saved", select.value);
+      if (chartGroup) {
+        chartGroup.setAttribute("data-saved", data.values.chart_type);
+      }
+      if (historyTab && !historyTab.classList.contains("active")) {
+        bootstrap.Tab.getOrCreateInstance(historyTab).show();
+        return;
+      }
+      paint();
+    }).catch(function () {
+      select.value = previous;
+      if (chartGroup) {
+        restoreGroup(chartGroup, "chart", previousChart);
+      }
+    });
   }
 
   if (volumeMap) {
@@ -1118,44 +1372,208 @@ function uiText(key, vars) {
 })();
 
 (function () {
-  var modal = document.getElementById("prefs");
-  var form = modal ? modal.querySelector("form") : null;
-  var wait = document.getElementById("pref-wait");
-  if (!modal || !form) {
-    return;
+  function closeMenus() {
+    document.querySelectorAll(".pref-menu.show").forEach(function (menu) {
+      menu.classList.remove("show");
+    });
   }
-  var sending = false;
 
-  function showWait() {
-    if (!wait) {
-      return;
+  function placeMenu(button, menu) {
+    var box = button.getBoundingClientRect();
+    var margin = 8;
+    var top = Math.round(box.bottom + 4);
+    menu.style.position = "fixed";
+    menu.style.top = top + "px";
+    menu.style.left = "auto";
+    menu.style.width = "";
+    menu.style.right = Math.round(window.innerWidth - box.right) + "px";
+    menu.style.maxHeight = Math.max(160, window.innerHeight - top - margin) + "px";
+    var width = menu.getBoundingClientRect().width;
+    var right = Math.round(window.innerWidth - box.right);
+    if (right + width > window.innerWidth - margin) {
+      menu.style.left = margin + "px";
+      menu.style.right = margin + "px";
+      menu.style.width = "auto";
     }
-    wait.classList.remove("d-none");
-    wait.classList.add("d-flex");
   }
 
-  form.addEventListener("submit", function (event) {
-    if (sending) {
+  document.querySelectorAll("[data-pref-gear]").forEach(function (button) {
+    button.addEventListener("click", function (event) {
       event.preventDefault();
-      return;
-    }
-    event.preventDefault();
-    sending = true;
-    var button = form.querySelector("[type=submit]");
-    if (button) {
-      button.disabled = true;
-    }
-    var gone = false;
-    function leave() {
-      if (gone) {
+      event.stopPropagation();
+      var menu = button.parentElement.querySelector(".pref-menu");
+      if (!menu) {
         return;
       }
-      gone = true;
-      showWait();
-      form.submit();
+      var open = menu.classList.contains("show");
+      closeMenus();
+      if (!open) {
+        menu.classList.add("show");
+        placeMenu(button, menu);
+      }
+    });
+  });
+  document.querySelectorAll(".pref-menu").forEach(function (menu) {
+    menu.addEventListener("click", function (event) {
+      event.stopPropagation();
+    });
+  });
+  document.addEventListener("click", closeMenus);
+  window.addEventListener("resize", closeMenus);
+
+  function cell(text) {
+    var item = document.createElement("td");
+    item.textContent = text;
+    return item;
+  }
+
+  function paintPositions(data) {
+    var help = document.getElementById("positions-help");
+    if (help && data.positions_help) {
+      help.textContent = data.positions_help;
     }
-    modal.addEventListener("hidden.bs.modal", leave, { once: true });
-    window.setTimeout(leave, 400);
-    bootstrap.Modal.getOrCreateInstance(modal).hide();
+    var body = document.getElementById("positions-body");
+    var table = document.getElementById("positions-table");
+    var empty = document.getElementById("positions-empty");
+    if (!body) {
+      return;
+    }
+    var rows = data.positions || [];
+    body.replaceChildren();
+    if (!rows.length) {
+      if (table) {
+        table.classList.add("d-none");
+      }
+      if (empty) {
+        empty.classList.remove("d-none");
+      }
+      return;
+    }
+    if (table) {
+      table.classList.remove("d-none");
+    }
+    if (empty) {
+      empty.classList.add("d-none");
+    }
+    rows.forEach(function (row) {
+      var line = document.createElement("tr");
+      if (row.ready) {
+        line.className = "table-success";
+      }
+      var symbol = document.createElement("td");
+      symbol.title = row.score_detail || "";
+      symbol.append(document.createTextNode(row.asset || ""));
+      symbol.append(document.createElement("br"));
+      var bought = document.createElement("small");
+      bought.textContent = row.bought || "";
+      symbol.append(bought);
+      if (row.score) {
+        symbol.append(document.createElement("br"));
+        var score = document.createElement("small");
+        score.textContent = row.score;
+        symbol.append(score);
+      }
+      var now = document.createElement("td");
+      now.append(document.createTextNode(row.now || ""));
+      if (row.now_time) {
+        now.append(document.createElement("br"));
+        var when = document.createElement("small");
+        when.textContent = row.now_time;
+        now.append(when);
+      }
+      line.append(symbol, cell(row.amount || ""), cell(row.cost || ""), now, cell(row.profit || ""), cell(row.outcome || ""));
+      body.append(line);
+    });
+  }
+
+  function applyAppearance(key, value) {
+    var root = document.documentElement;
+    if (key === "font_family") {
+      root.setAttribute("data-font", value);
+    }
+    if (key === "ui_scale") {
+      root.style.setProperty("--ui-scale", value);
+      root.setAttribute("data-scale", value);
+    }
+    if (key === "ui_weight") {
+      root.style.setProperty("--bs-body-font-weight", value);
+    }
+    if (key === "ui_theme") {
+      root.setAttribute("data-theme", value);
+      var theme = value;
+      if (value === "auto") {
+        var hour = new Date().getHours();
+        theme = hour >= 7 && hour < 19 ? "light" : "dark";
+      }
+      root.setAttribute("data-bs-theme", theme);
+      document.body.classList.toggle("bg-body", theme === "dark");
+      document.body.classList.toggle("bg-light", theme !== "dark");
+    }
+    if (key === "notice_seconds") {
+      document.querySelectorAll(".slide-note").forEach(function (note) {
+        note.style.setProperty("--linger", value + "s");
+      });
+    }
+  }
+
+  document.querySelectorAll("[data-pref-step]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var input = button.parentElement.querySelector("[data-pref]");
+      if (!input) {
+        return;
+      }
+      var step = Number(input.getAttribute("step"));
+      var min = Number(input.getAttribute("min"));
+      var max = Number(input.getAttribute("max"));
+      var raw = String(input.value).trim().replace(",", ".");
+      var current = Number(raw);
+      if (!raw || !isFinite(current)) {
+        current = Number(input.getAttribute("data-saved"));
+      }
+      var text = String(input.getAttribute("step"));
+      var places = text.indexOf(".") >= 0 ? text.split(".")[1].length : 0;
+      var scale = Math.pow(10, places);
+      var next = Math.round((current + step * Number(button.getAttribute("data-dir"))) * scale) / scale;
+      if (next < min) {
+        next = min;
+      }
+      if (next > max) {
+        next = max;
+      }
+      next = Math.round(next * scale) / scale;
+      var shown = places ? next.toFixed(places) : String(next);
+      if (shown === input.value) {
+        return;
+      }
+      input.value = shown;
+      input.dispatchEvent(new Event("change"));
+    });
+  });
+
+  document.querySelectorAll("[data-pref]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      var key = input.getAttribute("data-pref");
+      var previous = input.getAttribute("data-saved");
+      var value = String(input.value).trim().replace(",", ".");
+      if (value === previous) {
+        return;
+      }
+      var fields = {};
+      fields[key] = value;
+      savePref(fields).then(function (data) {
+        var stored = String(data.values[key]);
+        document.querySelectorAll("[data-pref='" + key + "']").forEach(function (other) {
+          other.value = stored;
+          other.setAttribute("data-saved", stored);
+        });
+        applyAppearance(key, stored);
+        if (data.positions) {
+          paintPositions(data);
+        }
+        document.dispatchEvent(new CustomEvent("prefs-applied", { detail: { key: key, value: stored } }));
+      }).catch(function () {
+        input.value = previous;
+      });
+    });
   });
 })();

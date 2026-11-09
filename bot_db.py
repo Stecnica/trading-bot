@@ -31,6 +31,10 @@ WEIGHT_CHOICES = (
 )
 WEIGHT_IDS = {item["id"] for item in WEIGHT_CHOICES}
 THEME_IDS = ("light", "dark", "auto")
+HISTORY_PERIODS = ("1", "7", "30", "90", "180", "ytd", "365", "730")
+PAGE_VIEWS = ("volume", "history")
+VOLUME_ORDERS = ("rank", "volume")
+VOLUME_SCOPES = ("all", "sector")
 # Automatic: light by day and dark in the evening, on the local clock.
 DAY_START = 7
 DAY_END = 19
@@ -54,6 +58,13 @@ DEFAULTS = {
     "max_price_age_hours": "120",
     "notice_seconds": "8",
     "volume_class": "",
+    "volume_order": "rank",
+    "volume_scope": "sector",
+    "history_period": "180",
+    "page_view": "volume",
+    "min_side": "0.36",
+    "volume_divide": "off",
+    "volume_scale": "off",
 }
 
 PREF_LABELS = {
@@ -74,6 +85,9 @@ PREF_LABELS = {
     "focus_asset": "History chart symbol",
     "max_price_age_hours": "Maximum price age for a sale (hours)",
     "notice_seconds": "Message seconds",
+    "min_side": "Shorter side of a block, in the 16×9 frame. Below this the block is left out. A lower value keeps more blocks.",
+    "volume_divide": "On keeps the shorter ratio when two contiguous blocks have two arrangements. Off keeps the first arrangement.",
+    "volume_scale": "On uses the 1.618 ratio and the shifted colors. Off draws the earlier Volume All",
 }
 
 
@@ -300,6 +314,13 @@ def interpret(raw):
         "focus_asset": normalize_ticker(raw.get("focus_asset") or "AAPL") or "AAPL",
         "max_price_age_hours": _int_between(raw.get("max_price_age_hours"), 1, 720, 120),
         "notice_seconds": _int_between(raw.get("notice_seconds"), 3, 30, 8),
+        "volume_order": raw.get("volume_order") if raw.get("volume_order") in VOLUME_ORDERS else "rank",
+        "volume_scope": raw.get("volume_scope") if raw.get("volume_scope") in VOLUME_SCOPES else "sector",
+        "history_period": raw.get("history_period") if raw.get("history_period") in HISTORY_PERIODS else "180",
+        "page_view": raw.get("page_view") if raw.get("page_view") in PAGE_VIEWS else "volume",
+        "min_side": _side(raw.get("min_side")),
+        "volume_divide": raw.get("volume_divide") if raw.get("volume_divide") in ("off", "on") else "off",
+        "volume_scale": raw.get("volume_scale") if raw.get("volume_scale") in ("off", "on") else "off",
     }
     return prefs
 
@@ -378,6 +399,80 @@ def validate_preferences(form):
         "max_price_age_hours": str(age),
         "notice_seconds": str(notice),
     }
+    return values, None
+
+
+def preference_patch(form):
+    """Validate the posted keys only. Returns (values, error)."""
+    values = {}
+
+    def decimal_value(name, low, high, error):
+        try:
+            number = Decimal(str(form[name]).strip().replace(",", "."))
+        except (ArithmeticError, ValueError):
+            return None, tr("prefs.err.numbers")
+        if not (low <= number <= high):
+            return None, tr(error)
+        return format(number.normalize(), "f"), None
+
+    def int_value(name, low, high, error, step=None):
+        try:
+            number = int(str(form[name]).strip())
+        except (TypeError, ValueError):
+            return None, tr("prefs.err.numbers")
+        if not low <= number <= high or (step and number % step != 0):
+            return None, tr(error)
+        return str(number), None
+
+    checks = (
+        ("profit_threshold", lambda: decimal_value("profit_threshold", Decimal("0"), Decimal("5"), "prefs.err.profit")),
+        ("max_investment", lambda: decimal_value("max_investment", Decimal("0"), Decimal("1E24"), "prefs.err.invest")),
+        ("fee_rate", lambda: decimal_value("fee_rate", Decimal("0"), Decimal("0.1"), "prefs.err.fee")),
+        ("tax_rate", lambda: decimal_value("tax_rate", Decimal("0"), Decimal("0.5"), "prefs.err.tax")),
+        ("stable_band", lambda: decimal_value("stable_band", Decimal("0"), Decimal("0.2"), "prefs.err.band")),
+        ("min_side", lambda: decimal_value("min_side", Decimal("0"), Decimal("2"), "prefs.err.side")),
+        ("return_days", lambda: int_value("return_days", 1, 240, "prefs.err.limits")),
+        ("names", lambda: int_value("names", 10, 500, "prefs.err.names", 10)),
+        ("max_price_age_hours", lambda: int_value("max_price_age_hours", 1, 720, "prefs.err.limits")),
+        ("notice_seconds", lambda: int_value("notice_seconds", 3, 30, "prefs.err.notice")),
+        ("ui_scale", lambda: int_value("ui_scale", 80, 120, "prefs.err.scale", 5)),
+    )
+    for name, read in checks:
+        if name not in form:
+            continue
+        stored, error = read()
+        if error:
+            return None, error
+        if name == "max_investment" and Decimal(stored) <= 0:
+            return None, tr("prefs.err.invest")
+        values[name] = stored
+    if "focus_asset" in form:
+        focus = normalize_ticker(form.get("focus_asset", ""))
+        if not focus:
+            return None, tr("prefs.err.symbol")
+        values["focus_asset"] = focus
+    enums = (
+        ("chart_type", ("line", "candle"), "prefs.err.chart"),
+        ("chart_render", ("image", "vector"), "prefs.err.draw"),
+        ("font_family", FONT_IDS, "prefs.err.font"),
+        ("ui_weight", WEIGHT_IDS, "prefs.err.weight"),
+        ("ui_theme", THEME_IDS, "prefs.err.theme"),
+        ("history_period", HISTORY_PERIODS, "prefs.err.limits"),
+        ("page_view", PAGE_VIEWS, "prefs.err.limits"),
+        ("volume_order", VOLUME_ORDERS, "prefs.err.limits"),
+        ("volume_scope", VOLUME_SCOPES, "prefs.err.limits"),
+        ("volume_divide", ("off", "on"), "prefs.err.limits"),
+        ("volume_scale", ("off", "on"), "prefs.err.limits"),
+    )
+    for name, allowed, error in enums:
+        if name not in form:
+            continue
+        value = form.get(name)
+        if value not in allowed:
+            return None, tr(error)
+        values[name] = value
+    if not values:
+        return None, tr("prefs.err.numbers")
     return values, None
 
 
@@ -841,6 +936,13 @@ def cycle_running():
     except (OSError, ValueError):
         return False
     return b"cycle.py" in command or b"cycle_reread.py" in command
+
+
+def _side(value):
+    number = _decimal(value, "0.36")
+    if not (Decimal("0") <= number <= Decimal("2")):
+        return Decimal("0.36")
+    return number
 
 
 def _decimal(value, fallback):

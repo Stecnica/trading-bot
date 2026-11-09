@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ lang }}" data-bs-theme="{{ theme }}" data-theme="{{ prefs.ui_theme }}" data-font="{{ prefs.font_family }}" data-scale="{{ prefs.ui_scale }}" style="--ui-scale: {{ prefs.ui_scale }}; --bs-body-font-weight: {{ prefs.ui_weight }}">
+<html lang="{{ lang }}" data-bs-theme="{{ theme }}" data-theme="{{ prefs.ui_theme }}" data-font="{{ prefs.font_family }}" data-scale="{{ prefs.ui_scale }}" data-prefs="{{ url_for('save_prefs') }}" style="--ui-scale: {{ prefs.ui_scale }}; --bs-body-font-weight: {{ prefs.ui_weight }}">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +8,7 @@
 	<link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='flag-icon/css/flag-icon.css') }}">
-	{% if running and request.args.get('preview') != 'messages' %}<meta http-equiv="refresh" content="20;url={{ url_for('home', view=view, asset=asset, period=period, chart=chart) }}">{% endif %}
+	{% if running and request.args.get('preview') != 'messages' %}<meta http-equiv="refresh" content="20;url={{ url_for('home') }}">{% endif %}
 	<style>
 		.slide-note {
 			width: min(36rem, calc(100% - 2rem));
@@ -71,9 +71,10 @@
 		.map-frame { pointer-events: none; }
 		.map-frame.sector { box-shadow: inset 0 0 0 1px var(--bs-body-color); }
 		.map-frame.group { box-shadow: inset 0 0 0 1px var(--bs-border-color); }
-		#volume-map.all-map .map-frame {
+		#volume-map.all-map .map-frame.sector {
 			z-index: 3;
 			box-shadow: none;
+			border: 2px double #ffc107 !important;
 		}
 		.map-frame span {
 			position: absolute;
@@ -109,6 +110,12 @@
 			line-height: calc(var(--fs, 11px) + 2px) !important;
 			container: tile / size;
 		}
+		#volume-map.all-map .tile.scaled.bg-primary { background-color: #6ea8fe !important; }
+		#volume-map.all-map .tile.scaled.bg-success { background-color: #75b798 !important; }
+		#volume-map.all-map .tile.scaled.bg-danger { background-color: #ea868f !important; }
+		#volume-map.all-map.scale .tile.scaled.bg-primary { background-color: #0792e9 !important; box-shadow: inset 0 0 0 2px #0d6efd; }
+		#volume-map.all-map.scale .tile.scaled.bg-success { background-color: #8cc32a !important; color: #000 !important; box-shadow: inset 0 0 0 2px #198754; }
+		#volume-map.all-map.scale .tile.scaled.bg-danger { background-color: #ee1aa2 !important; box-shadow: inset 0 0 0 2px #dc3545; }
 		#volume-map.all-map .tile .full,
 		#volume-map.all-map .tile .short,
 		#volume-map.all-map .tile .line,
@@ -158,21 +165,179 @@
 		}
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
 		.panel-note { opacity: 0.62; }
+		.nav-panel .buy-billion { width: calc(10ch + 1.5rem); }
+		.nav-panel .buy-five { width: calc(5ch + 1.5rem); }
+		.nav-panel .buy-tax { width: calc(8ch + 1.5rem); }
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
+		.volume-step.band { width: 8rem; }
 		#chart-svg { min-height: 280px; }
 		#stats {
-			z-index: 2;
 			background: rgba(134, 219, 255, 0.25);
-			pointer-events: none;
 			border-radius: 1rem;
 			opacity: 0.65;
 		}
-		.pref-foot { flex: 1 1 16rem; min-width: 0; }
+		.pref-gear {
+			--bs-btn-padding-x: 0;
+			--bs-btn-padding-y: 0;
+			width: 2rem;
+			height: 2rem;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.pref-menu {
+			width: min(20rem, calc(100vw - 1rem));
+			overflow: auto;
+			z-index: 1080;
+		}
+		.pref-menu.split { width: min(48rem, calc(100vw - 1rem)); }
+		.pref-menu .form-select,
+		.pref-menu .form-control {
+			width: 100%;
+		}
+		.volume-overlay {
+			position: absolute;
+			z-index: 5;
+			top: 0.5rem;
+			right: 0.5rem;
+		}
+		#volume-wait { z-index: 6; }
+		.pref-menu .input-group .form-control { width: 1%; }
+		.pref-menu #volume-controls .volume-step,
+		.pref-menu #volume-controls .volume-step.band { width: 100%; flex: 1 1 auto; }
+		.pref-menu #volume-controls .input-group { flex-wrap: nowrap; }
+		.pref-menu #volume-controls .input-group .form-control { min-width: 0; }
+		.pref-menu #volume-controls .btn-group > .btn { flex: 1 1 0; }
+		.pref-menu .form-control.pref-invest { width: 25%; margin-inline: auto; }
+		.history-symbol { width: auto; max-width: 100%; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
 	</style>
 </head>
 <body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}"{% if request.args.get('panel') == 'buy' %} data-panel="buy"{% endif %}>
+{% macro operation_fields(with_investment) %}
+<h3 class="h6 mb-0">{{ t('prefs.operations') }}</h3>
+<div class="d-flex align-items-start gap-3 text-center">
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.fee_title') }}">{{ t('prefs.fee') }}</label>
+		<div class="input-group input-group-sm">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
+			<input class="form-control text-center" data-pref="fee_rate" data-saved="{{ prefs.fee_rate }}" title="{{ t('prefs.fee_title') }}" value="{{ prefs.fee_rate }}" min="0" max="0.1" step="0.001" inputmode="decimal" autocomplete="off">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+		</div>
+	</div>
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.tax_title') }}">{{ t('prefs.tax') }}</label>
+		<div class="input-group input-group-sm">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
+			<input class="form-control text-center" data-pref="tax_rate" data-saved="{{ prefs.tax_rate }}" title="{{ t('prefs.tax_title') }}" value="{{ prefs.tax_rate }}" min="0" max="0.5" step="0.01" inputmode="decimal" autocomplete="off">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+		</div>
+	</div>
+</div>
+<div class="d-flex align-items-start gap-3 text-center">
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.threshold_title') }}">{{ t('prefs.threshold') }}</label>
+		<div class="input-group input-group-sm">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
+			<input class="form-control text-center" data-pref="profit_threshold" data-saved="{{ prefs.profit_threshold }}" title="{{ t('prefs.threshold_title') }}" value="{{ prefs.profit_threshold }}" min="0" max="5" step="0.01" inputmode="decimal" autocomplete="off">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+		</div>
+	</div>
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.age_title') }}">{{ t('prefs.age') }}</label>
+		<div class="input-group input-group-sm">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
+			<input class="form-control text-center" data-pref="max_price_age_hours" data-saved="{{ prefs.max_price_age_hours }}" title="{{ t('prefs.age_title') }}" value="{{ prefs.max_price_age_hours }}" min="1" max="720" step="1" inputmode="numeric" autocomplete="off">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+		</div>
+	</div>
+</div>
+{% if with_investment %}
+<div class="text-center">
+	<label class="form-label" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
+	<input class="form-control form-control-sm pref-invest" data-pref="max_investment" data-saved="{{ prefs.max_investment }}" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment }}" inputmode="decimal" autocomplete="off">
+</div>
+<p class="small text-secondary mb-0">{{ t('prefs.foot') }}</p>
+{% endif %}
+{% endmacro %}
+{% macro appearance_fields() %}
+<h3 class="h6 mb-0">{{ t('prefs.appearance') }}</h3>
+<div class="row align-items-end gy-3">
+	<div class="col-12 col-sm-6">
+		<label class="form-label" title="{{ t('prefs.font_title') }}">{{ t('prefs.font') }}</label>
+		<select class="form-select form-select-sm" data-pref="font_family" data-saved="{{ prefs.font_family }}" title="{{ t('prefs.font_title') }}">
+			{% for face in fonts %}
+			<option value="{{ face.id }}" {% if prefs.font_family == face.id %}selected{% endif %}{% if face.family %} style="font-family: '{{ face.family }}', sans-serif"{% endif %}>{{ t('font.' ~ face.id) }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div class="col-6 col-sm-2">
+		<label class="form-label" title="{{ t('prefs.scale_title') }}">{{ t('prefs.scale') }}</label>
+		<input class="form-control form-control-sm text-end" data-pref="ui_scale" data-saved="{{ prefs.ui_scale }}" title="{{ t('prefs.scale_title') }}" type="number" min="80" max="120" step="5" value="{{ prefs.ui_scale }}">
+	</div>
+	<div class="col-6 col-sm-4">
+		<label class="form-label" title="{{ t('prefs.weight_title') }}">{{ t('prefs.weight') }}</label>
+		<select class="form-select form-select-sm" data-pref="ui_weight" data-saved="{{ prefs.ui_weight }}" title="{{ t('prefs.weight_title') }}">
+			{% for item in weights %}
+			<option value="{{ item.id }}" {% if prefs.ui_weight == item.id %}selected{% endif %}>{{ t('weight.' ~ item.id) }}</option>
+			{% endfor %}
+		</select>
+	</div>
+</div>
+<div class="row align-items-end">
+	<div class="col-6">
+		<label class="form-label" title="{{ t('prefs.theme_title') }}">{{ t('prefs.theme') }}</label>
+		<select class="form-select form-select-sm" data-pref="ui_theme" data-saved="{{ prefs.ui_theme }}" title="{{ t('prefs.theme_title') }}">
+			<option value="light" {% if prefs.ui_theme == 'light' %}selected{% endif %}>{{ t('prefs.light') }}</option>
+			<option value="dark" {% if prefs.ui_theme == 'dark' %}selected{% endif %}>{{ t('prefs.dark') }}</option>
+			<option value="auto" {% if prefs.ui_theme == 'auto' %}selected{% endif %}>{{ t('prefs.auto') }}</option>
+		</select>
+	</div>
+	<div class="col-6">
+		<label class="form-label" title="{{ t('prefs.seconds_title') }}">{{ t('prefs.seconds') }}</label>
+		<input class="form-control form-control-sm text-end" data-pref="notice_seconds" data-saved="{{ prefs.notice_seconds }}" title="{{ t('prefs.seconds_title') }}" type="number" min="3" max="30" step="1" value="{{ prefs.notice_seconds }}">
+	</div>
+</div>
+{% endmacro %}
+{% macro volume_band() %}
+<div class="col-6 col-lg-3" id="volume-band-wrap">
+	<label class="form-label" for="volume-band" title="{{ t('prefs.band_title') }}">{{ t('prefs.band') }}</label>
+	<div class="input-group input-group-sm volume-step band">
+		<button class="btn btn-outline-primary" type="button" data-volume-step="band" data-dir="-1" aria-label="{{ t('volume.less_band') }}">−</button>
+		<input class="form-control text-center" id="volume-band" inputmode="decimal" min="0" max="0.2" step="0.001" title="{{ t('prefs.band_title') }}" value="{{ prefs.stable_band }}" autocomplete="off">
+		<button class="btn btn-outline-primary" type="button" data-volume-step="band" data-dir="1" aria-label="{{ t('volume.more_band') }}">+</button>
+	</div>
+</div>
+{% endmacro %}
+{% macro volume_side() %}
+<div class="col-6 col-lg-2{% if scope != 'all' %} d-none{% endif %}" id="volume-side-wrap">
+	<label class="form-label" for="volume-side" title="{{ t('prefs.side_title') }}">{{ t('prefs.side') }}</label>
+	<div class="input-group input-group-sm volume-step">
+		<button class="btn btn-outline-primary" type="button" data-volume-step="side" data-dir="-1" aria-label="{{ t('volume.less_side') }}">−</button>
+		<input class="form-control text-center" id="volume-side" inputmode="decimal" min="0" max="2" step="0.01" title="{{ t('prefs.side_title') }}" value="{{ prefs.min_side }}" autocomplete="off">
+		<button class="btn btn-outline-primary" type="button" data-volume-step="side" data-dir="1" aria-label="{{ t('volume.more_side') }}">+</button>
+	</div>
+</div>
+{% endmacro %}
+{% macro volume_divide() %}
+<div class="col-6 col-lg-2{% if scope != 'all' %} d-none{% endif %}" id="volume-divide-wrap">
+	<div class="form-label" title="{{ t('prefs.divide_title') }}">{{ t('prefs.divide') }}</div>
+	<div class="btn-group btn-group-sm w-100" role="group" aria-label="{{ t('prefs.divide') }}">
+		<button class="btn btn-outline-primary{% if prefs.volume_divide != 'on' %} active{% endif %}" type="button" data-divide="off" title="{{ t('prefs.divide_title') }}">{{ t('prefs.off') }}</button>
+		<button class="btn btn-outline-primary{% if prefs.volume_divide == 'on' %} active{% endif %}" type="button" data-divide="on" title="{{ t('prefs.divide_title') }}">{{ t('prefs.on') }}</button>
+	</div>
+</div>
+{% endmacro %}
+{% macro volume_scale() %}
+<div class="col-6 col-lg-3{% if scope != 'all' %} d-none{% endif %}" id="volume-scale-wrap">
+	<div class="form-label" title="{{ t('prefs.volume_scale_title') }}">{{ t('prefs.volume_scale') }}</div>
+	<div class="btn-group btn-group-sm w-100" role="group" aria-label="{{ t('prefs.volume_scale') }}">
+		<button class="btn btn-outline-primary{% if prefs.volume_scale != 'on' %} active{% endif %}" type="button" data-scale="off" title="{{ t('prefs.volume_scale_title') }}">{{ t('prefs.off') }}</button>
+		<button class="btn btn-outline-primary{% if prefs.volume_scale == 'on' %} active{% endif %}" type="button" data-scale="on" title="{{ t('prefs.volume_scale_title') }}">{{ t('prefs.on') }}</button>
+	</div>
+</div>
+{% endmacro %}
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid d-flex flex-wrap">
@@ -207,10 +372,21 @@
 					<div class="dropdown">
 						<button class="btn btn-outline-light btn-nav-menu" type="button" id="posizioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.positions') }}</button>
 						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="posizioni-toggle">
-							<h2 class="h6 mb-3">{{ t('positions.title') }}</h2>
-							<p class="mb-3">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}</p>
-							{% if positions %}
-							<div class="table-responsive">
+							<div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+								<h2 class="h6 mb-0">{{ t('positions.title') }}</h2>
+								<div class="pref-slot">
+									<button class="btn btn-outline-primary pref-gear" type="button" data-pref-gear title="{{ t('nav.preferences') }}" aria-label="{{ t('nav.preferences') }}">
+										<span aria-hidden="true">{% include "settings.svg" %}</span>
+									</button>
+									<div class="pref-menu dropdown-menu dropdown-menu-end p-3">
+										<div class="d-flex flex-column gap-3">
+											{{ operation_fields(false) }}
+										</div>
+									</div>
+								</div>
+							</div>
+							<p class="mb-3" id="positions-help">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}</p>
+							<div id="positions-table" class="table-responsive{% if not positions %} d-none{% endif %}">
 							<table class="table table-sm align-middle mb-0">
 								<thead>
 									<tr>
@@ -222,7 +398,7 @@
 										<th>{{ t('positions.outcome') }}</th>
 									</tr>
 								</thead>
-								<tbody>
+								<tbody id="positions-body">
 									{% for row in positions %}
 									<tr class="{{ 'table-success' if row.ready else '' }}">
 										<td title="{{ row.score_detail }}">{{ row.asset }}<br><small>{{ row.bought_at|when }}</small>{% if row.score %}<br><small>{{ row.score }}</small>{% endif %}</td>
@@ -236,42 +412,61 @@
 								</tbody>
 							</table>
 							</div>
-							{% else %}
-							<p class="mb-0">{{ t('positions.empty') }}</p>
-							{% endif %}
+							<p id="positions-empty" class="mb-0{% if positions %} d-none{% endif %}">{{ t('positions.empty') }}</p>
 						</div>
 					</div>
 					<div class="dropdown">
 						<button class="btn btn-outline-light btn-nav-menu" type="button" id="buy-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.buy') }}</button>
 						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="buy-toggle">
-							<h2 class="h6 mb-3">{{ t('buy.title') }}</h2>
+							<div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+								<h2 class="h6 mb-0">{{ t('buy.title') }}</h2>
+								<div class="pref-slot">
+									<button class="btn btn-outline-primary pref-gear" type="button" data-pref-gear title="{{ t('nav.preferences') }}" aria-label="{{ t('nav.preferences') }}">
+										<span aria-hidden="true">{% include "settings.svg" %}</span>
+									</button>
+									<div class="pref-menu dropdown-menu dropdown-menu-end p-3">
+										<div class="d-flex flex-column gap-3">
+											{{ operation_fields(true) }}
+										</div>
+									</div>
+								</div>
+							</div>
 							{% if request.args.get('panel') == 'buy' and (err or ok) %}
 							<div class="panel-note border rounded-4 text-center px-3 py-2 mb-3 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' }}" role="status">{{ err or ok }}</div>
 							{% endif %}
 							<p class="mb-3">{{ t('buy.help') }}</p>
-							<form class="row g-3" method="post" action="{{ url_for('buy') }}">
+							<form class="d-flex flex-column gap-3" method="post" action="{{ url_for('buy') }}">
 								<input type="hidden" name="csrf" value="{{ csrf }}">
-								<div class="col-12 col-sm-6">
-									<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
-									<input class="form-control" id="buy-asset" name="asset" value="{{ asset }}" required>
+								<div class="d-flex align-items-end gap-3">
+									<div class="flex-grow-1">
+										<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
+										<select class="form-select" id="buy-asset" name="asset" required>
+											{% if buy_asset not in assets %}<option value="{{ buy_asset }}" selected>{{ buy_asset }}</option>{% endif %}
+											{% for item in asset_options %}
+											<option value="{{ item.symbol }}" {% if item.symbol == buy_asset %}selected{% endif %}>{{ item.label }}</option>
+											{% endfor %}
+										</select>
+									</div>
+									<div>
+										<label class="form-label" for="buy-amount">{{ t('buy.quantity') }}</label>
+										<input class="form-control buy-billion" id="buy-amount" name="amount" inputmode="decimal" min="0" max="1000000000" required>
+									</div>
 								</div>
-								<div class="col-6">
-									<label class="form-label" for="buy-amount">{{ t('buy.quantity') }}</label>
-									<input class="form-control" id="buy-amount" name="amount" inputmode="decimal" required>
+								<div class="d-flex align-items-end gap-3">
+									<div>
+										<label class="form-label" for="buy-price">{{ t('buy.price') }}</label>
+										<input class="form-control buy-billion" id="buy-price" name="price" inputmode="decimal" min="0" max="1000000000" placeholder="{{ t('buy.price_ph') }}">
+									</div>
+									<div>
+										<label class="form-label" for="buy-fees">{{ t('buy.fees') }}</label>
+										<input class="form-control buy-five" id="buy-fees" name="fees" inputmode="decimal" placeholder="{{ t('buy.fees_ph') }}">
+									</div>
+									<div>
+										<label class="form-label" for="buy-taxes">{{ t('buy.taxes') }}</label>
+										<input class="form-control buy-tax" id="buy-taxes" name="taxes" inputmode="decimal" placeholder="0">
+									</div>
 								</div>
-								<div class="col-6">
-									<label class="form-label" for="buy-price">{{ t('buy.price') }}</label>
-									<input class="form-control" id="buy-price" name="price" inputmode="decimal" placeholder="{{ t('buy.price_ph') }}">
-								</div>
-								<div class="col-6">
-									<label class="form-label" for="buy-fees">{{ t('buy.fees') }}</label>
-									<input class="form-control" id="buy-fees" name="fees" inputmode="decimal" placeholder="{{ t('buy.fees_ph') }}">
-								</div>
-								<div class="col-6">
-									<label class="form-label" for="buy-taxes">{{ t('buy.taxes') }}</label>
-									<input class="form-control" id="buy-taxes" name="taxes" inputmode="decimal" placeholder="0">
-								</div>
-								<div class="col-12">
+								<div>
 									<button class="btn btn-primary" type="submit">{{ t('buy.submit') }}</button>
 								</div>
 							</form>
@@ -316,26 +511,17 @@
 							<li><h6 class="dropdown-header">{{ t('nav.language') }}</h6></li>
 							<li><hr class="dropdown-divider"></li>
 							{% for item in languages %}
-							<li><a class="dropdown-item d-flex align-items-center{% if lang == item.code %} active{% endif %}" href="{{ url_for('home', lang=item.code, view=view, asset=asset) }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a></li>
+							<li><a class="dropdown-item d-flex align-items-center{% if lang == item.code %} active{% endif %}" href="{{ url_for('home', lang=item.code) }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a></li>
 							{% endfor %}
 						</ul>
 					</div>
 					<div class="flex-grow-1" style="max-width:1vw;"></div>
-					<div class="dropdown">
-						<button class="btn btn-outline-light btn-nav-menu icon-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="{{ t('nav.menu') }}" aria-label="{{ t('nav.menu') }}">
-							<span aria-hidden="true">{% include "menu.svg" %}</span>
+					<form method="post" action="{{ url_for('logout') }}">
+						<input type="hidden" name="csrf" value="{{ csrf }}">
+						<button class="btn btn-outline-light btn-nav-menu icon-btn" type="submit" title="{{ t('nav.logout') }}" aria-label="{{ t('nav.logout') }}">
+							<span aria-hidden="true">{% include "log-out.svg" %}</span>
 						</button>
-						<ul class="dropdown-menu dropdown-menu-end">
-							<li><button class="dropdown-item d-flex align-items-center" type="button" data-bs-toggle="modal" data-bs-target="#prefs"><span class="menu-icon" aria-hidden="true">{% include "settings.svg" %}</span>{{ t('nav.preferences') }}</button></li>
-							<li><hr class="dropdown-divider"></li>
-							<li>
-								<form method="post" action="{{ url_for('logout') }}">
-									<input type="hidden" name="csrf" value="{{ csrf }}">
-									<button class="dropdown-item d-flex align-items-center" type="submit"><span class="menu-icon" aria-hidden="true">{% include "log-out.svg" %}</span>{{ t('nav.logout') }}</button>
-								</form>
-							</li>
-						</ul>
-					</div>
+					</form>
 				</div>
 			</div>
 		</nav>
@@ -366,80 +552,113 @@
 		</div>
 		<div class="card-body tab-content">
 			<div class="tab-pane fade{% if view != 'history' %} show active{% endif %}" id="volume" role="tabpanel" aria-labelledby="volume-tab">
-				<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
-					<div class="d-flex flex-wrap align-items-end gap-3" id="volume-controls" data-volume="{{ url_for('volume_view') }}">
-						<div>
-							<div class="form-label" aria-hidden="true">&nbsp;</div>
-							<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('volume.sector') }}">
-								<button class="btn btn-outline-primary{% if scope == 'all' %} active{% endif %}" type="button" data-scope="all" title="{{ t('volume.scope.all_title') }}">{{ t('volume.all') }}</button>
-								<button class="btn btn-outline-primary{% if scope != 'all' %} active{% endif %}" type="button" data-scope="sector" title="{{ t('volume.scope.sector_title') }}">{{ t('volume.sector') }}</button>
+				<div class="position-relative">
+					<div class="volume-overlay pref-slot">
+						<button class="btn btn-light shadow-sm pref-gear" type="button" data-pref-gear title="{{ t('nav.preferences') }}" aria-label="{{ t('nav.preferences') }}">
+							<span aria-hidden="true">{% include "settings.svg" %}</span>
+						</button>
+						<div class="pref-menu dropdown-menu dropdown-menu-end p-3 split">
+							<div id="volume-controls" data-volume="{{ url_for('volume_view') }}">
+								<div class="d-flex flex-column align-items-stretch justify-content-between gap-3">
+									<h3 class="h6 mb-0">{{ t('prefs.page') }}</h3>
+									<div class="row align-items-end gy-3">
+										<div class="col-6 {% if scope == 'all' %}col-lg-2{% else %}col-lg-3{% endif %}" id="volume-mode">
+											<div class="form-label">{{ t('volume.mode') }}</div>
+											<div class="btn-group btn-group-sm w-100" role="group" aria-label="{{ t('volume.sector') }}">
+												<button class="btn btn-outline-primary{% if scope == 'all' %} active{% endif %}" type="button" data-scope="all" title="{{ t('volume.scope.all_title') }}">{{ t('volume.all') }}</button>
+												<button class="btn btn-outline-primary{% if scope != 'all' %} active{% endif %}" type="button" data-scope="sector" title="{{ t('volume.scope.sector_title') }}">{{ t('volume.sector') }}</button>
+											</div>
+										</div>
+										<div class="col-6 col-lg-3{% if scope == 'all' %} d-none{% endif %}" id="volume-order-wrap">
+											<div class="form-label">{{ t('volume.order') }}</div>
+											<div class="btn-group btn-group-sm w-100" role="group" aria-label="{{ t('volume.order') }}">
+												<button class="btn btn-outline-primary{% if order != 'volume' %} active{% endif %}" type="button" data-order="rank" title="{{ t('volume.order.rank_title') }}">{{ t('volume.order.rank') }}</button>
+												<button class="btn btn-outline-primary{% if order == 'volume' %} active{% endif %}" type="button" data-order="volume" title="{{ t('volume.order.volume_title') }}">{{ t('volume.order.volume') }}</button>
+											</div>
+										</div>
+										<div class="col-6 col-lg-3{% if scope == 'all' %} d-none{% endif %}" id="volume-sessions-wrap">
+											<label class="form-label" for="volume-sessions" title="{{ t('prefs.sessions_title') }}">{{ t('volume.sessions') }}</label>
+											<div class="input-group input-group-sm volume-step">
+												<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="-1" aria-label="{{ t('volume.less_sessions') }}">−</button>
+												<input class="form-control text-center" id="volume-sessions" inputmode="numeric" min="1" max="240" title="{{ t('prefs.sessions_title') }}" value="{{ prefs.return_days }}" autocomplete="off">
+												<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="1" aria-label="{{ t('volume.more_sessions') }}">+</button>
+											</div>
+										</div>
+										<div class="col-6 col-lg-3{% if scope == 'all' %} d-none{% endif %}" id="volume-titles-wrap">
+											<label class="form-label" for="volume-titles">{{ t('volume.titles') }}</label>
+											<div class="input-group input-group-sm volume-step">
+												<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="-1" aria-label="{{ t('volume.less_titles') }}">−</button>
+												<input class="form-control text-center" id="volume-titles" inputmode="numeric" value="{{ prefs.names }}" autocomplete="off">
+												<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="{{ t('volume.more_titles') }}">+</button>
+											</div>
+										</div>
+										{% if scope == 'all' %}
+										{{ volume_band() }}
+										{% endif %}
+										{{ volume_side() }}
+										{{ volume_divide() }}
+										{{ volume_scale() }}
+									</div>
+									<div class="row align-items-end gy-3{% if scope == 'all' %} d-none{% endif %}" id="volume-filters-row">
+									{% set chosen = prefs.volume_class or '' %}
+									{% set sector_code = chosen[2:].split('|')[0] if chosen[:2] in ['s:', 'u:'] else '' %}
+										<div class="col-12 col-lg-3{% if scope == 'all' %} d-none{% endif %}" id="volume-sector-wrap">
+											<label class="form-label" for="volume-sector">{{ t('volume.sector') }}</label>
+											<select class="form-select form-select-sm volume-group" id="volume-sector">
+												<option value="" {% if not sector_code %}selected{% endif %}>{{ t('volume.all') }}</option>
+												{% for sector in class_tree %}
+												<option value="{{ sector.code }}" {% if sector.code == sector_code %}selected{% endif %}>{{ sector.name }}</option>
+												{% endfor %}
+											</select>
+										</div>
+										<div class="col-12 col-lg-6{% if scope == 'all' %} d-none{% endif %}" id="volume-group-wrap">
+											<label class="form-label" for="volume-group">{{ t('volume.group') }}</label>
+											<select class="form-select form-select-sm volume-group" id="volume-group" data-all="{{ t('volume.all') }}">
+												<option value="" {% if not chosen.startswith('u:') %}selected{% endif %}>{{ t('volume.all') }}</option>
+												{% for sector in class_tree if not sector_code or sector.code == sector_code %}
+												<optgroup label="{{ sector.name }}" data-sector="{{ sector.code }}">
+													{% for sub in sector.subs %}
+													<option value="u:{{ sector.code }}|{{ sub.name }}" data-sector="{{ sector.code }}" {% if chosen == 'u:' ~ sector.code ~ '|' ~ sub.name %}selected{% endif %}>{{ sub.name }}</option>
+													{% endfor %}
+												</optgroup>
+												{% endfor %}
+											</select>
+											<select id="volume-group-catalog" hidden>
+												{% for sector in class_tree %}
+												<optgroup label="{{ sector.name }}" data-sector="{{ sector.code }}">
+													{% for sub in sector.subs %}
+													<option value="u:{{ sector.code }}|{{ sub.name }}">{{ sub.name }}</option>
+													{% endfor %}
+												</optgroup>
+												{% endfor %}
+											</select>
+										</div>
+										{% if scope != 'all' %}
+										{{ volume_band() }}
+										{% endif %}
+									</div>
+								</div>
+								<div class="d-flex flex-column align-items-stretch gap-3 border-top pt-3 mt-4">
+									{{ appearance_fields() }}
+								</div>
+								<div class="border-top pt-3 mt-4">
+									<div class="small d-flex flex-wrap align-items-center gap-1">
+										<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-success">&nbsp;</span>{{ t('volume.up') }}</span>
+										<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-danger">&nbsp;</span>{{ t('volume.down') }}</span>
+										<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-primary">&nbsp;</span><span id="volume-flat">{{ t('volume.flat', band=prefs.stable_band|pct) }}</span></span>
+										<p class="small text-secondary mb-0" id="volume-caption">{{ volume_caption_text }}</p>
+										<p class="small text-secondary mb-0 w-100">{{ t('tile.color.explanation') }}</p>
+									</div>
+								</div>
 							</div>
-						</div>
-						<div id="volume-order-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
-							<div class="form-label">{{ t('volume.order') }}</div>
-							<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('volume.order') }}">
-								<button class="btn btn-outline-primary{% if order != 'volume' %} active{% endif %}" type="button" data-order="rank" title="{{ t('volume.order.rank_title') }}">{{ t('volume.order.rank') }}</button>
-								<button class="btn btn-outline-primary{% if order == 'volume' %} active{% endif %}" type="button" data-order="volume" title="{{ t('volume.order.volume_title') }}">{{ t('volume.order.volume') }}</button>
-							</div>
-						</div>
-						<div id="volume-sessions-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
-							<label class="form-label" for="volume-sessions" title="{{ t('prefs.sessions_title') }}">{{ t('volume.sessions') }}</label>
-							<div class="input-group input-group-sm volume-step">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="-1" aria-label="{{ t('volume.less_sessions') }}">−</button>
-								<input class="form-control text-center" id="volume-sessions" inputmode="numeric" min="1" max="240" title="{{ t('prefs.sessions_title') }}" value="{{ prefs.return_days }}" autocomplete="off">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="sessions" data-dir="1" aria-label="{{ t('volume.more_sessions') }}">+</button>
-							</div>
-						</div>
-						<div id="volume-titles-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
-							<label class="form-label" for="volume-titles">{{ t('volume.titles') }}</label>
-							<div class="input-group input-group-sm volume-step">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="-1" aria-label="{{ t('volume.less_titles') }}">−</button>
-								<input class="form-control text-center" id="volume-titles" inputmode="numeric" value="{{ prefs.names }}" autocomplete="off">
-								<button class="btn btn-outline-primary" type="button" data-volume-step="titles" data-dir="1" aria-label="{{ t('volume.more_titles') }}">+</button>
-							</div>
-						</div>
-						{% set chosen = prefs.volume_class or '' %}
-						{% set sector_code = chosen[2:].split('|')[0] if chosen[:2] in ['s:', 'u:'] else '' %}
-						<div id="volume-sector-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
-							<label class="form-label" for="volume-sector">{{ t('volume.sector') }}</label>
-							<select class="form-select form-select-sm volume-group" id="volume-sector">
-								<option value="" {% if not sector_code %}selected{% endif %}>{{ t('volume.all') }}</option>
-								{% for sector in class_tree %}
-								<option value="{{ sector.code }}" {% if sector.code == sector_code %}selected{% endif %}>{{ sector.name }}</option>
-								{% endfor %}
-							</select>
-						</div>
-						<div id="volume-group-wrap"{% if scope == 'all' %} class="d-none"{% endif %}>
-							<label class="form-label" for="volume-group">{{ t('volume.group') }}</label>
-							<select class="form-select form-select-sm volume-group" id="volume-group" data-all="{{ t('volume.all') }}">
-								<option value="" {% if not chosen.startswith('u:') %}selected{% endif %}>{{ t('volume.all') }}</option>
-								{% for sector in class_tree if not sector_code or sector.code == sector_code %}
-								<optgroup label="{{ sector.name }}" data-sector="{{ sector.code }}">
-									{% for sub in sector.subs %}
-									<option value="u:{{ sector.code }}|{{ sub.name }}" data-sector="{{ sector.code }}" {% if chosen == 'u:' ~ sector.code ~ '|' ~ sub.name %}selected{% endif %}>{{ sub.name }}</option>
-									{% endfor %}
-								</optgroup>
-								{% endfor %}
-							</select>
-							<select id="volume-group-catalog" hidden>
-								{% for sector in class_tree %}
-								<optgroup label="{{ sector.name }}" data-sector="{{ sector.code }}">
-									{% for sub in sector.subs %}
-									<option value="u:{{ sector.code }}|{{ sub.name }}">{{ sub.name }}</option>
-									{% endfor %}
-								</optgroup>
-								{% endfor %}
-							</select>
 						</div>
 					</div>
-				</div>
-				<div class="position-relative">
-				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary{% if scope == 'all' %} all-map{% endif %}" role="group" aria-label="{{ t('volume.map') }}">
+				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary{% if scope == 'all' %} all-map{% endif %}{% if scope == 'all' and prefs.volume_scale == 'on' %} scale{% endif %}" role="group" aria-label="{{ t('volume.map') }}">
 					{% for frame in frames %}
 					<div class="map-frame {{ frame.level }} position-absolute" style="--x:{{ frame.x }}%;--y:{{ frame.y }}%;--w:{{ frame.w }}%;--h:{{ frame.h }}%"{% if frame.title %} title="{{ frame.title }}"{% endif %}>{% if frame.label %}<span>{{ frame.label }}</span>{% endif %}</div>
 					{% endfor %}
 					{% for tile in tiles %}
-					<button type="button" class="tile {{ tile.kind }} {{ tile.tone }} position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white" data-asset="{{ tile.asset }}" title="{{ tile.title }}" style="--x:{{ tile.x }}%;--y:{{ tile.y }}%;--w:{{ tile.w }}%;--h:{{ tile.h }}%{% if tile.fs %};--fs:{{ tile.fs }}px{% endif %}">
+					<button type="button" class="tile {{ tile.kind }} {{ tile.tone }}{% if tile.scaled %} scaled{% endif %} position-absolute overflow-hidden d-flex align-items-center justify-content-center text-center small lh-sm text-white border border-white" data-asset="{{ tile.asset }}" title="{{ tile.title }}" style="--x:{{ tile.x }}%;--y:{{ tile.y }}%;--w:{{ tile.w }}%;--h:{{ tile.h }}%{% if tile.fs %};--fs:{{ tile.fs }}px{% endif %}">
 						<span class="full">{{ tile.label }}<br><span class="chg text-nowrap">{{ tile.change }}</span>{% if tile.score %}<br><span class="chg text-nowrap">{{ tile.score }}</span>{% endif %}</span>
 						<span class="short">{{ tile.label }}{% if tile.score %}<br><span class="chg text-nowrap">{{ tile.score }}</span>{% endif %}</span>
 						<span class="line text-nowrap">{{ tile.label }} {{ tile.change }}{% if tile.score %} {{ tile.score }}{% endif %}</span>
@@ -458,44 +677,20 @@
 					<span class="visually-hidden">{{ t('volume.updating') }}</span>
 				</div>
 				</div>
-				<div class="small d-flex flex-wrap align-items-center gap-1 mt-3">
-					<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-success">&nbsp;</span>{{ t('volume.up') }}</span>
-					<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-danger">&nbsp;</span>{{ t('volume.down') }}</span>
-					<span class="small d-inline-flex align-items-center gap-1 me-1"><span class="badge bg-primary">&nbsp;</span>{{ t('volume.flat', band=prefs.stable_band|pct) }}</span>
-					<p class="small text-secondary mb-0" id="volume-caption">{{ volume_caption_text }}</p>
-					<p class="small text-secondary mb-0 w-100">{{ t('tile.color.explanation') }}</p>
-				</div>
 			</div>
 			<div class="tab-pane fade{% if view == 'history' %} show active{% endif %}" id="history" role="tabpanel" aria-labelledby="history-tab">
-				<div class="d-flex flex-wrap align-items-end gap-3 mb-3">
-					<div>
-						<label class="form-label" for="symbol">{{ t('history.symbol') }}</label>
-						<select class="form-select form-select-sm" id="symbol">
-							{% if asset not in assets %}<option value="{{ asset }}" selected>{{ asset }}</option>{% endif %}
-							{% for item in asset_options %}
-							<option value="{{ item.symbol }}" {% if item.symbol == asset %}selected{% endif %}>{{ item.label }}</option>
-							{% endfor %}
-						</select>
+				<div class="d-flex flex-wrap align-items-start gap-3 mb-3">
+					<div class="d-flex align-items-center gap-2">
+					<label class="form-label mb-0" for="pref-focus">{{ t('history.symbol') }}</label>
+					<select class="form-select form-select-sm history-symbol" id="pref-focus" data-saved="{{ asset }}">
+						{% if asset not in assets %}<option value="{{ asset }}" selected>{{ asset }}</option>{% endif %}
+						{% for item in asset_options %}
+						<option value="{{ item.symbol }}" {% if item.symbol == asset %}selected{% endif %}>{{ item.label }}</option>
+						{% endfor %}
+					</select>
 					</div>
 					<div class="flex-grow-1"></div>
-					<div>
-						<div class="form-label">{{ t('history.period') }}</div>
-						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('history.period') }}">
-							{% for key in period_keys %}
-							<button class="btn btn-outline-primary{% if period == key %} active{% endif %}" type="button" data-period="{{ key }}" title="{{ t('period.hint.' ~ key) }}">{{ period_label(key) }}</button>
-							{% endfor %}
-						</div>
-					</div>
-					<div>
-						<div class="form-label">{{ t('history.chart') }}</div>
-						<div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="{{ t('history.chart') }}">
-							<button class="btn btn-outline-primary{% if chart == 'line' %} active{% endif %}" type="button" data-chart="line">{{ t('history.line') }}</button>
-							<button class="btn btn-outline-primary{% if chart == 'candle' %} active{% endif %}" type="button" data-chart="candle">{{ t('history.candle') }}</button>
-						</div>
-					</div>
-				</div>
-				<div id="chart-frame" class="position-relative" data-render="{{ prefs.chart_render }}" data-series="{{ url_for('chart_series') }}">
-				<div id="stats" class="position-absolute top-0 end-0 d-flex flex-wrap align-items-end justify-content-end gap-3 text-end px-3 py-1" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
+					<div id="stats" class="d-flex flex-wrap align-items-start justify-content-end gap-3 text-end px-3 py-1" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
 					<div>
 						<div class="form-label">{{ t('history.change') }}</div>
 						<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
@@ -517,137 +712,53 @@
 						<div class="fw-semibold" data-stat="sessions">{{ stats.sessions }}</div>
 					</div>
 				</div>
+					<div class="pref-slot">
+						<button class="btn btn-outline-primary pref-gear" type="button" data-pref-gear title="{{ t('nav.preferences') }}" aria-label="{{ t('nav.preferences') }}">
+							<span aria-hidden="true">{% include "settings.svg" %}</span>
+						</button>
+						<div class="pref-menu dropdown-menu dropdown-menu-end p-3 split">
+							<div>
+								<div class="d-flex flex-column align-items-stretch gap-3">
+									<h3 class="h6 mb-0">{{ t('prefs.page') }}</h3>
+									<div class="d-flex flex-wrap align-items-end gap-3">
+										<div>
+											<div class="form-label">{{ t('history.period') }}</div>
+											<div class="btn-group btn-group-sm" role="group" aria-label="{{ t('history.period') }}" data-saved="{{ period }}">
+												{% for key in period_keys %}
+												<button class="btn btn-outline-primary{% if period == key %} active{% endif %}" type="button" data-period="{{ key }}" title="{{ t('period.hint.' ~ key) }}">{{ period_label(key) }}</button>
+												{% endfor %}
+											</div>
+										</div>
+										<div>
+											<div class="form-label">{{ t('history.chart') }}</div>
+											<div class="btn-group btn-group-sm" role="group" aria-label="{{ t('history.chart') }}" data-saved="{{ chart }}">
+												<button class="btn btn-outline-primary{% if chart == 'line' %} active{% endif %}" type="button" data-chart="line">{{ t('history.line') }}</button>
+												<button class="btn btn-outline-primary{% if chart == 'candle' %} active{% endif %}" type="button" data-chart="candle">{{ t('history.candle') }}</button>
+											</div>
+										</div>
+										<div>
+											<div class="form-label">{{ t('prefs.draw') }}</div>
+											<div class="btn-group btn-group-sm" role="group" aria-label="{{ t('prefs.draw') }}" data-saved="{{ prefs.chart_render }}">
+												<button class="btn btn-outline-primary{% if prefs.chart_render != 'vector' %} active{% endif %}" type="button" data-render="image">{{ t('prefs.image') }}</button>
+												<button class="btn btn-outline-primary{% if prefs.chart_render == 'vector' %} active{% endif %}" type="button" data-render="vector">{{ t('prefs.vector') }}</button>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div class="d-flex flex-column align-items-stretch gap-3 border-top pt-3 mt-4">
+									{{ appearance_fields() }}
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div id="chart-frame" class="position-relative" data-render="{{ prefs.chart_render }}" data-series="{{ url_for('chart_series') }}">
 				<img id="chart" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="{{ t('history.alt', asset=asset) }}" data-history="{{ url_for('chart_history') }}"{% if prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, period=period, chart=chart, scale=prefs.ui_scale, theme=theme, weight=prefs.ui_weight) }}"{% endif %}>
 				<svg id="chart-svg" class="d-block w-100{% if prefs.chart_render != 'vector' %} d-none{% endif %}" role="img" aria-label="{{ t('history.alt', asset=asset) }}"></svg>
 				<div id="chart-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1{% if prefs.chart_render == 'vector' %} d-none{% endif %}" data-hits="{{ url_for('chart_hits') }}"></div>
 				</div>
 			</div>
 		</div>
-	</div>
-
-	<div class="modal fade" id="prefs" tabindex="-1" aria-labelledby="prefs-title" aria-hidden="true">
-		<div class="modal-dialog modal-lg modal-dialog-scrollable">
-		<div class="modal-content">
-		<div class="modal-header">
-			<h2 class="modal-title h5" id="prefs-title">{{ t('prefs.title') }}</h2>
-			<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('nav.close') }}"></button>
-		</div>
-		<div class="modal-body">
-		<form method="post" action="{{ url_for('save_prefs') }}">
-			<input type="hidden" name="csrf" value="{{ csrf }}">
-			<div class="row row-cols-4 g-3 align-items-end">
-				<div class="col d-flex align-items-end">
-					<h3 class="h5 mb-5">{{ t('prefs.operations') }}</h3>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-profit" title="{{ t('prefs.threshold_title') }}">{{ t('prefs.threshold') }}</label>
-					<input class="form-control" id="pref-profit" name="profit_threshold" title="{{ t('prefs.threshold_title') }}" value="{{ prefs.profit_threshold }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-invest" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
-					<input class="form-control" id="pref-invest" name="max_investment" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-fee" title="{{ t('prefs.fee_title') }}">{{ t('prefs.fee') }}</label>
-					<input class="form-control" id="pref-fee" name="fee_rate" title="{{ t('prefs.fee_title') }}" value="{{ prefs.fee_rate }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-tax" title="{{ t('prefs.tax_title') }}">{{ t('prefs.tax') }}</label>
-					<input class="form-control" id="pref-tax" name="tax_rate" title="{{ t('prefs.tax_title') }}" value="{{ prefs.tax_rate }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-band" title="{{ t('prefs.band_title') }}">{{ t('prefs.band') }}</label>
-					<input class="form-control" id="pref-band" name="stable_band" title="{{ t('prefs.band_title') }}" value="{{ prefs.stable_band }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-names" title="{{ t('prefs.names_title') }}">{{ t('prefs.names') }}</label>
-					<input class="form-control" id="pref-names" name="names" title="{{ t('prefs.names_title') }}" type="number" min="10" max="500" step="10" value="{{ prefs.names }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-history" title="{{ t('prefs.days_title') }}">{{ t('prefs.days') }}</label>
-					<input class="form-control" id="pref-history" name="history_days" title="{{ t('prefs.days_title') }}" value="{{ prefs.history_days }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-return" title="{{ t('prefs.sessions_title') }}">{{ t('prefs.sessions') }}</label>
-					<input class="form-control" id="pref-return" name="return_days" title="{{ t('prefs.sessions_title') }}" type="number" min="1" max="240" step="1" value="{{ prefs.return_days }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-focus" title="{{ t('prefs.symbol_title') }}">{{ t('prefs.symbol') }}</label>
-					<select class="form-select" id="pref-focus" name="focus_asset" title="{{ t('prefs.symbol_title') }}" required>
-						{% if prefs.focus_asset not in assets %}<option value="{{ prefs.focus_asset }}" selected>{{ prefs.focus_asset }}</option>{% endif %}
-						{% for item in asset_options %}
-						<option value="{{ item.symbol }}" {% if item.symbol == prefs.focus_asset %}selected{% endif %}>{{ item.label }}</option>
-						{% endfor %}
-					</select>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-age" title="{{ t('prefs.age_title') }}">{{ t('prefs.age') }}</label>
-					<input class="form-control" id="pref-age" name="max_price_age_hours" title="{{ t('prefs.age_title') }}" value="{{ prefs.max_price_age_hours }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-notice" title="{{ t('prefs.seconds_title') }}">{{ t('prefs.seconds') }}</label>
-					<input class="form-control" id="pref-notice" name="notice_seconds" title="{{ t('prefs.seconds_title') }}" value="{{ prefs.notice_seconds }}" required>
-				</div>
-			</div>
-			<div class="row row-cols-4 g-3 align-items-end border-top my-4 pt-2 pb-4 border-bottom">
-				<div class="col d-flex align-items-end">
-					<h3 class="h5 mb-5">{{ t('prefs.appearance') }}</h3>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-font" title="{{ t('prefs.font_title') }}">{{ t('prefs.font') }}</label>
-					<select class="form-select" id="pref-font" name="font_family" title="{{ t('prefs.font_title') }}">
-						{% for face in fonts %}
-						<option value="{{ face.id }}" {% if prefs.font_family == face.id %}selected{% endif %}{% if face.family %} style="font-family: '{{ face.family }}', sans-serif"{% endif %}>{{ t('font.' ~ face.id) }}</option>
-						{% endfor %}
-					</select>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-scale" title="{{ t('prefs.scale_title') }}">{{ t('prefs.scale') }}</label>
-					<input class="form-control" id="pref-scale" name="ui_scale" title="{{ t('prefs.scale_title') }}" type="number" min="80" max="120" step="5" value="{{ prefs.ui_scale }}" required>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-weight" title="{{ t('prefs.weight_title') }}">{{ t('prefs.weight') }}</label>
-					<select class="form-select" id="pref-weight" name="ui_weight" title="{{ t('prefs.weight_title') }}">
-						{% for item in weights %}
-						<option value="{{ item.id }}" {% if prefs.ui_weight == item.id %}selected{% endif %}>{{ t('weight.' ~ item.id) }}</option>
-						{% endfor %}
-					</select>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-theme" title="{{ t('prefs.theme_title') }}">{{ t('prefs.theme') }}</label>
-					<select class="form-select" id="pref-theme" name="ui_theme" title="{{ t('prefs.theme_title') }}">
-						<option value="light" {% if prefs.ui_theme == 'light' %}selected{% endif %}>{{ t('prefs.light') }}</option>
-						<option value="dark" {% if prefs.ui_theme == 'dark' %}selected{% endif %}>{{ t('prefs.dark') }}</option>
-						<option value="auto" {% if prefs.ui_theme == 'auto' %}selected{% endif %}>{{ t('prefs.auto') }}</option>
-					</select>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-chart" title="{{ t('prefs.chart_title') }}">{{ t('prefs.chart') }}</label>
-					<select class="form-select" id="pref-chart" name="chart_type" title="{{ t('prefs.chart_title') }}">
-						<option value="line" {% if prefs.chart_type == 'line' %}selected{% endif %}>{{ t('prefs.line') }}</option>
-						<option value="candle" {% if prefs.chart_type == 'candle' %}selected{% endif %}>{{ t('history.candle') }}</option>
-					</select>
-				</div>
-				<div class="col">
-					<label class="form-label" for="pref-draw" title="{{ t('prefs.draw_title') }}">{{ t('prefs.draw') }}</label>
-					<select class="form-select" id="pref-draw" name="chart_render" title="{{ t('prefs.draw_title') }}">
-						<option value="image" {% if prefs.chart_render == 'image' %}selected{% endif %}>{{ t('prefs.image') }}</option>
-						<option value="vector" {% if prefs.chart_render == 'vector' %}selected{% endif %}>{{ t('prefs.vector') }}</option>
-					</select>
-				</div>
-			</div>
-			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mt-3">
-				<p class="pref-foot small text-secondary mb-0">{{ t('prefs.foot') }}</p>
-				<button class="btn btn-primary flex-shrink-0" type="submit">{{ t('prefs.save') }}</button>
-			</div>
-		</form>
-		</div>
-		</div>
-		</div>
-	</div>
-	<div id="pref-wait" class="position-fixed top-0 start-0 w-100 h-100 d-none bg-body align-items-center justify-content-center" style="--bs-bg-opacity: .55; z-index: 2000" role="status">
-		<div class="spinner-border text-primary" aria-hidden="true"></div>
-		<span class="visually-hidden">{{ t('prefs.saving') }}</span>
 	</div>
 </main>
 <script type="application/json" id="i18n">{{ {
@@ -659,7 +770,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=40) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=52) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

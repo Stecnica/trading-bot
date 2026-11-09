@@ -5,8 +5,6 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
-from html import escape
-
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
@@ -16,7 +14,6 @@ install_import_path()
 
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, session, url_for
 from jinja2 import ChoiceLoader, FileSystemLoader
-from werkzeug.exceptions import HTTPException
 
 from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_session
 from bot_charts import history_hits, history_model, history_png, treemap_grouped, treemap_grouped_png, treemap_layout, treemap_png
@@ -56,7 +53,7 @@ from bot_db import (
     seed_preferences,
     sell_ready_lots,
     symbol_places,
-    validate_preferences,
+    preference_patch,
     write_status,
     read_status,
 )
@@ -143,6 +140,9 @@ def guard():
         return None
     if request.endpoint == "login":
         if request.method == "POST" and not _csrf_ok():
+            if session_alive(session):
+                nxt = request.form.get("next") or request.args.get("next")
+                return redirect(_safe_next(nxt), code=303)
             abort(400, tr("csrf.bad"))
         _ensure_csrf()
         return None
@@ -198,7 +198,7 @@ def login():
         if ok:
             destination = _safe_next(request.form.get("next"))
             stamp_session(session)
-            return redirect(destination)
+            return redirect(destination, code=303)
     _ensure_csrf()
     coming = request.form.get("next") if request.method == "POST" else request.args.get("next")
     return render_template(
@@ -367,13 +367,14 @@ def _sync_notice(status, running, now):
 
 @app.route("/")
 def home():
-    asset = normalize_ticker(request.args.get("asset", "")) 
+    posted_asset = normalize_ticker(request.args.get("asset", ""))
     conn = connect()
     try:
         prefs = load_preferences(conn)
-        asset = asset or prefs["focus_asset"]
-        order = _pack_choice()
-        scope = _scope_choice()
+        asset = prefs["focus_asset"]
+        buy_asset = posted_asset or asset
+        order = prefs["volume_order"]
+        scope = prefs["volume_scope"]
         prefs, blocks, tiles, volume_caption_text, frames = _volume_board(conn, prefs, order, scope)
         catalog = security_names()
         class_tree = classification_tree(conn)
@@ -381,7 +382,7 @@ def home():
         _attach_score(conn, positions)
         transactions = recent_transactions(conn)
         assets = list_assets(conn)
-        period, days = _span(request.args.get("period"))
+        period, days = _span(prefs["history_period"])
         stats = history_stats(load_asset_history(conn, asset, days))
         asset_options = [
             {"symbol": symbol, "label": f"{symbol} — {catalog[symbol]}" if catalog.get(symbol) else symbol}
@@ -401,12 +402,8 @@ def home():
         ok = ""
     status = dict(status)
     status["message"] = status_text(status.get("message"))
-    view = request.args.get("view")
-    if view not in ("volume", "history"):
-        view = "volume"
-    chart = request.args.get("chart")
-    if chart not in ("line", "candle"):
-        chart = prefs["chart_type"]
+    view = prefs["page_view"]
+    chart = prefs["chart_type"]
     return render_template(
         "index.html",
         prefs=prefs,
@@ -414,6 +411,7 @@ def home():
         fonts=FONT_CHOICES,
         weights=WEIGHT_CHOICES,
         asset=asset,
+        buy_asset=buy_asset,
         blocks=blocks,
         tiles=tiles,
         positions=positions,
@@ -501,7 +499,14 @@ def _volume_board(conn, prefs, order="rank", scope="sector"):
     _attach_score(conn, blocks)
     names = security_names()
     if wide:
-        frames, tiles = treemap_grouped(blocks, names, order)
+        frames, tiles = treemap_grouped(
+            blocks,
+            names,
+            order,
+            float(prefs["min_side"]),
+            prefs.get("volume_divide") == "on",
+            prefs.get("volume_scale") == "on",
+        )
     else:
         frames = []
         tiles = treemap_layout(blocks, names, order)
@@ -534,19 +539,63 @@ def volume_view():
         if raw_group and not chosen:
             return jsonify(error=tr("volume.bad_group")), 400
         prefs = load_preferences(conn)
+        raw_band = request.form.get("stable_band")
+        if raw_band is None or not str(raw_band).strip():
+            band = prefs["stable_band"]
+        else:
+            try:
+                band = Decimal(str(raw_band).strip().replace(",", "."))
+            except (ArithmeticError, ValueError):
+                return jsonify(error=tr("prefs.err.band")), 400
+            if not (Decimal("0") <= band <= Decimal("0.2")):
+                return jsonify(error=tr("prefs.err.band")), 400
+        raw_side = request.form.get("min_side")
+        if raw_side is None or not str(raw_side).strip():
+            side = prefs["min_side"]
+        else:
+            try:
+                side = Decimal(str(raw_side).strip().replace(",", "."))
+            except (ArithmeticError, ValueError):
+                return jsonify(error=tr("prefs.err.side")), 400
+            if not (Decimal("0") <= side <= Decimal("2")):
+                return jsonify(error=tr("prefs.err.side")), 400
+        stored_band = format(band.normalize(), "f")
+        stored_side = format(side.normalize(), "f")
+        divide = request.form.get("divide")
+        if divide not in ("off", "on"):
+            divide = prefs["volume_divide"]
+        scale = request.form.get("scale")
+        if scale not in ("off", "on"):
+            scale = prefs.get("volume_scale", "off")
         prefs["return_days"] = sessions
         prefs["names"] = count
         prefs["volume_class"] = chosen
+        prefs["stable_band"] = band
+        prefs["min_side"] = side
+        prefs["volume_divide"] = divide
+        prefs["volume_scale"] = scale
+        order = request.form.get("order")
+        if order not in ("rank", "volume"):
+            order = prefs["volume_order"]
+        scope = request.form.get("scope")
+        if scope not in ("all", "sector"):
+            scope = prefs["volume_scope"]
+        prefs["volume_order"] = order
+        prefs["volume_scope"] = scope
         save_preferences(
             conn,
             {
                 "return_days": str(sessions),
                 "names": str(count),
                 "volume_class": chosen,
+                "stable_band": stored_band,
+                "min_side": stored_side,
+                "volume_divide": divide,
+                "volume_scale": scale,
+                "volume_order": order,
+                "volume_scope": scope,
             },
         )
-        order = _pack_choice()
-        scope = _scope_choice()
         prefs, blocks, tiles, caption, frames = _volume_board(conn, prefs, order, scope)
     finally:
         conn.close()
@@ -559,6 +608,11 @@ def volume_view():
         caption=caption,
         order=order,
         scope=scope,
+        band=stored_band,
+        side=stored_side,
+        divide=divide,
+        scale=scale,
+        flat=tr("volume.flat", band=format_pct(band)),
     )
 
 
@@ -622,18 +676,49 @@ def chart_hits():
     return response
 
 
+def _positions_payload(rows):
+    payload = []
+    for row in rows:
+        payload.append(
+            {
+                "asset": row["asset"],
+                "bought": format_when(row["bought_at"]),
+                "score": row.get("score") or "",
+                "score_detail": row.get("score_detail") or "",
+                "amount": format_qty(row["amount"]),
+                "cost": format_price(row["buy_price"]),
+                "now": format_price(row["market_price"]),
+                "now_time": format_when(row["market_time"]),
+                "profit": format_pct(row["ratio"]),
+                "outcome": row["outcome"],
+                "ready": bool(row["ready"]),
+            }
+        )
+    return payload
+
+
 @app.route("/prefs", methods=["POST"])
 def save_prefs():
-    values, error = validate_preferences(request.form)
+    values, error = preference_patch(request.form)
     if error:
-        return redirect(url_for("home", err=error))
+        return jsonify(error=error), 400
     conn = connect()
     try:
         save_preferences(conn, values)
+        prefs = load_preferences(conn)
+        payload = {"ok": True, "values": values}
+        if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours"}.intersection(values):
+            rows = position_rows(conn, prefs)
+            _attach_score(conn, rows)
+            payload["positions"] = _positions_payload(rows)
+            payload["positions_help"] = tr(
+                "positions.help",
+                threshold=format_pct(prefs["profit_threshold"]),
+            )
     finally:
         conn.close()
     log.info("preferences updated")
-    return redirect(url_for("home", ok=tr("prefs.saved"), asset=values["focus_asset"]))
+    return jsonify(payload)
 
 
 def _buy_back(**extra):
@@ -655,6 +740,8 @@ def buy():
         return _buy_back(err=tr("buy.bad_numbers"), asset=asset)
     if amount is None or amount <= 0:
         return _buy_back(err=tr("buy.bad_amount"), asset=asset)
+    if amount > Decimal("1000000000"):
+        return _buy_back(err=tr("buy.over_billion"), asset=asset)
     conn = connect()
     try:
         prefs = load_preferences(conn)
@@ -664,6 +751,8 @@ def buy():
                 price = money(market["price"])
         if price is None or price <= 0:
             return _buy_back(err=tr("buy.no_price"), asset=asset)
+        if price > Decimal("1000000000"):
+            return _buy_back(err=tr("buy.over_billion"), asset=asset)
         notional = amount * price
         if notional > prefs["max_investment"]:
             return _buy_back(
@@ -712,64 +801,6 @@ def refresh():
     )
     log.info("cycle started")
     return redirect(url_for("home"))
-
-
-_ERROR_PAGE = WEB / "error" / "error-page-03" / "index.html"
-_ERROR_TITLE = {
-    400: "Bad Request",
-    401: "Unauthorized",
-    403: "Forbidden",
-    404: "Not Found",
-    405: "Method Not Allowed",
-    500: "Internal Server Error",
-    502: "Bad Gateway",
-    503: "Service Unavailable",
-}
-_ERROR_TEXT = {
-    400: "The request syntax is not valid.",
-    401: "This address requires a signed-in session.",
-    403: "You are not allowed to open this address.",
-    404: "Nothing is published at this address.",
-    405: "This address does not accept that method.",
-    500: "Internal error. The detail is in the bot log.",
-    502: "The server received an invalid response while handling the request.",
-    503: "The bot is temporarily unavailable. Try again shortly.",
-}
-
-
-def _error_page(code, description):
-    title = _ERROR_TITLE.get(code, "Error")
-    try:
-        body = _ERROR_PAGE.read_text(encoding="utf-8").format(
-            error_code=int(code),
-            error_title=escape(title),
-            error_description=escape(description),
-        )
-    except (OSError, ValueError, KeyError):
-        log.exception("error page not rendered")
-        body = escape(description)
-    return Response(body, status=code, mimetype="text/html; charset=utf-8")
-
-
-def _http_text(exc, code):
-    stock = getattr(type(exc), "description", None)
-    given = (exc.description or "").strip()
-    if given and given != stock:
-        return given
-    if code == 500:
-        return tr("error.internal")
-    return _ERROR_TEXT.get(code, given or "Error")
-
-
-@app.errorhandler(Exception)
-def on_error(exc):
-    if isinstance(exc, HTTPException):
-        code = exc.code or 500
-        if code < 400:
-            return exc
-        return _error_page(code, _http_text(exc, code))
-    log.exception("page error")
-    return _error_page(500, tr("error.internal"))
 
 
 def _required_money(value):
