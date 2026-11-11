@@ -1,5 +1,7 @@
 # Trading bot
 
+Version 0.1.0.
+
 A paper-trading application for one US equity list. It stores daily prices, records buys, and records a sale when the net profit of an open lot reaches the configured threshold. Prices come from [Massive](https://massive.com/stocks). Orders are not sent to a broker: a buy or a sale is a row in the database.
 
 The same HTTP interface is used by a person in the browser, by a scheduled run of `cycle.py`, and by a digital agent (OpenClaw or anything else that can hold a cookie and post a form). Each client has its own session. A price update takes a lock, so two updates do not write the same session twice. Other requests keep their own sessions and wait their turn on the WSGI process.
@@ -12,11 +14,15 @@ The page is a bar and two tabs. The icon links home. The title is the words Trad
 
 ![All](static/screenshot/Volume%20All.png)
 
-**All** draws the names in the archive as blocks. The first control is the switch All | Sector. Beside it, on All and on Sector, is the flat band: the same value as in preferences. A block’s size is the volume of the latest stored session. Its colour and the percentage on it are that session against the one before: green up, red down, blue inside the flat band from preferences. The company name sits on the block. The sector name sits on the blocks of that sector. A block that would come out as a strip is left out and the space goes to the blocks that remain. In this picture: 77 blocks.
+**All** draws every name in the archive that has a price and a volume. The blocks of one sector share a gold double edge. A block’s size is the volume of the latest stored session. Its colour and the percentage on it are that session against the one before: green up, red down, blue inside the flat band. The company name sits on the block. The sector name sits on the blocks of that sector.
+
+![All preferences](static/screenshot/Volume%20All%20-%20Pref%20Menu.png)
+
+The gear on All opens Mode, Band, Side, Divide and Scale. This picture is Mode All, Band 0.004, Side 0, Divide On and Scale On. Divide On keeps the shorter of the two cuts between two contiguous blocks. Divide Off keeps the first cut. Scale On compresses a cell whose long side is more than 1.618 times its short side, writes that ratio on the name, and gives the empty side back to the block. The caption reads: all sectors, as blocks, 501 in the chart.
 
 ![Sector](static/screenshot/Volume%20Sector.png)
 
-**Sector** is the other side of the same switch. The controls after it are Rank | Volume, Sessions, Names, the sector list, the group list, and the flat band. Rank places the rectangles in return order. Volume places the largest first. Sessions is how many sessions that return uses. Names is how many of those names are drawn. The sector list and the group list are the GICS names stored for this database. Choosing a sector limits the groups to that sector. The first entry of each list, All, clears that level. In this picture Rank is selected, Sessions is 240, Names is 40, and both lists are on All: the 40 names with the highest return over those sessions. The tile also shows the score. The same colour rule as All. `POST /volume` saves sessions, names, the sector or group, and the flat band. The switch and Rank | Volume are not saved.
+**Sector** is the other side of the same switch. This picture has the gear open: Arrangement Rank, Sessions 120, Names 240, Sector All, Group All, Band 0.004. The caption reads: among the names in the archive, the 240 with the highest return over the last 120 sessions, and 240 are in the chart. Rank places the rectangles in return order. Volume places the largest first. Sessions is how many sessions that return uses. Names is how many of those names are drawn. The sector list and the group list are the GICS names stored for this database. Choosing a sector limits the groups to that sector. The first entry of each list, All, clears that level. The tile also shows the score. The same colour rule as All. `POST /volume` saves these controls.
 
 ![History](static/screenshot/History%20Line.png)
 
@@ -40,7 +46,7 @@ The update button is `POST /update`. It starts `cycle.py`: download missing clos
 
 ![Preferences](static/screenshot/Preferences.png)
 
-Preferences are three groups. Operations: threshold, investment, commission, tax, and the maximum price age. Page: flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving is `POST /prefs` and closes the dialog first. A spinner covers the page until it reloads. This picture: threshold 0.05, investment 1000, commission 0.001, tax 0.26, price age 120 hours, flat band 0.005, 50 volume names, 730 history days, 240 return sessions, history symbol MRNA, messages stay 8 seconds, typeface Outfit, size 100, weight regular, theme Light, chart Line, drawing Vector.
+Preferences are three groups. Operations: threshold, investment, commission, tax, and the maximum price age. Page: flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving one field is `POST /prefs`. The menu stays open and the page does not reload. This picture: threshold 0.05, investment 1000, commission 0.001, tax 0.26, price age 120 hours, flat band 0.005, 50 volume names, 730 history days, 240 return sessions, history symbol MRNA, messages stay 8 seconds, typeface Outfit, size 100, weight regular, theme Light, chart Line, drawing Vector.
 
 Theme **Automatic** follows the browser’s local time: light from 07:00 to 19:00, dark otherwise. Light and Dark stay fixed. The first paint uses the server clock; the page then follows the browser.
 
@@ -60,7 +66,7 @@ Every POST carries the `csrf` value from the page. After sign-in the routes are:
 | `POST /cycle` | Apply the sell rule to lots that are ready. |
 | `POST /update` | Start one price update, which then applies the sell rule. |
 | `POST /prefs` | Save preferences. Field names match the inputs in the dialog. |
-| `POST /volume` | Save the volume filter: `return_days` (1–240), `names` (10–500, step 10), `volume_class`, `stable_band` (0–0.2), `csrf`. `order` (`rank` or `volume`) and `scope` (`all` or `sector`) are sent with the picture and are not saved. |
+| `POST /volume` | Save the volume picture: `return_days` (1–240), `names` (10–500, step 10), `volume_class`, `stable_band` (0–0.2), `min_side` (0–2), `order` (`rank` or `volume`), `scope` (`all` or `sector`), `divide` and `scale` (`off` or `on`), `csrf`. |
 | `POST /exit` | End this session. |
 
 `volume_class` is empty for the whole archive, `s:` plus a sector name, or `u:` plus a sector, a pipe, and a group name.
