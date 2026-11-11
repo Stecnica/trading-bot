@@ -54,7 +54,7 @@ A message slides out under the bar when an update starts and when it finishes. I
 
 ## Operators
 
-A person uses the buttons. An agent uses the same routes as the form. There is no separate agent API and no broker plugin.
+A person uses the buttons. An agent uses the same routes as the form. OpenClaw is one such agent: it signs in, holds the cookie, and posts.
 
 A schedule runs `python cycle.py` once, on weekdays, after the US cash session has closed. The process needs the database variables and `MASSIVE_API_KEY`, the same ones the application uses. The hour belongs in the reader's own crontab. One run does three things, in this order.
 
@@ -66,21 +66,33 @@ It then reads the score. An open lot whose score side is sell is sold. If no lot
 
 `POST /update` starts that same command. `POST /cycle` runs only the threshold sale.
 
-The key follows the plan that issued it. Names, windows, and prices are in the table under Prices. The delay was checked again on the Massive stocks page on 11 November 2026.
+## Continuing
 
-With Stocks Basic the session arrives at the end of the day, and the weekday run after the close meets it there.
+Two connections carry the same cycle out to a run that decides and orders on its own. The first is the Massive plan on the key, which sets how far back and how live the bars are. The second is a broker API on the write of a buy or a sale. After both, a crontab calls `python cycle.py` at the hours you choose, or an OpenClaw instance studies the stored sessions and the preferences and posts the decision. The orders then leave for the account.
 
-With Stocks Starter the session is fifteen minutes delayed, calls are unlimited, and five years of bars come with WebSocket and flat files. The same schedule can run during the day and read that delayed session.
+The preferences that decision reads are the threshold, the commission, the tax, the maximum investment, and the score.
 
-With Stocks Developer the delay is the same and the archive reaches ten years, so a longer study sits behind the same daily decision.
+**The price plan.** `deploy/prepare.py` writes `private/massive_api.env`. Set `MASSIVE_API_KEY` there to a key of the plan you are exercising. Names, windows, and prices of the plans are in the table under Prices.
 
-With Stocks Advanced the prices are real time and the archive goes back to 10 September 2003. The schedule can watch the open session and decide on the prices as they form.
+| Plan | What the cycle asks for |
+| --- | --- |
+| Stocks Basic | The session after the close, two years back. |
+| Stocks Starter | The session delayed fifteen minutes, five years, unlimited calls, WebSocket, and flat files. |
+| Stocks Developer | The same fifteen-minute session, ten years back. |
+| Stocks Advanced | The live session, and daily history back to 10 September 2003. |
+| Stocks Business | The live session and that history, under a commercial licence, with proprietary exchange feeds added. |
 
-With Stocks Business the prices are real time as well, under a commercial licence, and proprietary exchange feeds can be added. The preferences remain the decision. The licence is what lets other people see the data.
+`update_from_massive` in `bot_massive.py` calls `get_grouped_daily_aggs`. `last_completed_session` treats 16:00 New York as the close and returns the last weekday whose close has passed. From that day, `_pending` walks back `HISTORY_DAYS` (731). For a Basic key, leave that window: the new bars arrive after the close, and the weekday run meets them. For a Starter or Developer key, include the delayed session the plan is publishing, and lengthen the walk to five or ten years. For an Advanced or Business key, include the live session and start the walk at 2003-09-10. Where the plan includes flat files, add that reader beside `update_from_massive` and keep its coordinates in `private/massive_api.env`.
 
-A connected broker carries the buy and the sale from the row onto the account. Real-time prices, on Advanced or on Business, together with that broker, let the scheduled run examine the session and act on the preferences: the threshold, the commission, the tax, the maximum investment, and the score.
+Run `python cycle.py`. The bars land in `market_history`, and the threshold sale and the score follow them. The period buttons post `1`, `7`, `30`, `90`, `180`, `ytd`, `365`, and `730`. Add the five-year, ten-year, and full-archive values once those bars are in the table.
 
-Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the file `private/ui_password`: the first successful check replaces the plaintext with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /exit`. Five failed attempts lock the application for 15 minutes.
+**The broker.** `POST /buy`, `sell_ready_lots`, and `bot_decide.apply_once` finish in `insert_transaction`. Add the broker call on that write. The same symbol, quantity, price, and side go to the broker API, and the row is stored when the broker accepts the order. Keep the credentials in `private/`, beside the Massive key, outside the repository.
+
+Point the call at the broker's paper account. It is the same API with a separate endpoint and simulated money, so the whole path can be tested. Run `python cycle.py`, or sign OpenClaw in and post `/update`. The paper account shows the order, and `transactions` shows the matching row. The funded account is that same call on the live endpoint.
+
+With a live session from Advanced or Business, and with the broker accepting the write, the crontab and OpenClaw act on the preferences: the threshold, the commission, the tax, the maximum investment, and the score.
+
+Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the single line in `private/ui_password`. The first successful check replaces that line with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /exit`. Five failed attempts lock the application for 15 minutes.
 
 Every POST carries the `csrf` value from the page. After sign-in the routes are:
 
@@ -147,25 +159,41 @@ Five tables. `deploy/schema.sql` creates them. On startup `ensure_schema` create
 | `classification` | GICS sector and group. A sector has no parent. A group points at its sector. |
 | `asset_class` | Symbol to its group. The symbol is the same `asset_name` used by prices and transactions. |
 
-## Deploy
+## Start
 
-Requirements: Python 3.10, MariaDB, and the packages in `requirements.txt`. `yfinance` is imported when the application starts. The price update does not call it.
+Requirements: Python 3.10 and MariaDB on the machine. From the repository:
 
-1. `pip install -r requirements.txt`
-2. Create an empty database and a user that can create tables in it.
-3. Apply `deploy/schema.sql`, or start the application once and let `ensure_schema` create the tables.
-4. Copy `deploy/database.env.example` into the process environment. Fill `DB_SERVER`, `DB_USERNAME`, `DB_PASSWORD`, and `DB_NAME`. A suffixed form of the same name is used first.
-5. With those variables set, `python deploy/sample_archive.py` loads six invented sessions for eight names, one sector, and one buy. It refuses to write when `market_history` already has rows. The rows are not market prices and not a Massive download. The page can be opened before any price update.
-6. Copy `deploy/massive.env.example` to `private/massive_api.env` and set `MASSIVE_API_KEY`. A real update uses that key and the caller's own plan.
-7. Put the interface password in `private/ui_password`. The first successful sign-in hashes it.
-8. `ROOT` is the parent of the directory that contains the application, and `private/` sits next to `web/`. `SITE_PACKAGES` is the `SITE_PACKAGES` environment variable, or the process user’s own site-packages. The WSGI entry is `app.wsgi`. A generated session secret is written to `private/flask_secret` on first use.
-9. Serve `app.wsgi`. Static files, including Bootstrap and the fonts, are under `static/` and are not loaded from a third party.
+```
+pip install -r requirements.txt
+python deploy/prepare.py
+```
 
-Nothing in those example files is a live credential. Do not commit a filled copy. `private/` stays outside the repository.
+That command creates the directory `private` beside the repository, writes the three files below, creates the database `trading` through the local MariaDB root socket, loads six invented sessions, and serves http://127.0.0.1:8000 . Sign in as `bot` with the password the command prints. `--no-serve` stops before the page, for a machine that already serves `app.wsgi`.
 
-## Not in this version
+`private/ui_password` is one line, the password just printed.
 
-`TODO.md` lists what is deliberately not built yet: the open session on Basic, history longer than the stored archive, flat-file download, a broker connection, a loss limit, an exchange calendar, and a check of database quantities against an account. The sell rule stays the deterministic threshold in `cycle.py` and in the sell check.
+`private/database.env`
+
+```
+DB_SERVER=localhost
+DB_USERNAME=trading
+DB_PASSWORD=9f3c1a0e7b24
+DB_NAME=trading
+```
+
+The password is generated. The same value is the MariaDB user `trading`.
+
+`private/massive_api.env`
+
+```
+MASSIVE_API_KEY=paste-the-key-here
+```
+
+Replace that placeholder with a key from Massive when you want a real price update. The sample page opens without it. The first sign-in replaces the password line with a scrypt hash. Do not commit `private/`.
+
+## Beyond the two connections
+
+`TODO.md` carries the next list, a loss limit, the exchange holiday calendar, and the reconciliation of quantities with the account.
 
 ## Licence
 

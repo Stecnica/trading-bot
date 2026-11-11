@@ -42,6 +42,33 @@ def install_import_path():
         sys.path.insert(0, SITE_PACKAGES)
 
 
+def apply_env_file(path, environ=None):
+    """Set empty variables from a KEY=value file. Existing values stay."""
+    target = os.environ if environ is None else environ
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for line in lines:
+        text = line.strip()
+        if not text or text.startswith("#"):
+            continue
+        if text.startswith("export "):
+            text = text[len("export "):].strip()
+        key, sep, value = text.partition("=")
+        if not sep:
+            continue
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and value and not target.get(key):
+            target[key] = value
+
+
+def load_private_env():
+    """Fill the database variables from private/database.env when the process has none."""
+    apply_env_file(PRIVATE / "database.env")
+
+
 def env_first(*keys, default=None):
     for key in keys:
         value = os.environ.get(key)
@@ -58,6 +85,7 @@ def env_db(base, default=None):
 
 
 def db_config():
+    load_private_env()
     return {
         "user": env_db("DB_USERNAME"),
         "password": env_db("DB_PASSWORD"),
