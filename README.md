@@ -2,6 +2,8 @@
 
 Version 0.1.0.
 
+[![Version](https://img.shields.io/github/v/tag/Stecnica/trading-bot)](https://github.com/Stecnica/trading-bot/releases/tag/v0.1.0) [![Tests](https://img.shields.io/github/actions/workflow/status/Stecnica/trading-bot/tests.yml?branch=main)](https://github.com/Stecnica/trading-bot/actions/workflows/tests.yml)
+
 A paper-trading application for one US equity list. It stores daily prices, records buys, and records a sale when the net profit of an open lot reaches the configured threshold. Prices come from [Massive](https://massive.com/stocks). Orders are not sent to a broker: a buy or a sale is a row in the database.
 
 The same HTTP interface is used by a person in the browser, by a scheduled run of `cycle.py`, and by a digital agent (OpenClaw or anything else that can hold a cookie and post a form). Each client has its own session. A price update takes a lock, so two updates do not write the same session twice. Other requests keep their own sessions and wait their turn on the WSGI process.
