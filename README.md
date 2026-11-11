@@ -54,7 +54,31 @@ A message slides out under the bar when an update starts and when it finishes. I
 
 ## Operators
 
-A person uses the buttons. A schedule runs `cycle.py` on its own, on weekdays after the US cash session, because the free price plan publishes a session only once it is closed. An agent uses the same routes as the form. There is no separate agent API and no broker plugin.
+A person uses the buttons. An agent uses the same routes as the form. There is no separate agent API and no broker plugin.
+
+A schedule runs `python cycle.py` once, on weekdays, after the US cash session has closed. The process needs the database variables and `MASSIVE_API_KEY`, the same ones the application uses. The hour belongs in the reader's own crontab. One run does three things, in this order.
+
+It downloads the closed sessions that are not in the archive yet. On Stocks Basic a session is published after it has closed, so that hour is when the new bars arrive.
+
+It sells every open lot whose net profit is at or above the threshold, when the latest price is recent enough. Net profit is the one described under Positions: the sale commission and the tax on the gain come off the proceeds, then the result is compared with the cost of the buy.
+
+It then reads the score. An open lot whose score side is sell is sold. If no lot is open after that, the run records at most one buy: the name with the highest buy score, within the maximum investment. While a lot stays open, it waits. The buy and the sale are rows in `transactions`.
+
+`POST /update` starts that same command. `POST /cycle` runs only the threshold sale.
+
+The key follows the plan that issued it. Names, windows, and prices are in the table under Prices. The delay was checked again on the Massive stocks page on 11 November 2026.
+
+With Stocks Basic the session arrives at the end of the day, and the weekday run after the close meets it there.
+
+With Stocks Starter the session is fifteen minutes delayed, calls are unlimited, and five years of bars come with WebSocket and flat files. The same schedule can run during the day and read that delayed session.
+
+With Stocks Developer the delay is the same and the archive reaches ten years, so a longer study sits behind the same daily decision.
+
+With Stocks Advanced the prices are real time and the archive goes back to 10 September 2003. The schedule can watch the open session and decide on the prices as they form.
+
+With Stocks Business the prices are real time as well, under a commercial licence, and proprietary exchange feeds can be added. The preferences remain the decision. The licence is what lets other people see the data.
+
+A connected broker carries the buy and the sale from the row onto the account. Real-time prices, on Advanced or on Business, together with that broker, let the scheduled run examine the session and act on the preferences: the threshold, the commission, the tax, the maximum investment, and the score.
 
 Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the file `private/ui_password`: the first successful check replaces the plaintext with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /exit`. Five failed attempts lock the application for 15 minutes.
 
