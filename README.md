@@ -195,6 +195,10 @@ Replace that placeholder with a key from Massive when you want a real price upda
 
 `TODO.md` carries the next list, a loss limit, the exchange holiday calendar, and the reconciliation of quantities with the account.
 
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) is how to add a language, carry a price plan through, or connect a broker.
+
 ## Licence
 
 [MIT](LICENSE). Copyright (c) 2026 Stefano Monti (Stecnica), <https://www.itecnica.it>.
