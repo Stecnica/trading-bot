@@ -1,9 +1,23 @@
 """Open lots and the sale decision net of commissions and tax."""
 
+from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 QTY = Decimal("0.00000001")
 DUST = Decimal("0.00000001")
+
+
+def one_day_floor(today):
+    """Earliest date of the newest bar on a one-day chart.
+
+    Saturday and Sunday have no floor: the chart keeps the last two sessions.
+    Monday accepts Friday. Any other weekday accepts yesterday.
+    """
+    if today.weekday() >= 5:
+        return None
+    if today.weekday() == 0:
+        return today - timedelta(days=3)
+    return today - timedelta(days=1)
 
 
 def money(value):
