@@ -4,12 +4,15 @@ import json
 import os
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
+from zoneinfo import ZoneInfo
 
 import mysql.connector
 
 from bot_config import LOCK_PATH, STATUS_PATH, db_config, get_logger
 from bot_i18n import tr
-from bot_logic import money, open_lots, quote_sell
+from bot_logic import money, one_day_floor, open_lots, quote_sell
+
+NEW_YORK = ZoneInfo("America/New_York")
 
 log = get_logger()
 
@@ -571,6 +574,8 @@ def load_bars_since(conn, days):
 
 
 def load_asset_history(conn, asset, days):
+    if int(days) == 1:
+        return _load_one_day(conn, asset)
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """
@@ -584,6 +589,32 @@ def load_asset_history(conn, asset, days):
     )
     rows = cur.fetchall()
     cur.close()
+    return rows
+
+
+def _load_one_day(conn, asset):
+    """The newest stored session and the one before it, when that pair is still current."""
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """
+        SELECT timestamp, price, open_price, high_price, low_price, volume, vwap
+        FROM market_history
+        WHERE asset_name = %s
+        ORDER BY timestamp DESC
+        LIMIT 2
+        """,
+        (asset,),
+    )
+    rows = cur.fetchall()
+    cur.close()
+    if len(rows) < 2:
+        return []
+    newest = rows[0]["timestamp"]
+    newest_day = newest.date() if hasattr(newest, "date") else newest
+    floor = one_day_floor(datetime.now(NEW_YORK).date())
+    if floor is not None and newest_day < floor:
+        return []
+    rows.reverse()
     return rows
 
 
