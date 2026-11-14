@@ -164,7 +164,6 @@
 			overflow: auto;
 		}
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
-		.panel-note { opacity: 0.62; }
 		.nav-panel .buy-billion { width: calc(10ch + 1.5rem); }
 		.nav-panel .buy-five { width: calc(5ch + 1.5rem); }
 		.nav-panel .buy-tax { width: calc(8ch + 1.5rem); }
@@ -214,7 +213,7 @@
 		.form-label { margin-bottom: .15rem; }
 	</style>
 </head>
-<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}"{% if request.args.get('panel') == 'buy' %} data-panel="buy"{% endif %}>
+<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}">
 {% macro operation_fields(with_investment) %}
 <h3 class="h6 mb-0">{{ t('prefs.operations') }}</h3>
 <div class="d-flex align-items-start gap-3 text-center">
@@ -431,9 +430,6 @@
 									</div>
 								</div>
 							</div>
-							{% if request.args.get('panel') == 'buy' and (err or ok) %}
-							<div class="panel-note border rounded-4 text-center px-3 py-2 mb-3 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' }}" role="status">{{ err or ok }}</div>
-							{% endif %}
 							<p class="mb-3">{{ t('buy.help') }}</p>
 							<form class="d-flex flex-column gap-3" method="post" action="{{ url_for('buy') }}">
 								<input type="hidden" name="csrf" value="{{ csrf }}">
@@ -529,7 +525,7 @@
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
 			<div class="slide-note preview border rounded-4 text-center pe-none px-3 py-2" data-preview role="status"></div>
 		</div>
-		{% elif (err or ok or sync_notice) and request.args.get('panel') != 'buy' %}
+		{% elif err or ok or sync_notice %}
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
 			<div class="slide-note border rounded-4 text-center pe-none px-3 py-2 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' if ok or status.state == 'ok' else 'text-primary bg-info border-primary opacity-50' }}{{ ' stay' if running and not ok and not err else '' }}" style="--linger: {{ prefs.notice_seconds }}s" role="status">
 				{% if err %}{{ err }}{% elif ok %}{{ ok }}{% else %}{{ status.message }}{% endif %}
