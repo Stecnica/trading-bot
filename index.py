@@ -722,7 +722,6 @@ def save_prefs():
 
 
 def _buy_back(**extra):
-    extra["panel"] = "buy"
     return redirect(url_for("home", **extra))
 
 

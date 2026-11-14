@@ -133,14 +133,6 @@ function uiText(key, vars) {
     });
   });
 
-  var openPanel = document.body.dataset.panel;
-  if (openPanel) {
-    var toggle = document.getElementById(openPanel + "-toggle");
-    if (toggle) {
-      bootstrap.Dropdown.getOrCreateInstance(toggle).show();
-    }
-  }
-
   var volumeControls = document.getElementById("volume-controls");
   var volumeMap = document.getElementById("volume-map");
   var volumeCaption = document.getElementById("volume-caption");
