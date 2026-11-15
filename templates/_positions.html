@@ -1,4 +1,4 @@
-{% from "_grid.html" import grid_cols, grid_sign, currency_head, head with context %}
+{% from "_grid.html" import grid_cols, grid_sign, currency_head, head, symbol with context %}
 {% if positions %}
 <table class="table grid-table">
 	{{ grid_cols([22, 5, 12, 15, 15, 17, 14], [18, 15, 21, 21, 25, 0, 0]) }}
@@ -16,7 +16,7 @@
 	{% for row in positions %}
 	<tbody{% if row.ready %} class="table-success"{% endif %}>
 		<tr>
-			<td class="grid-l"{% if row.score_detail %} title="{{ row.score_detail }}"{% endif %}>{{ row.asset }}</td>
+			<td class="grid-l"{% if row.score_detail %} title="{{ row.score_detail }}"{% endif %}>{{ symbol(row.asset) }}</td>
 			<td class="grid-l m-hide" title="{{ row.currency }}">{{ row.currency|currency }}</td>
 			<td title="{{ row.amount|qty_full }}">{{ row.amount|qty }}</td>
 			<td>{{ row.buy_price|px }}</td>

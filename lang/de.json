@@ -191,6 +191,7 @@
   "quotes.skip": "Stapel {index} übersprungen. Mit den anderen geht es weiter.",
   "quotes.partial": "Dieser Lauf hat {failed} Namen nicht aktualisiert. Neue Kurse: {stored}. Bereits gespeicherter Verlauf bleibt. Der nächste Lauf versucht nur die Zurückgebliebenen erneut.",
   "chart.unavailable": "Der Verlauf ist nicht verfügbar.",
+  "chart.open": "Chart {asset}",
   "period.abbr.day": "T",
   "period.abbr.week": "W",
   "period.abbr.month": "M",

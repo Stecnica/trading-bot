@@ -191,6 +191,7 @@
   "quotes.skip": "Fasciculus {index} omissus. Cum ceteris pergitur.",
   "quotes.partial": "Haec cursus {failed} nomina non renovavit. Novae barrae: {stored}. Historia iam reposita manet. Proximus cursus sola relicta iterum temptat.",
   "chart.unavailable": "Historia praesto non est.",
+  "chart.open": "Graphium {asset}",
   "period.abbr.day": "D",
   "period.abbr.week": "H",
   "period.abbr.month": "M",

@@ -1,4 +1,4 @@
-{% from "_grid.html" import grid_cols, grid_sign with context %}
+{% from "_grid.html" import grid_cols, grid_sign, symbol with context %}
 <h3 class="h6 mt-3">{{ t('topbuy.title') }}</h3>
 {% if top_buy %}
 <table class="table grid-table top-buy">
@@ -14,7 +14,7 @@
 	{% for row in top_buy %}
 	<tbody>
 		<tr>
-			<td class="grid-l">{{ row.symbol }}</td>
+			<td class="grid-l">{{ symbol(row.symbol) }}</td>
 			<td class="{{ grid_sign(row.score) }}">{{ ('%+.3f'|format(row.score)).replace('-', '−') }}</td>
 			<td>{{ row.price|px }}</td>
 			<td{% if row.amount is not none %} title="{{ row.amount|qty_full }}"{% endif %}>{{ row.amount|qty if row.amount is not none else '—' }}</td>

@@ -326,6 +326,25 @@
 		.buy-grid .form-label { font-weight: 400; }
 		.buy-grid .form-control { font-weight: 200; }
 		.lbl-short { display: none; }
+		.sym-btn {
+			padding: 0 0.3rem;
+			border: 1px solid rgba(var(--bs-success-rgb), 0.25);
+			border-radius: 0.25rem;
+			background: rgba(var(--bs-success-rgb), 0.1);
+			color: inherit;
+			font: inherit;
+			line-height: inherit;
+		}
+		.sym-btn:hover,
+		.sym-btn:focus-visible { background: rgba(var(--bs-success-rgb), 0.22); }
+		#buy-peek .sym-btn { font-size: 0.875em; }
+		.symbol-chart {
+			width: min(64rem, calc(100vw - 1rem));
+			max-width: none;
+			color: var(--bs-body-color);
+			background: var(--bs-body-bg);
+		}
+		.symbol-chart::backdrop { background: rgba(0, 0, 0, 0.35); }
 		@media (max-width: 575.98px) {
 			.buy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 			.nav-panel.p-3 { padding: 0.75rem !important; }
@@ -569,7 +588,7 @@
 	</div>
 </div>
 {% endmacro %}
-{% from "_grid.html" import grid_cols, grid_sign, currency_head, head with context %}
+{% from "_grid.html" import grid_cols, grid_sign, currency_head, head, symbol with context %}
 {% set tx_widths = [19, 4, 9, 11, 15, 15, 14, 13] %}
 {% set tx_phone = [17, 16, 22, 22, 23, 0, 0, 0] %}
 {% set tx_total_phone = [33, 33, 34, 0, 0, 0, 0, 0] %}
@@ -649,7 +668,10 @@
 							</form>
 							<div class="buy-grid">
 								<div>
-									<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
+									<div class="d-flex align-items-baseline justify-content-between gap-2">
+										<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
+										<span id="buy-peek">{{ symbol(buy_asset) }}</span>
+									</div>
 									<select class="form-select" id="buy-asset" name="asset" form="buy-form" required>
 										{% if buy_asset not in assets %}<option value="{{ buy_asset }}" selected>{{ buy_asset }}</option>{% endif %}
 										{% for item in asset_options %}
@@ -710,7 +732,7 @@
 								{% for row in transactions.closed %}
 								<tbody>
 									<tr>
-										<td class="grid-l">{{ row.asset }}</td>
+										<td class="grid-l">{{ symbol(row.asset) }}</td>
 										<td class="grid-l m-hide" title="{{ row.currency }}">{{ row.currency|currency }}</td>
 										<td title="{{ row.qty|qty_full }}">{{ row.qty|qty }}</td>
 										<td>{{ row.buy_price|px }}</td>
@@ -757,7 +779,7 @@
 								{% for row in transactions.open %}
 								<tbody>
 									<tr>
-										<td class="grid-l">{{ row.asset }}</td>
+										<td class="grid-l">{{ symbol(row.asset) }}</td>
 										<td class="grid-l m-hide" title="{{ row.currency }}">{{ row.currency|currency }}</td>
 										<td title="{{ row.qty|qty_full }}">{{ row.qty|qty }}</td>
 										<td>{{ row.buy_price|px }}</td>
@@ -1097,8 +1119,22 @@
 		</div>
 	</div>
 </main>
+{# Symbol buttons open this read-only preview: current period, chart type and drawing; it saves nothing. #}
+<dialog id="symbol-chart" class="symbol-chart p-0 border rounded-3 shadow" aria-labelledby="symbol-chart-title">
+	<div class="d-flex align-items-center justify-content-between gap-3 px-3 pt-3 pb-2">
+		<h2 class="h6 mb-0" id="symbol-chart-title"></h2>
+		<form method="dialog" class="m-0"><button class="btn-close" type="submit" aria-label="{{ t('nav.close') }}" title="{{ t('nav.close') }}"></button></form>
+	</div>
+	<div class="px-3 pb-3">
+		<div class="position-relative" data-peek-frame>
+			<svg class="d-block w-100" role="img"></svg>
+			<img class="w-100 h-auto d-block d-none" alt="">
+		</div>
+	</div>
+</dialog>
 <script type="application/json" id="i18n">{{ {
 	"history.alt": t("history.alt"),
+	"chart.open": t("chart.open"),
 	"chart.unavailable": t("chart.unavailable"),
 	"preview.message": t("preview.message"),
 	"preview.success": t("preview.success"),
@@ -1106,7 +1142,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=66) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=67) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

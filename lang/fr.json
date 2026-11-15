@@ -191,6 +191,7 @@
   "quotes.skip": "Lot {index} ignoré. La suite continue.",
   "quotes.partial": "Ce passage n'a pas mis à jour {failed} valeurs. Nouvelles barres : {stored}. L'historique déjà archivé reste. Le prochain passage ne reprend que ceux restés en arrière.",
   "chart.unavailable": "L'historique n'est pas disponible.",
+  "chart.open": "Graphique {asset}",
   "period.abbr.day": "J",
   "period.abbr.week": "S",
   "period.abbr.month": "M",

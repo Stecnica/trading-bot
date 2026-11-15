@@ -913,30 +913,31 @@ function uiText(key, vars) {
     hitLayer.parentElement.appendChild(note);
   }
 
-  function showNote(zone, event) {
+  function showNote(zone, event, host) {
+    var tip = host ? host.note : note;
     var lines = zone._lines || [];
     if (!lines.length) {
-      note.classList.add("d-none");
+      tip.classList.add("d-none");
       return;
     }
-    note.replaceChildren();
+    tip.replaceChildren();
     lines.forEach(function (line) {
       var row = document.createElement("div");
       row.textContent = line;
-      note.appendChild(row);
+      tip.appendChild(row);
     });
-    note.classList.remove("d-none");
-    var box = frameEl.getBoundingClientRect();
+    tip.classList.remove("d-none");
+    var box = (host ? host.frame : frameEl).getBoundingClientRect();
     var x = event.clientX - box.left + 14;
     var y = event.clientY - box.top + 14;
-    if (x + note.offsetWidth > box.width - 8) {
-      x = event.clientX - box.left - note.offsetWidth - 14;
+    if (x + tip.offsetWidth > box.width - 8) {
+      x = event.clientX - box.left - tip.offsetWidth - 14;
     }
-    if (y + note.offsetHeight > box.height - 8) {
-      y = event.clientY - box.top - note.offsetHeight - 14;
+    if (y + tip.offsetHeight > box.height - 8) {
+      y = event.clientY - box.top - tip.offsetHeight - 14;
     }
-    note.style.left = Math.max(4, x) + "px";
-    note.style.top = Math.max(4, y) + "px";
+    tip.style.left = Math.max(4, x) + "px";
+    tip.style.top = Math.max(4, y) + "px";
   }
 
   if (hitLayer) {
@@ -1063,8 +1064,10 @@ function uiText(key, vars) {
   var seriesKey = "";
   var seriesData = null;
 
-  function drawSvg(data, box) {
-    if (!svg) {
+  /* host: { svg, note, frame, asset } draws into another SVG (the symbol preview); the main chart passes none. */
+  function drawSvg(data, box, host) {
+    var out = host ? host.svg : svg;
+    if (!out) {
       return;
     }
     var width = box.w;
@@ -1075,12 +1078,12 @@ function uiText(key, vars) {
     tick = Math.max(12, Math.min(19, tick)) * scale / 100;
     var weight = Number(getComputedStyle(document.documentElement).getPropertyValue("--bs-body-font-weight")) || 400;
     var titleWeight = Math.max(500, weight);
-    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
-    svg.setAttribute("preserveAspectRatio", "none");
-    svg.setAttribute("font-family", "inherit");
-    svg.style.height = height + "px";
-    svg.replaceChildren();
-    svg.setAttribute("aria-label", data.title || uiText("history.alt", { asset: select.value }));
+    out.setAttribute("viewBox", "0 0 " + width + " " + height);
+    out.setAttribute("preserveAspectRatio", "none");
+    out.setAttribute("font-family", "inherit");
+    out.style.height = height + "px";
+    out.replaceChildren();
+    out.setAttribute("aria-label", data.title || uiText("history.alt", { asset: host ? host.asset : select.value }));
     var points = data.points || [];
     if (!points.length) {
       var empty = svgEl("text", {
@@ -1092,7 +1095,7 @@ function uiText(key, vars) {
         "font-weight": String(titleWeight)
       });
       empty.textContent = data.title;
-      svg.appendChild(empty);
+      out.appendChild(empty);
       return;
     }
     var lows = [];
@@ -1126,7 +1129,7 @@ function uiText(key, vars) {
     var labelWidth = 0;
     ticks.forEach(function (value) {
       probe.textContent = priceText(value);
-      svg.appendChild(probe);
+      out.appendChild(probe);
       labelWidth = Math.max(labelWidth, probe.getBBox().width);
       probe.remove();
     });
@@ -1157,7 +1160,7 @@ function uiText(key, vars) {
       points.forEach(function (point, index) {
         var color = sessionTone(point, null);
         var x = xAt(index);
-        svg.appendChild(svgEl("line", {
+        out.appendChild(svgEl("line", {
           x1: x, x2: x, y1: yAt(point.h), y2: yAt(point.l),
           stroke: color, "stroke-width": "1.25"
         }));
@@ -1165,7 +1168,7 @@ function uiText(key, vars) {
         var close = Number(point.c);
         var bodyTop = yAt(Math.max(open, close));
         var bodyHeight = Math.max(1, Math.abs(yAt(open) - yAt(close)));
-        svg.appendChild(svgEl("rect", {
+        out.appendChild(svgEl("rect", {
           x: x - bodyW / 2,
           y: bodyTop,
           width: bodyW,
@@ -1177,7 +1180,7 @@ function uiText(key, vars) {
       var commands = points.map(function (point, index) {
         return (index ? "L" : "M") + xAt(index).toFixed(2) + " " + yAt(point.c).toFixed(2);
       }).join(" ");
-      svg.appendChild(svgEl("path", {
+      out.appendChild(svgEl("path", {
         d: commands,
         fill: "none",
         stroke: "var(--bs-primary)",
@@ -1187,7 +1190,7 @@ function uiText(key, vars) {
       }));
       if (points.length <= 40) {
         points.forEach(function (point, index) {
-          svg.appendChild(svgEl("circle", {
+          out.appendChild(svgEl("circle", {
             cx: xAt(index),
             cy: yAt(point.c),
             r: Math.max(3, tick * 0.28),
@@ -1214,14 +1217,14 @@ function uiText(key, vars) {
       if (points.length > 12) {
         date.setAttribute("transform", "rotate(-30 " + xAt(index) + " " + dateY + ")");
       }
-      svg.appendChild(date);
+      out.appendChild(date);
     }
 
     var amounts = points.map(function (point) { return Number(point.v) || 0; });
     var peak = Math.max.apply(null, amounts);
     var volumeTop = height - 8 - volumeH;
     var volumeBottom = height - 8;
-    svg.appendChild(svgEl("line", {
+    out.appendChild(svgEl("line", {
       x1: left, y1: volumeBottom, x2: right, y2: volumeBottom,
       stroke: "var(--bs-border-color)", "stroke-width": "1"
     }));
@@ -1232,7 +1235,7 @@ function uiText(key, vars) {
       points.forEach(function (point, i) {
         var amount = amounts[i];
         var barH = amount / peak * (volumeH - 4);
-        svg.appendChild(svgEl("rect", {
+        out.appendChild(svgEl("rect", {
           x: xAt(i) - barW / 2,
           y: volumeBottom - barH,
           width: barW,
@@ -1245,7 +1248,7 @@ function uiText(key, vars) {
 
     ticks.forEach(function (value) {
       var y = yAt(value);
-      svg.appendChild(svgEl("line", {
+      out.appendChild(svgEl("line", {
         x1: left,
         x2: right,
         y1: y,
@@ -1262,13 +1265,13 @@ function uiText(key, vars) {
         "font-weight": String(weight)
       });
       label.textContent = priceText(value);
-      svg.appendChild(label);
+      out.appendChild(label);
     });
-    svg.appendChild(svgEl("line", {
+    out.appendChild(svgEl("line", {
       x1: left, y1: top, x2: left, y2: plotBottom,
       stroke: "var(--bs-border-color)", "stroke-width": "1"
     }));
-    svg.appendChild(svgEl("line", {
+    out.appendChild(svgEl("line", {
       x1: left, y1: plotBottom, x2: right, y2: plotBottom,
       stroke: "var(--bs-border-color)", "stroke-width": "1"
     }));
@@ -1286,9 +1289,9 @@ function uiText(key, vars) {
       });
       zone._lines = point.lines || [];
       zone.addEventListener("pointermove", function (event) {
-        showNote(zone, event);
+        showNote(zone, event, host);
       });
-      svg.appendChild(zone);
+      out.appendChild(zone);
     });
   }
 
@@ -1328,6 +1331,118 @@ function uiText(key, vars) {
         }
         drawSvg({ title: uiText("chart.unavailable"), points: [] }, frame());
       });
+  }
+
+  /* Symbol buttons in the panels: a read-only preview with the current period, chart type and drawing. Nothing is saved. */
+  var peek = document.getElementById("symbol-chart");
+  if (peek && typeof peek.showModal === "function") {
+    var peekTitle = document.getElementById("symbol-chart-title");
+    var peekFrame = peek.querySelector("[data-peek-frame]");
+    var peekSvg = peekFrame.querySelector("svg");
+    var peekImg = peekFrame.querySelector("img");
+    var peekNote = document.createElement("div");
+    peekNote.className = note.className;
+    peekFrame.appendChild(peekNote);
+    var peekToken = 0;
+    var peekHost = null;
+    var peekData = null;
+
+    var peekBox = function () {
+      var width = Math.round(peekFrame.clientWidth);
+      var height = Math.round(Math.min(width * 8.2 / 14.5, window.innerHeight * 0.7));
+      return { w: width, h: Math.max(240, height) };
+    };
+
+    var openPeek = function (asset, label) {
+      var token = ++peekToken;
+      var vector = isVector();
+      peekHost = { svg: peekSvg, note: peekNote, frame: peekFrame, asset: asset };
+      peekData = null;
+      peekTitle.textContent = label;
+      peekSvg.replaceChildren();
+      peekSvg.setAttribute("aria-label", label);
+      peekSvg.classList.toggle("d-none", !vector);
+      peekImg.classList.toggle("d-none", vector);
+      peekImg.removeAttribute("src");
+      peekNote.classList.add("d-none");
+      peek.showModal();
+      var box = peekBox();
+      var url;
+      if (!vector) {
+        url = new URL(chartUrl(box), location.origin);
+        url.searchParams.set("asset", asset);
+        peekImg.alt = label;
+        peekImg.src = url.pathname + url.search;
+        return;
+      }
+      url = new URL(frameEl.dataset.series, location.origin);
+      url.searchParams.set("asset", asset);
+      url.searchParams.set("period", chosen("period"));
+      url.searchParams.set("chart", chosen("chart"));
+      fetch(url.pathname + url.search, { headers: { Accept: "application/json" } })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error("serie");
+          }
+          return response.json();
+        })
+        .then(function (data) {
+          if (token === peekToken) {
+            peekData = data;
+            drawSvg(data, peekBox(), peekHost);
+          }
+        })
+        .catch(function () {
+          if (token === peekToken) {
+            drawSvg({ title: uiText("chart.unavailable"), points: [] }, peekBox(), peekHost);
+          }
+        });
+    };
+
+    document.addEventListener("click", function (event) {
+      var button = event.target.closest ? event.target.closest("[data-chart-asset]") : null;
+      if (!button) {
+        return;
+      }
+      event.preventDefault();
+      openPeek(button.getAttribute("data-chart-asset"), button.getAttribute("aria-label"));
+    });
+    /* A click on the backdrop closes the preview. */
+    peek.addEventListener("click", function (event) {
+      if (event.target === peek) {
+        peek.close();
+      }
+    });
+    peek.addEventListener("close", function () {
+      peekToken += 1;
+      peekNote.classList.add("d-none");
+    });
+    peekSvg.addEventListener("mouseleave", function () {
+      peekNote.classList.add("d-none");
+    });
+    window.addEventListener("resize", function () {
+      if (peek.open && peekData) {
+        drawSvg(peekData, peekBox(), peekHost);
+      }
+    });
+    /* The panel that opened the preview stays open behind it. */
+    document.addEventListener("hide.bs.dropdown", function (event) {
+      var origin = event.clickEvent && event.clickEvent.target;
+      if (peek.open || (origin && peek.contains(origin))) {
+        event.preventDefault();
+      }
+    });
+    var buySelect = document.getElementById("buy-asset");
+    var buyPeek = document.querySelector("#buy-peek [data-chart-asset]");
+    if (buySelect && buyPeek) {
+      buySelect.addEventListener("change", function () {
+        var label = uiText("chart.open", { asset: buySelect.value });
+        buyPeek.setAttribute("data-chart-asset", buySelect.value);
+        buyPeek.setAttribute("aria-label", label);
+        buyPeek.setAttribute("title", label);
+        buyPeek.textContent = buySelect.value;
+      });
+    }
   }
 
   function paint() {

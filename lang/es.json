@@ -191,6 +191,7 @@
   "quotes.skip": "Bloque {index} omitido. Sigue con los demás.",
   "quotes.partial": "Esta pasada no actualizó {failed} valores. Barras nuevas: {stored}. El historial ya guardado permanece. La siguiente pasada reintenta solo los que quedaron atrás.",
   "chart.unavailable": "El historial no está disponible.",
+  "chart.open": "Gráfico {asset}",
   "period.abbr.day": "D",
   "period.abbr.week": "S",
   "period.abbr.month": "M",
