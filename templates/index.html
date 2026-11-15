@@ -784,6 +784,7 @@
 							<div class="tx-scroll">
 							{% if transactions.closed or transactions.open %}
 							{% if transactions.closed %}
+							<h3 class="h6">{{ t('tx.closed') }}</h3>
 							<div class="table-responsive">
 							<table class="table table-sm align-middle mb-0">
 								<colgroup>
@@ -836,6 +837,7 @@
 							</div>
 							{% endif %}
 							{% if transactions.open %}
+							<h3 class="h6">{{ t('tx.open') }}</h3>
 							<div class="table-responsive">
 							<table class="table table-sm align-middle mb-0">
 								<colgroup>
@@ -892,9 +894,6 @@
 							<div class="tx-balance-footer">
 								<span class="tx-balance-label"><strong>{{ t('prefs.balance') }}</strong></span>
 								<span class="tx-balance-value" data-paper-balance>{{ paper_balance|px }}</span>
-							</div>
-							<div class="tx-legend">
-								<small>{{ t('tx.closed') }} — {{ t('tx.open') }}</small>
 							</div>
 						</div>
 					</div>
