@@ -26,7 +26,7 @@ Exercise it on the broker's paper account. That account uses the same API, a sep
 
 ## A change to the calculation
 
-`bot_logic.py` is the net profit and the lots. `bot_decide.py` turns a score into one buy or a sale. `cycle.py` runs the prices, the threshold sale, and that decision, in that order. In the pull request, show the numbers: a lot at the threshold sells, a lot under it stays, and a score buy stays within the maximum investment.
+`bot_logic.py` is the net profit and the lots. `bot_decide.py` turns a score into one buy or a sale. `cycle.py` runs the prices, the threshold sale, and that decision, in that order. In the pull request, show the numbers: a lot at the threshold sells, a lot under it stays, and a score buy stays within the maximum investment. A buy or a sale stores the rates it was computed with (`fee_rate`, `tax_rate`, `taxable_gain`); a new write path passes them to `insert_transaction`. The estimate of an open lot in Transactions is `quote_sell` at the latest price, so a test that sells at that price must record the same commission and tax.
 
 Money stays `Decimal`.
 

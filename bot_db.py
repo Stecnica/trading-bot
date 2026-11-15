@@ -10,7 +10,7 @@ import mysql.connector
 
 from bot_config import LOCK_PATH, STATUS_PATH, db_config, get_logger
 from bot_i18n import tr
-from bot_logic import money, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance
+from bot_logic import money, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -163,6 +163,11 @@ def ensure_schema(conn):
             fees DECIMAL(18,8) NOT NULL,
             taxes DECIMAL(18,8) NOT NULL,
             currency VARCHAR(3) DEFAULT 'USD',
+            fee_rate DECIMAL(10,6) NULL,
+            tax_rate DECIMAL(10,6) NULL,
+            taxable_gain DECIMAL(18,8) NULL,
+            rates_source VARCHAR(10) NULL,
+            recorded_at DATETIME NULL,
             PRIMARY KEY (id),
             KEY idx_tx_timestamp (timestamp),
             KEY idx_tx_type (type),
@@ -174,6 +179,19 @@ def ensure_schema(conn):
     tx_columns = {row[0] for row in cur.fetchall()}
     if "currency" not in tx_columns:
         cur.execute("ALTER TABLE transactions ADD COLUMN currency VARCHAR(3) DEFAULT 'USD'")
+    tx_additions = [
+        f"ADD COLUMN {name} {kind}"
+        for name, kind in (
+            ("fee_rate", "DECIMAL(10,6) NULL"),
+            ("tax_rate", "DECIMAL(10,6) NULL"),
+            ("taxable_gain", "DECIMAL(18,8) NULL"),
+            ("rates_source", "VARCHAR(10) NULL"),
+            ("recorded_at", "DATETIME NULL"),
+        )
+        if name not in tx_columns
+    ]
+    if tx_additions:
+        cur.execute("ALTER TABLE transactions " + ", ".join(tx_additions))
     cur.execute("SHOW COLUMNS FROM market_history")
     columns = {row[0] for row in cur.fetchall()}
     additions = []
@@ -228,6 +246,49 @@ def ensure_schema(conn):
     )
     cur.close()
     conn.commit()
+    backfill_transaction_rates(conn)
+
+
+def backfill_transaction_rates(conn):
+    """Rows written before rates were stored get the current preference rates.
+
+    Only rows whose rates_source is NULL are touched, so a second run changes
+    nothing. They are marked 'estimated': the true rate of that day is unknown.
+    A sell also gets the gain it was taxed on, rebuilt with FIFO.
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM transactions WHERE rates_source IS NULL")
+    pending = cur.fetchone()[0]
+    cur.close()
+    if not pending:
+        return 0
+    prefs = load_preferences(conn)
+    rows = fetch_transactions(conn)
+    gains = taxable_gains_by_sale(rows)
+    cur = conn.cursor()
+    done = 0
+    for tx in rows:
+        if tx.get("rates_source") is not None:
+            continue
+        sell = (tx.get("type") or "").lower() == "sell"
+        cur.execute(
+            """
+            UPDATE transactions
+            SET fee_rate = %s, tax_rate = %s, taxable_gain = %s, rates_source = 'estimated'
+            WHERE id = %s AND rates_source IS NULL
+            """,
+            (
+                prefs["fee_rate"],
+                prefs["tax_rate"] if sell else None,
+                money(gains.get(tx["id"], Decimal("0"))) if sell else None,
+                tx["id"],
+            ),
+        )
+        done += cur.rowcount
+    conn.commit()
+    cur.close()
+    log.info("transaction rates backfilled as estimated: %s rows", done)
+    return done
 
 
 def save_classifications(conn, rows):
@@ -735,7 +796,8 @@ def fetch_transactions(conn):
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """
-        SELECT id, type, asset_name, amount, price, timestamp, fees, taxes, currency
+        SELECT id, type, asset_name, amount, price, timestamp, fees, taxes, currency,
+            fee_rate, tax_rate, taxable_gain, rates_source, recorded_at
         FROM transactions
         ORDER BY timestamp, id
         """
@@ -745,14 +807,21 @@ def fetch_transactions(conn):
     return rows
 
 
-def recent_transactions(conn, limit=20):
-    """Transactions panel: newest closed FIFO slices, then open lots.
+def recent_transactions(conn, prefs, limit=20):
+    """Transactions panel: newest closed FIFO slices, open lots, totals.
 
-    limit applies to closed slices (newest first). Open lots are all returned.
+    limit applies to closed slices (newest first). Open lots are all returned,
+    each valued at the latest stored price with the current fee and tax rates.
+    Totals cover every transaction, not only the slices shown.
     """
-    views = fifo_transaction_views(fetch_transactions(conn))
+    views = fifo_transaction_views(
+        fetch_transactions(conn),
+        latest_prices(conn),
+        prefs["fee_rate"],
+        prefs["tax_rate"],
+    )
     closed = list(reversed(views["closed"]))[: int(limit)]
-    return {"closed": closed, "open": views["open"]}
+    return {"closed": closed, "open": views["open"], "totals": views["totals"]}
 
 
 def paper_balance(conn, prefs):
@@ -760,29 +829,54 @@ def paper_balance(conn, prefs):
     return paper_cash_balance(fetch_transactions(conn), prefs["initial_capital"])
 
 
-def insert_transaction(conn, kind, asset, amount, price, fees, taxes, when=None, currency="USD"):
+def insert_transaction(
+    conn,
+    kind,
+    asset,
+    amount,
+    price,
+    fees,
+    taxes,
+    when=None,
+    currency="USD",
+    fee_rate=None,
+    tax_rate=None,
+    taxable_gain=None,
+):
+    """Writes one buy or sell with the rates it was computed with.
+
+    when is the session the price belongs to (a bar date is midnight);
+    recorded_at is the moment of the write.
+    """
+    now = datetime.now().replace(microsecond=0)
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO transactions (type, asset_name, amount, price, timestamp, fees, taxes, currency)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO transactions
+            (type, asset_name, amount, price, timestamp, fees, taxes, currency,
+             fee_rate, tax_rate, taxable_gain, rates_source, recorded_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'recorded', %s)
         """,
         (
             kind,
             asset,
             money(amount),
             money(price),
-            when or datetime.now().replace(microsecond=0),
+            when or now,
             money(fees),
             money(taxes),
             currency,
+            fee_rate,
+            tax_rate,
+            money(taxable_gain),
+            now,
         ),
     )
     conn.commit()
     new_id = cur.lastrowid
     cur.close()
     log.info(
-        "transazione %s id=%s %s qty=%s price=%s fees=%s taxes=%s",
+        "transazione %s id=%s %s qty=%s price=%s fees=%s taxes=%s fee_rate=%s tax_rate=%s",
         kind,
         new_id,
         asset,
@@ -790,6 +884,8 @@ def insert_transaction(conn, kind, asset, amount, price, fees, taxes, when=None,
         price,
         fees,
         taxes,
+        fee_rate,
+        tax_rate,
     )
     return new_id
 
@@ -1010,6 +1106,9 @@ def sell_open_lot(conn, prefs, lot_id):
         quote["taxes"],
         now.replace(microsecond=0),
         lot.currency,
+        quote["fee_rate"],
+        quote["tax_rate"],
+        quote["taxable_gain"],
     )
     log.info(
         "manual sale %s qty=%s price=%s net_profit=%s",
@@ -1052,6 +1151,9 @@ def sell_ready_lots(conn, prefs):
             quote["taxes"],
             now.replace(microsecond=0),
             lot.currency,
+            quote["fee_rate"],
+            quote["tax_rate"],
+            quote["taxable_gain"],
         )
         sold += 1
         log.info(

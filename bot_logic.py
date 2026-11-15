@@ -32,8 +32,19 @@ def money(value):
     return number.quantize(QTY, rounding=ROUND_HALF_UP)
 
 
+def rate(value):
+    """A stored rate as Decimal, or None when the row has none."""
+    if value is None:
+        return None
+    try:
+        number = Decimal(str(value))
+    except (ArithmeticError, ValueError):
+        return None
+    return number if number.is_finite() else None
+
+
 class Lot:
-    def __init__(self, tx_id, asset, original, price, fees, taxes, timestamp, currency=None):
+    def __init__(self, tx_id, asset, original, price, fees, taxes, timestamp, currency=None, fee_rate=None, estimated=False):
         self.tx_id = tx_id
         self.asset = asset
         self.original = money(original)
@@ -43,6 +54,23 @@ class Lot:
         self.taxes = money(taxes)
         self.timestamp = timestamp
         self.currency = currency or "USD"
+        self.fee_rate = rate(fee_rate)
+        self.estimated = estimated
+
+
+def _lot_from(tx):
+    return Lot(
+        tx["id"],
+        tx["asset_name"],
+        money(tx["amount"]),
+        tx["price"],
+        tx["fees"],
+        tx["taxes"],
+        tx.get("timestamp"),
+        tx.get("currency"),
+        tx.get("fee_rate"),
+        tx.get("rates_source") == "estimated",
+    )
 
 
 def open_lots(transactions):
@@ -55,16 +83,7 @@ def open_lots(transactions):
         asset = tx["asset_name"]
         amount = money(tx["amount"])
         if kind == "buy":
-            lot = Lot(
-                tx["id"],
-                asset,
-                amount,
-                tx["price"],
-                tx["fees"],
-                tx["taxes"],
-                tx["timestamp"],
-                tx.get("currency"),
-            )
+            lot = _lot_from(tx)
             buckets.setdefault(asset, []).append(lot)
             order.append(lot)
         elif kind == "sell":
@@ -88,7 +107,8 @@ def quote_sell(lot, market_price, fee_rate, tax_rate):
 
     Cost is the entry price plus commissions and taxes already paid, in proportion
     to the quantity left. A sale subtracts the commission and the tax on the gain
-    (only when the gain is positive).
+    (only when the gain is positive). The rates used and the taxable gain are
+    returned so the sale row can store them.
     """
     qty = lot.remaining
     price = money(market_price)
@@ -113,16 +133,27 @@ def quote_sell(lot, market_price, fee_rate, tax_rate):
         "ratio": ratio,
         "price": price,
         "amount": qty,
+        "notional": money(sell_notional),
+        "fee_rate": Decimal(str(fee_rate)),
+        "tax_rate": Decimal(str(tax_rate)),
+        "taxable_gain": money(gain) if gain > 0 else Decimal("0"),
     }
 
 
-def fifo_transaction_views(transactions):
-    """FIFO ledger for the Transactions panel: closed slices + open lots.
+def fifo_transaction_views(transactions, prices=None, fee_rate=None, tax_rate=None):
+    """FIFO ledger for the Transactions panel: closed slices, open lots, totals.
 
     Each sell is split across the buy lot(s) it closes (same order as open_lots).
     Fees and taxes on both sides are allocated by quantity share of that slice —
     a buy of 2 with a sell of 1 keeps half the buy fees on the closed slice and
     half on the remaining open lot. Margin is net after those fees and taxes.
+    Each slice carries the rates stored on its buy and sell rows and the gain the
+    tax was charged on (same formula as quote_sell).
+
+    With prices ({asset: {"price", "timestamp"}}) and the current fee and tax
+    rates, an open lot also carries what quote_sell would record if it were sold
+    now: the sale commission, the tax on the unrealized gain, and the net result.
+    Those estimates are not cash and never enter paper_cash_balance.
     """
     buckets = {}
     order = []
@@ -134,16 +165,7 @@ def fifo_transaction_views(transactions):
         if amount is None or amount <= 0:
             continue
         if kind == "buy":
-            lot = Lot(
-                tx["id"],
-                asset,
-                amount,
-                tx["price"],
-                tx["fees"],
-                tx["taxes"],
-                tx.get("timestamp"),
-                tx.get("currency"),
-            )
+            lot = _lot_from(tx)
             if lot.price is None or lot.original <= 0:
                 continue
             if lot.fees is None:
@@ -179,6 +201,7 @@ def fifo_transaction_views(transactions):
             proceeds = sell_notional - sell_fees - sell_taxes
             net = proceeds - cost
             ratio = None if cost <= 0 else net / cost
+            gain = sell_notional - sell_fees - buy_notional - buy_fees
             closed.append(
                 {
                     "kind": "closed",
@@ -188,12 +211,18 @@ def fifo_transaction_views(transactions):
                     "qty": money(take),
                     "bought_at": lot.timestamp,
                     "sold_at": tx.get("timestamp"),
+                    "recorded_at": tx.get("recorded_at"),
                     "buy_price": lot.price,
                     "sell_price": sell_price,
                     "buy_fees": money(buy_fees),
                     "buy_taxes": money(buy_taxes),
                     "sell_fees": money(sell_fees),
                     "sell_taxes": money(sell_taxes),
+                    "buy_fee_rate": lot.fee_rate,
+                    "sell_fee_rate": rate(tx.get("fee_rate")),
+                    "tax_rate": rate(tx.get("tax_rate")),
+                    "taxable_gain": money(gain) if gain > 0 else Decimal("0"),
+                    "estimated": lot.estimated or tx.get("rates_source") == "estimated",
                     "fees": money(buy_fees + sell_fees),
                     "taxes": money(buy_taxes + sell_taxes),
                     "cost": money(cost),
@@ -214,32 +243,68 @@ def fifo_transaction_views(transactions):
         share = lot.remaining / lot.original
         buy_fees = lot.fees * share
         buy_taxes = lot.taxes * share
-        cost = lot.remaining * lot.price + buy_fees + buy_taxes
-        # Open lot still ties up carrying cost: Balance contribution is negative.
-        cash = money(-cost)
-        opens.append(
-            {
-                "kind": "open",
-                "buy_id": lot.tx_id,
-                "asset": lot.asset,
-                "qty": lot.remaining,
-                "bought_at": lot.timestamp,
-                "buy_price": lot.price,
-                "fees": money(buy_fees),
-                "taxes": money(buy_taxes),
-                "cost": money(cost),
-                "cash": cash,
-                "currency": lot.currency,
-            }
-        )
-    return {"closed": closed, "open": opens}
+        notional = lot.remaining * lot.price
+        cost = notional + buy_fees + buy_taxes
+        row = {
+            "kind": "open",
+            "buy_id": lot.tx_id,
+            "asset": lot.asset,
+            "qty": lot.remaining,
+            "bought_at": lot.timestamp,
+            "buy_price": lot.price,
+            "notional": money(notional),
+            "fees": money(buy_fees),
+            "taxes": money(buy_taxes),
+            "buy_fee_rate": lot.fee_rate,
+            "estimated": lot.estimated,
+            "cost": money(cost),
+            # Cash tied up by the lot; Balance subtracts it until the lot is sold.
+            "cash": money(-cost),
+            "currency": lot.currency,
+            "market_price": None,
+            "market_time": None,
+            "est": None,
+        }
+        market = (prices or {}).get(lot.asset)
+        if market and fee_rate is not None and tax_rate is not None:
+            quote = quote_sell(lot, market["price"], fee_rate, tax_rate)
+            if quote is not None:
+                row["market_price"] = quote["price"]
+                row["market_time"] = market.get("timestamp")
+                row["est"] = {
+                    "sell_fees": quote["fees"],
+                    "fee_rate": quote["fee_rate"],
+                    "taxes": quote["taxes"],
+                    "tax_rate": quote["tax_rate"],
+                    "taxable_gain": quote["taxable_gain"],
+                    "net": money(quote["proceeds"] - quote["cost"]),
+                    "ratio": quote["ratio"],
+                }
+        opens.append(row)
+    zero = Decimal("0")
+    totals = {
+        "fees": money(sum((r["fees"] for r in closed), zero) + sum((r["fees"] for r in opens), zero)),
+        "taxes": money(sum((r["taxes"] for r in closed), zero) + sum((r["taxes"] for r in opens), zero)),
+        "est_taxes": money(sum((r["est"]["taxes"] for r in opens if r["est"]), zero)),
+        "est_count": sum(1 for r in opens if r["est"]),
+    }
+    return {"closed": closed, "open": opens, "totals": totals}
+
+
+def taxable_gains_by_sale(transactions):
+    """Gain each sell row was taxed on, summed over the FIFO slices it closed."""
+    gains = {}
+    for row in fifo_transaction_views(transactions)["closed"]:
+        gains[row["sell_id"]] = gains.get(row["sell_id"], Decimal("0")) + row["taxable_gain"]
+    return gains
 
 
 def paper_cash_balance(transactions, initial_capital):
     """Paper cash position relative to the starting budget.
 
     Buys spend notional + commissions + taxes. Sells return notional minus
-    commissions and taxes. No broker API — ledger only.
+    commissions and taxes. No broker API — ledger only. Open lots count at
+    their cost: the estimates of fifo_transaction_views never enter here.
     """
     cash = money(initial_capital)
     if cash is None:

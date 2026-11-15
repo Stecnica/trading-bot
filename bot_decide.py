@@ -123,7 +123,11 @@ def _amount_for(budget, price):
 
 
 def apply_once(conn):
-    """Writes at most one buy, the highest score, and sells open lots whose side is sell."""
+    """Writes at most one buy, the highest score, and sells open lots whose side is sell.
+
+    Both rows carry the session date of the bar they priced (midnight) and the
+    rates used; insert_transaction adds the moment of the write.
+    """
     prefs = load_preferences(conn)
     ranked = score_book(conn)
     by_symbol = {row["symbol"]: row for row in ranked}
@@ -148,6 +152,10 @@ def apply_once(conn):
             quote["fees"],
             quote["taxes"],
             row["timestamp"],
+            lot.currency,
+            quote["fee_rate"],
+            quote["tax_rate"],
+            quote["taxable_gain"],
         )
         sold.append(lot.asset)
     bought = None
@@ -170,6 +178,7 @@ def apply_once(conn):
             fees,
             Decimal("0"),
             row["timestamp"],
+            fee_rate=prefs["fee_rate"],
         )
         bought = {
             "symbol": row["symbol"],

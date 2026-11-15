@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from bot_logic import Lot, money, one_day_floor, open_lots, quote_sell, paper_cash_balance, fifo_transaction_views
+from bot_logic import Lot, money, one_day_floor, open_lots, quote_sell, paper_cash_balance, fifo_transaction_views, taxable_gains_by_sale
 
 
 def test_money_rejects_garbage():
@@ -156,3 +156,51 @@ def test_fifo_views_open_cash_is_negative_carrying_cost():
     assert views["open"][0]["cash"] == -views["open"][0]["cost"]
     assert views["open"][0]["cash"] == Decimal("-51")
     assert paper_cash_balance(txs, "1000") == Decimal("1000") + views["closed"][0]["cash"] + views["open"][0]["cash"]
+
+
+def test_quote_sell_returns_rates_and_taxable_gain():
+    lot = Lot(1, "TSLA", "1", "354.6", "0.3546", "0", 1)
+    quote = quote_sell(lot, "374.8", "0.001", "0.26")
+    assert quote["fee_rate"] == Decimal("0.001")
+    assert quote["tax_rate"] == Decimal("0.26")
+    assert quote["taxable_gain"] == Decimal("19.4706")
+    assert quote["taxes"] == money(quote["taxable_gain"] * Decimal("0.26"))
+
+
+def test_open_lot_estimate_matches_the_sale_quote_sell_would_record():
+    buy = {"id": 1, "type": "buy", "asset_name": "IDXX", "amount": "1.48889285", "price": "671.64",
+           "fees": "0.99999999", "taxes": "0", "timestamp": 1, "fee_rate": "0.001"}
+    views = fifo_transaction_views([buy], {"IDXX": {"price": "698.02", "timestamp": 2}}, "0.001", "0.26")
+    row = views["open"][0]
+    quote = quote_sell(Lot(1, "IDXX", "1.48889285", "671.64", "0.99999999", "0", 1), "698.02", "0.001", "0.26")
+    assert row["est"]["taxes"] == quote["taxes"]
+    assert row["est"]["sell_fees"] == quote["fees"]
+    assert row["est"]["net"] == money(quote["proceeds"] - quote["cost"])
+    assert row["notional"] == money(Decimal("1.48889285") * Decimal("671.64"))
+    assert row["buy_fee_rate"] == Decimal("0.001")
+    assert views["totals"]["est_taxes"] == quote["taxes"]
+    assert paper_cash_balance([buy], "10000") == Decimal("10000") + row["cash"]
+
+
+def test_open_lot_without_price_has_no_estimate():
+    buy = {"id": 1, "type": "buy", "asset_name": "SPCX", "amount": "2", "price": "162.57", "fees": "0.32514", "taxes": "0", "timestamp": 1}
+    views = fifo_transaction_views([buy], {}, "0.001", "0.26")
+    assert views["open"][0]["est"] is None
+    assert views["totals"]["est_count"] == 0
+
+
+def test_partial_sale_splits_taxable_gain_and_totals_cover_both_sides():
+    txs = [
+        {"id": 1, "type": "buy", "asset_name": "AMD", "amount": "2", "price": "50", "fees": "0.1", "taxes": "0", "timestamp": 1},
+        {"id": 2, "type": "buy", "asset_name": "AMD", "amount": "2", "price": "55", "fees": "0.11", "taxes": "0", "timestamp": 2},
+        {"id": 3, "type": "sell", "asset_name": "AMD", "amount": "3", "price": "60", "fees": "0.18", "taxes": "3", "timestamp": 3,
+         "fee_rate": "0.001", "tax_rate": "0.26", "rates_source": "estimated"},
+    ]
+    views = fifo_transaction_views(txs)
+    first, second = views["closed"]
+    assert first["taxable_gain"] == Decimal("19.78")
+    assert second["taxable_gain"] == Decimal("4.885")
+    assert first["tax_rate"] == Decimal("0.26") and first["estimated"]
+    assert taxable_gains_by_sale(txs) == {3: Decimal("24.665")}
+    assert views["totals"]["fees"] == Decimal("0.39")
+    assert views["totals"]["taxes"] == Decimal("3")

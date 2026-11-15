@@ -271,6 +271,13 @@ def format_qty(value):
     return f"{Decimal(str(value)):.3f}"
 
 
+@app.template_filter("qty_full")
+def format_qty_full(value):
+    if value is None:
+        return ""
+    return format(Decimal(str(value)).normalize(), "f")
+
+
 @app.template_filter("px")
 def format_price(value):
     if value is None:
@@ -296,6 +303,13 @@ def format_signed_pct(value):
     if number < 0:
         return "−" + text
     return text
+
+
+@app.template_filter("rate")
+def format_rate(value):
+    if value is None:
+        return "—"
+    return f"{Decimal(str(value)) * 100:.3f} %"
 
 
 @app.template_filter("signed_px")
@@ -340,6 +354,8 @@ def format_when(value):
     if not value:
         return "—"
     if isinstance(value, datetime):
+        if value.time() == datetime.min.time():
+            return value.strftime("%d/%m/%Y")
         return value.strftime("%d/%m/%Y %H:%M")
     return str(value)
 
@@ -471,7 +487,7 @@ def home():
         class_tree = classification_tree(conn)
         positions = position_rows(conn, prefs)
         _attach_score(conn, positions)
-        transactions = recent_transactions(conn)
+        transactions = recent_transactions(conn, prefs)
         balance = paper_balance(conn, prefs)
         assets = list_assets(conn)
         period, days = _span(prefs["history_period"])
@@ -943,7 +959,10 @@ def buy():
                 asset=asset,
             )
         if fees is None:
-            fees = money(notional * prefs["fee_rate"]) or Decimal("0")
+            fee_rate = prefs["fee_rate"]
+            fees = money(notional * fee_rate) or Decimal("0")
+        else:
+            fee_rate = (fees / notional).quantize(Decimal("0.000001")) if notional > 0 else None
         if taxes is None:
             taxes = Decimal("0")
         if taxes < 0 or fees < 0:
@@ -952,7 +971,7 @@ def buy():
         available = paper_balance(conn, prefs)
         if cash_out > available:
             return _buy_back(err=tr("buy.over_balance"), asset=asset)
-        insert_transaction(conn, "buy", asset, amount, price, fees, taxes)
+        insert_transaction(conn, "buy", asset, amount, price, fees, taxes, fee_rate=fee_rate)
     finally:
         conn.close()
     return _buy_back(ok=tr("buy.saved", asset=asset), asset=asset)

@@ -32,23 +32,23 @@ The gear on All opens Mode, Band, Side, Divide and Scale. This picture is Mode A
 
 ![Positions](static/screenshot/Positions.png)
 
-**Positions** lists each open lot, its cost, the latest price, the net profit, and whether it is ready to sell. A row is marked when the net profit is at or above the threshold and the price is recent enough. This picture is the open lot IDXX, bought on 02/11/2026: quantity 1.48889285, cost 671.64, latest price 670.71 on 05/11/2026, net profit −0.34%, under the threshold of 5.00%.
+**Positions** lists each open lot, its cost, the latest price, the net profit, and whether it is ready to sell. A row is marked when the net profit is at or above the threshold and the price is recent enough. This picture is the open lot IDXX, bought on 02/11/2026: quantity 1.48889285 (the maximum investment of 1000 divided by the price), buy price 671.64, latest price 670.71 on 05/11/2026, net profit −0.34%, under the threshold of 5.00%.
 
-Net profit subtracts the sale commission and the tax on the gain from the proceeds, then compares that with the cost of the buy (price plus the commissions and taxes already stored). The threshold, the commission, the tax, and the maximum age of a price are preferences.
+Net profit subtracts the sale commission and the tax on the gain from the proceeds, then compares that with the cost of the buy (price plus the commissions and taxes already stored). The tax is the tax rate times the gain: sale value minus the sale commission, minus the buy value and the buy commission. A loss pays no tax. The threshold, the commission, the tax, and the maximum age of a price are preferences. Every buy and sale stores the commission rate it was charged at, and every sale also stores the tax rate and the gain it was taxed on, so a later change of the preferences does not rewrite what was recorded.
 
 ![Buy](static/screenshot/Buy.png)
 
-**Buy** records a lot with `POST /buy`. The fields are symbol, quantity, price, commissions, and taxes. An empty price uses the latest stored close. Empty commissions use the preference. Empty taxes stay zero: the tax on the gain is applied when the lot is sold. The amount cannot exceed the maximum investment. In this picture the panel is open over the IDXX candle chart. The symbol field contains MRNA. Quantity, price, and commissions are empty, and taxes are 0.
+**Buy** records a lot with `POST /buy`. The fields are symbol, quantity, price, commissions, and taxes. An empty price uses the latest stored close. Empty commissions use the commission preference, and that rate is stored with the buy. Commissions typed by hand are stored with the rate they make on the amount. Empty taxes stay zero: the tax on the gain is applied when the lot is sold. The amount cannot exceed the maximum investment. In this picture the panel is open over the IDXX candle chart. The symbol field contains MRNA. Quantity, price, and commissions are empty, and taxes are 0.
 
 ![Transactions](static/screenshot/Transactions.png)
 
-**Transactions** lists the latest buys and sales. A sale is the same table with type `sell`. This picture is the one stored buy, over the IDXX line: 02/11/2026, IDXX, quantity 1.48889285, price 671.64, commissions 1, taxes 0.
+**Transactions** has two tables on the same columns, Closed and Open lots, and a totals row under them. A closed row is one sale paired with the FIFO buy it closed: symbol, currency, quantity, buy and sell price, commissions, taxes, and the net result. Under it are the buy and sale dates, the cost and the net proceeds, the buy and sale commission each with its rate, the tax rate, and the margin in percent. An open row is a lot still held: price, cost (the notional, quantity times price, plus the buy commission), the buy commission with its rate, and, at the latest stored price with the current rates, the tax and the sale commission a sale would pay now and the net result it would give. Those estimates are marked ≈ and do not enter Total Balance, which counts an open lot at its cost. The totals are the commissions and taxes paid, the estimated tax on the open lots, and Total Balance. Quantities and amounts show three decimals; the full quantity is the tooltip. A lot bought by the score carries the date of the session it was priced on, without an hour. Rows written before rates were stored carry the current preference rates, marked as estimated. A sale is the same table with type `sell`. The picture predates the current layout.
 
 The update button is `POST /update`. It starts `cycle.py`: download missing closed sessions, then apply the sell rule. The checklist button is `POST /cycle`. It runs only the sell rule. **Preferences** and **Sign out** are in the main menu, shown open in `static/screenshot/Menu.png`. The language menu is the flag button just before it, shown open in `static/screenshot/Languages.png`: English, Español, Français, Italiano, Latina.
 
 ![Preferences](static/screenshot/Preferences.png)
 
-Preferences are three groups. Operations: threshold, investment, commission, tax, and the maximum price age. Page: flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving one field is `POST /prefs`. The menu stays open and the page does not reload. This picture: threshold 0.05, investment 1000, commission 0.001, tax 0.26, price age 120 hours, flat band 0.005, 50 volume names, 730 history days, 240 return sessions, history symbol MRNA, messages stay 8 seconds, typeface Outfit, size 100, weight regular, theme Light, chart Line, drawing Vector.
+Preferences are three groups. Operations: threshold, investment, commission, tax, and the maximum price age. Page: flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving one field is `POST /prefs`. The menu stays open and the page does not reload. A new commission or tax applies to the transactions written after it. This picture: threshold 0.05, investment 1000, commission 0.001, tax 0.26, price age 120 hours, flat band 0.005, 50 volume names, 730 history days, 240 return sessions, history symbol MRNA, messages stay 8 seconds, typeface Outfit, size 100, weight regular, theme Light, chart Line, drawing Vector.
 
 Theme **Automatic** follows the browser’s local time: light from 07:00 to 19:00, dark otherwise. Light and Dark stay fixed. The first paint uses the server clock; the page then follows the browser.
 
@@ -62,7 +62,7 @@ A schedule runs `python cycle.py` once, on weekdays, after the US cash session h
 
 It downloads the closed sessions that are not in the archive yet. On Stocks Basic a session is published after it has closed, so that hour is when the new bars arrive.
 
-It sells every open lot whose net profit is at or above the threshold, when the latest price is recent enough. Net profit is the one described under Positions: the sale commission and the tax on the gain come off the proceeds, then the result is compared with the cost of the buy.
+It sells every open lot whose net profit is at or above the threshold, when the latest price is recent enough. Net profit is the one described under Positions: the sale commission and the tax on the gain come off the proceeds, then the result is compared with the cost of the buy. The sale row stores the commission rate, the tax rate, and the taxed gain.
 
 It then reads the score. An open lot whose score side is sell is sold. If no lot is open after that, the run records at most one buy: the name with the highest buy score, within the maximum investment. While a lot stays open, it waits. The buy and the sale are rows in `transactions`.
 
@@ -100,7 +100,7 @@ Every POST carries the `csrf` value from the page. After sign-in the routes are:
 
 | Route | Role |
 | --- | --- |
-| `POST /buy` | Record a buy. Fields: `asset`, `amount`, `price`, `fees`, `taxes`, `csrf`. |
+| `POST /buy` | Record a buy. Fields: `asset`, `amount`, `price`, `fees`, `taxes`, `csrf`. The commission rate is stored with the row. |
 | `POST /sell` | Record one paper sale for an open lot. Fields: `lot` (buy transaction id), `csrf`. Refuses a missing or stale price. Uses the same `quote_sell` path as automatic sales. |
 | `POST /cycle` | Apply the sell rule to lots that are ready. |
 | `POST /update` | Start one price update, which then applies the sell rule. |
@@ -152,13 +152,13 @@ The selected list is the S&P 500. A session stores every name on that list that 
 
 ## Database
 
-Five tables. `deploy/schema.sql` creates them. On startup `ensure_schema` creates any that are missing and adds missing price columns to an older `market_history`. It does not drop indexes that a live database already has.
+Five tables. `deploy/schema.sql` creates them. On startup `ensure_schema` creates any that are missing, adds missing price columns to an older `market_history` and missing rate columns to an older `transactions`, and fills the rates of rows that have none with the current preferences, marked `estimated`. Running it again changes nothing. It does not drop indexes that a live database already has.
 
 | Table | Contents |
 | --- | --- |
 | `preferences` | One row per setting: name and value. |
 | `market_history` | One bar per symbol and session. |
-| `transactions` | Buys and sales. `type` is `buy` or `sell`. |
+| `transactions` | Buys and sales. `type` is `buy` or `sell`. Symbol, quantity, price, `timestamp` (the session the price belongs to; a bar date is midnight), commissions and taxes as amounts, `currency`, `fee_rate`, `tax_rate` and `taxable_gain` (sales only), `rates_source` (`recorded` when written, `estimated` when filled later), and `recorded_at`, the moment of the write. |
 | `classification` | GICS sector and group. A sector has no parent. A group points at its sector. |
 | `asset_class` | Symbol to its group. The symbol is the same `asset_name` used by prices and transactions. |
 
