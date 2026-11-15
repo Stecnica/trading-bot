@@ -1012,7 +1012,7 @@ function uiText(key, vars) {
     return Number(value).toFixed(3);
   }
 
-  function axisTicks(low, high) {
+  function axisTicks(low, high, most) {
     var span = high - low;
     if (!(span > 0)) {
       return [low];
@@ -1020,15 +1020,21 @@ function uiText(key, vars) {
     var raw = span / 4;
     var mag = Math.pow(10, Math.floor(Math.log10(raw)));
     var norm = raw / mag;
-    var step = (norm >= 5 ? 5 : norm >= 2 ? 2 : 1) * mag;
-    var start = Math.ceil(low / step) * step;
+    var nice = [1, 2, 5, 10, 20];
+    var pick = norm >= 5 ? 2 : norm >= 2 ? 1 : 0;
     var ticks = [];
-    var guard = 0;
-    for (var value = start; value < high && guard < 6; value += step) {
-      if (value > low) {
-        ticks.push(value);
+    /* A coarser step, never a truncated list: the ticks must reach the top of the range. */
+    for (; pick < nice.length; pick += 1) {
+      var step = nice[pick] * mag;
+      ticks = [];
+      for (var n = Math.ceil(low / step); n * step < high; n += 1) {
+        if (n * step > low) {
+          ticks.push(n * step);
+        }
       }
-      guard += 1;
+      if (ticks.length <= most) {
+        break;
+      }
     }
     if (!ticks.length) {
       ticks.push((low + high) / 2);
@@ -1108,7 +1114,12 @@ function uiText(key, vars) {
     var padBottom = range * 0.16 || high * 0.008 || 1;
     low -= padBottom;
     high += padTop;
-    var ticks = axisTicks(low, high);
+    var top = 8;
+    var volumeH = Math.max(32, Math.round(height * 0.12));
+    var dateBand = points.length > 12 ? tick * 3.2 : tick * 1.7;
+    var plotBottom = height - 10 - volumeH - dateBand;
+    var plotH = Math.max(40, plotBottom - top);
+    var ticks = axisTicks(low, high, Math.max(3, Math.min(8, Math.floor(plotH / (tick * 2.4)))));
     var probe = svgEl("text", {
       "font-size": tick + "px",
       "font-weight": String(weight)
@@ -1125,12 +1136,7 @@ function uiText(key, vars) {
     }
     var left = Math.ceil(labelWidth + 14);
     var right = width - 12;
-    var top = 8;
-    var volumeH = Math.max(32, Math.round(height * 0.12));
-    var dateBand = points.length > 12 ? tick * 3.2 : tick * 1.7;
-    var plotBottom = height - 10 - volumeH - dateBand;
     var plotW = Math.max(40, right - left);
-    var plotH = Math.max(40, plotBottom - top);
     var xs = data.draw === "candle"
       ? points.map(function (_point, index) { return index; })
       : points.map(function (point) { return dayNumber(point.d); });
