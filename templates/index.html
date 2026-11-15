@@ -313,76 +313,9 @@
 			.grid-table:not(.grid-total) tbody > tr + tr > td,
 			.grid-table.grid-total tr:nth-child(n+3) > td { font-size: 0.75rem; }
 		}
-		/* Full-width numeric fields so right-aligned digits sit at the column edge
-		   (fixed ch widths left the control itself hugging the left of the cell). */
-		.nav-panel .buy-billion,
-		.nav-panel .buy-five,
-		.nav-panel .buy-tax,
-		.nav-panel .buy-invest {
-			width: 100%;
-			max-width: 100%;
-		}
-		.buy-fields-row > div:not(.buy-field-symbol) {
-			flex: 1 1 0;
-			min-width: 5em;
-		}
-		.buy-fields-row > div:not(.buy-field-symbol) .form-control {
-			width: 100%;
-		}
-		/* Row1 Symbol|Qty|Invest. Row2 four equal cells: Price|Fees|Taxes|Record buy. */
-		.buy-fields-row {
-			display: flex;
-			flex-wrap: nowrap;
-			align-items: end;
-			gap: 0.75rem;
-		}
-		.buy-fields-row .buy-field-symbol {
-			flex: 1 1 auto;
-			min-width: 0;
-		}
-		.buy-fields-row .buy-field-symbol .form-select {
-			width: 100%;
-			min-width: 0;
-		}
-		.buy-price-row {
-			display: grid !important;
-			grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-			grid-template-rows: auto !important;
-			align-items: end;
-			column-gap: 0.75rem;
-			row-gap: 0;
-		}
-		.buy-price-row > * {
-			min-width: 0;
-			grid-row: 1;
-		}
-		.buy-price-row .form-control { width: 100%; }
-		.buy-price-row .buy-submit-cell {
-			display: flex;
-			align-items: flex-end;
-			justify-content: stretch;
-		}
-		.buy-price-row .buy-submit {
-			width: 100%;
-			white-space: nowrap;
-			flex: 1 1 auto;
-		}
-		/* Numeric buy fields: force end align (class text-end alone was not enough visually
-		   while inputs had fixed ch widths; keep !important + direction-safe end). */
-		.dropdown-menu.nav-panel input.buy-num.form-control,
-		.nav-panel #buy-amount,
-		.nav-panel #buy-invest,
-		.nav-panel #buy-price,
-		.nav-panel #buy-fees,
-		.nav-panel #buy-taxes,
-		.nav-panel input.buy-num {
-			text-align: right !important;
-			text-align: end !important;
-		}
-		.dropdown-menu.nav-panel input.buy-num.form-control::placeholder {
-			text-align: right;
-			text-align: end;
-		}
+		/* Buy: one Bootstrap row, every numeric field on a col-3 track; labels like grid headers, values like grid cells. */
+		.buy-grid .form-label { font-weight: 400; }
+		.buy-grid .form-control { font-weight: 200; }
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
 		.volume-step.band { width: 8rem; }
 		#chart-svg { min-height: 280px; }
@@ -628,7 +561,7 @@
 					</div>
 					<div class="dropdown">
 						<button class="btn btn-outline-light btn-nav-menu" type="button" id="buy-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.buy') }}</button>
-						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="buy-toggle" hidden>
+						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="buy-toggle" hidden>
 							<div class="d-flex align-items-center justify-content-between gap-3 mb-3">
 								<h2 class="h6 mb-0">{{ t('buy.title') }}</h2>
 								<div class="pref-slot">
@@ -647,42 +580,38 @@
 							<form id="buy-form" method="post" action="{{ url_for('buy') }}" class="d-none" aria-hidden="true">
 								<input type="hidden" name="csrf" value="{{ csrf }}">
 							</form>
-							<div class="d-flex flex-column gap-3">
-								<div class="buy-fields-row">
-									<div class="buy-field-symbol">
-										<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
-										<select class="form-select" id="buy-asset" name="asset" form="buy-form" required>
-											{% if buy_asset not in assets %}<option value="{{ buy_asset }}" selected>{{ buy_asset }}</option>{% endif %}
-											{% for item in asset_options %}
-											<option value="{{ item.symbol }}" {% if item.symbol == buy_asset %}selected{% endif %}>{{ item.label }}</option>
-											{% endfor %}
-										</select>
-									</div>
-									<div>
-										<label class="form-label" for="buy-amount">{{ t('buy.quantity') }}</label>
-										<input class="form-control buy-billion buy-num text-end" id="buy-amount" name="amount" form="buy-form" inputmode="decimal" min="0" max="1000000000" required style="text-align:right">
-									</div>
-									<div>
-										<label class="form-label" for="buy-invest" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
-										<input class="form-control buy-invest buy-num text-end" id="buy-invest" data-pref="max_investment" data-saved="{{ prefs.max_investment }}" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment }}" inputmode="decimal" autocomplete="off" style="text-align:right">
-									</div>
+							<div class="row g-3 align-items-end buy-grid">
+								<div class="col-6">
+									<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
+									<select class="form-select" id="buy-asset" name="asset" form="buy-form" required>
+										{% if buy_asset not in assets %}<option value="{{ buy_asset }}" selected>{{ buy_asset }}</option>{% endif %}
+										{% for item in asset_options %}
+										<option value="{{ item.symbol }}" {% if item.symbol == buy_asset %}selected{% endif %}>{{ item.label }}</option>
+										{% endfor %}
+									</select>
 								</div>
-								<div class="buy-price-row">
-									<div>
-										<label class="form-label" for="buy-price">{{ t('buy.price') }}</label>
-										<input class="form-control buy-num text-end" id="buy-price" name="price" form="buy-form" inputmode="decimal" min="0" max="1000000000" placeholder="{{ t('buy.price_ph') }}" style="text-align:right">
-									</div>
-									<div>
-										<label class="form-label" for="buy-fees">{{ t('buy.fees') }}</label>
-										<input class="form-control buy-num text-end" id="buy-fees" name="fees" form="buy-form" inputmode="decimal" placeholder="{{ t('buy.fees_ph') }}" style="text-align:right">
-									</div>
-									<div>
-										<label class="form-label" for="buy-taxes">{{ t('buy.taxes') }}</label>
-										<input class="form-control buy-num text-end" id="buy-taxes" name="taxes" form="buy-form" inputmode="decimal" placeholder="0" style="text-align:right">
-									</div>
-									<div class="buy-submit-cell">
-										<button class="btn btn-primary buy-submit" type="submit" form="buy-form">{{ t('buy.submit') }}</button>
-									</div>
+								<div class="col-3">
+									<label class="form-label" for="buy-amount">{{ t('buy.quantity') }}</label>
+									<input class="form-control text-end" id="buy-amount" name="amount" form="buy-form" inputmode="decimal" min="0" max="1000000000" placeholder="0.000" required>
+								</div>
+								<div class="col-3">
+									<label class="form-label" for="buy-invest" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
+									<input class="form-control text-end" id="buy-invest" data-pref="max_investment" data-saved="{{ prefs.max_investment }}" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment }}" inputmode="decimal" autocomplete="off">
+								</div>
+								<div class="col-3">
+									<label class="form-label" for="buy-price">{{ t('buy.price') }}</label>
+									<input class="form-control text-end" id="buy-price" name="price" form="buy-form" inputmode="decimal" min="0" max="1000000000" placeholder="{{ t('buy.price_ph') }}">
+								</div>
+								<div class="col-3">
+									<label class="form-label" for="buy-fees">{{ t('buy.fees') }}</label>
+									<input class="form-control text-end" id="buy-fees" name="fees" form="buy-form" inputmode="decimal" placeholder="{{ t('buy.fees_ph') }}">
+								</div>
+								<div class="col-3">
+									<label class="form-label" for="buy-taxes">{{ t('buy.taxes') }}</label>
+									<input class="form-control text-end" id="buy-taxes" name="taxes" form="buy-form" inputmode="decimal" placeholder="0.000">
+								</div>
+								<div class="col-3">
+									<button class="btn btn-primary w-100" type="submit" form="buy-form">{{ t('buy.submit') }}</button>
 								</div>
 							</div>
 						</div>
