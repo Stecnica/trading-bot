@@ -242,6 +242,11 @@
 		.tx-table tbody > tr:first-child > td { white-space: nowrap; }
 		.tx-table :is(th, td):nth-child(-n+2) { text-align: left; }
 		.tx-table th { font-weight: 400; }
+		.tx-table .tx-icon svg {
+			width: 1em;
+			height: 1em;
+			vertical-align: -0.125em;
+		}
 		.tx-table td { font-weight: 200; }
 		.tx-table thead th {
 			position: sticky;
@@ -698,7 +703,7 @@
 								<thead>
 									<tr>
 										<th>{{ t('tx.symbol') }}</th>
-										<th>{{ t('tx.currency') }}</th>
+										<th title="{{ t('tx.currency') }}"><span class="tx-icon" aria-hidden="true">{% include "coins.svg" %}</span><span class="visually-hidden">{{ t('tx.currency') }}</span></th>
 										<th>{{ t('tx.quantity') }}</th>
 										<th title="{{ t('tx.buy_side_title') }}">{{ t('tx.buy_side') }}</th>
 										<th title="{{ t('tx.sell_side_title') }}">{{ t('tx.sell_side') }}</th>
@@ -744,7 +749,7 @@
 								<thead>
 									<tr>
 										<th>{{ t('tx.symbol') }}</th>
-										<th>{{ t('tx.currency') }}</th>
+										<th title="{{ t('tx.currency') }}"><span class="tx-icon" aria-hidden="true">{% include "coins.svg" %}</span><span class="visually-hidden">{{ t('tx.currency') }}</span></th>
 										<th>{{ t('tx.quantity') }}</th>
 										<th>{{ t('tx.price') }}</th>
 										<th title="{{ t('tx.cost_title') }}">{{ t('tx.cost') }}</th>
