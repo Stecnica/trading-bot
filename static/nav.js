@@ -181,35 +181,35 @@ function uiText(key, vars) {
     menu.style.marginTop = "0px";
     menu.style.transform = "none";
     menu.style.zIndex = "2000";
-    /* Cap height so .nav-panel-tx flex can pin Balance and scroll the middle. */
+    /* Cap height so .nav-panel-grid flex can pin Balance and scroll the middle. */
     var maxH = Math.min(Math.round(window.innerHeight * 0.7), 512);
     var room = Math.max(160, window.innerHeight - Math.round(target) - 8);
     menu.style.maxHeight = Math.min(maxH, room) + "px";
   }
 
-  /* Transactions: fade and chevron while rows remain below the visible part. */
-  function txMore(menu) {
-    var scroll = menu && menu.querySelector(".tx-scroll");
-    var more = menu && menu.querySelector(".tx-more");
+  /* Grid panels (Transactions, Positions): fade and chevron while rows remain below the visible part. */
+  function gridMore(menu) {
+    var scroll = menu && menu.querySelector(".grid-scroll");
+    var more = menu && menu.querySelector(".grid-more");
     if (!scroll || !more) {
       return;
     }
     var below = scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop > 2;
-    scroll.classList.toggle("tx-has-more", below);
+    scroll.classList.toggle("grid-has-more", below);
     more.hidden = !below;
   }
 
-  document.querySelectorAll(".nav-panel-tx").forEach(function (menu) {
-    var scroll = menu.querySelector(".tx-scroll");
-    var more = menu.querySelector(".tx-more");
+  document.querySelectorAll(".nav-panel-grid").forEach(function (menu) {
+    var scroll = menu.querySelector(".grid-scroll");
+    var more = menu.querySelector(".grid-more");
     if (!scroll || !more) {
       return;
     }
     scroll.addEventListener("scroll", function () {
-      txMore(menu);
+      gridMore(menu);
     }, { passive: true });
     window.addEventListener("resize", function () {
-      txMore(menu);
+      gridMore(menu);
     });
     more.addEventListener("click", function () {
       scroll.scrollBy({ top: Math.max(48, scroll.clientHeight - 48), behavior: "smooth" });
@@ -228,7 +228,7 @@ function uiText(key, vars) {
     /* Re-pin after Bootstrap finishes — static display skips Popper, but keep parity. */
     button.addEventListener("shown.bs.dropdown", function () {
       place(button);
-      txMore(button.nextElementSibling);
+      gridMore(button.nextElementSibling);
     });
     button.addEventListener("hidden.bs.dropdown", function () {
       var menu = button.nextElementSibling;
@@ -1560,93 +1560,17 @@ function uiText(key, vars) {
   document.addEventListener("click", closeMenus);
   window.addEventListener("resize", closeMenus);
 
-  function cell(text) {
-    var item = document.createElement("td");
-    item.textContent = text;
-    return item;
-  }
-
   function paintPositions(data) {
     var help = document.getElementById("positions-help");
     if (help && data.positions_help) {
       help.textContent = data.positions_help;
     }
-    var body = document.getElementById("positions-body");
     var table = document.getElementById("positions-table");
-    var empty = document.getElementById("positions-empty");
-    if (!body) {
+    if (!table || typeof data.positions_html !== "string") {
       return;
     }
-    var rows = data.positions || [];
-    body.replaceChildren();
-    if (!rows.length) {
-      if (table) {
-        table.classList.add("d-none");
-      }
-      if (empty) {
-        empty.classList.remove("d-none");
-      }
-      return;
-    }
-    if (table) {
-      table.classList.remove("d-none");
-    }
-    if (empty) {
-      empty.classList.add("d-none");
-    }
-    var sellAction = table ? table.getAttribute("data-sell-action") : "";
-    var sellLabel = table ? table.getAttribute("data-sell-label") || "" : "";
-    var csrf = document.querySelector("input[name=csrf]");
-    rows.forEach(function (row) {
-      var line = document.createElement("tr");
-      if (row.ready) {
-        line.className = "table-success";
-      }
-      var symbol = document.createElement("td");
-      symbol.title = row.score_detail || "";
-      symbol.append(document.createTextNode(row.asset || ""));
-      symbol.append(document.createElement("br"));
-      var bought = document.createElement("small");
-      bought.textContent = row.bought || "";
-      symbol.append(bought);
-      if (row.score) {
-        symbol.append(document.createElement("br"));
-        var score = document.createElement("small");
-        score.textContent = row.score;
-        symbol.append(score);
-      }
-      var now = document.createElement("td");
-      now.append(document.createTextNode(row.now || ""));
-      if (row.now_time) {
-        now.append(document.createElement("br"));
-        var when = document.createElement("small");
-        when.textContent = row.now_time;
-        now.append(when);
-      }
-      var action = document.createElement("td");
-      if (row.ready && sellAction && row.lot_id != null) {
-        var form = document.createElement("form");
-        form.method = "post";
-        form.action = sellAction;
-        form.className = "m-0";
-        var token = document.createElement("input");
-        token.type = "hidden";
-        token.name = "csrf";
-        token.value = csrf ? csrf.value : "";
-        var lot = document.createElement("input");
-        lot.type = "hidden";
-        lot.name = "lot";
-        lot.value = String(row.lot_id);
-        var button = document.createElement("button");
-        button.type = "submit";
-        button.className = "btn btn-primary buy-submit";
-        button.textContent = sellLabel;
-        form.append(token, lot, button);
-        action.append(form);
-      }
-      line.append(symbol, cell(row.amount || ""), cell(row.cost || ""), now, cell(row.profit || ""), cell(row.outcome || ""), action);
-      body.append(line);
-    });
+    table.innerHTML = data.positions_html;
+    table.dispatchEvent(new Event("scroll"));
   }
 
   function applyAppearance(key, value) {
@@ -1740,7 +1664,7 @@ function uiText(key, vars) {
             }
           });
         }
-        if (data.positions) {
+        if (data.positions_html !== undefined) {
           paintPositions(data);
         }
         document.dispatchEvent(new CustomEvent("prefs-applied", { detail: { key: key, value: stored } }));

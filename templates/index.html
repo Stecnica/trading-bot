@@ -13,7 +13,7 @@
 		/* Hide nav dropdowns until .show — first rules so a later parse error cannot leave them open. */
 		.dropdown-menu.nav-panel { display: none !important; }
 		.dropdown-menu.nav-panel.show { display: block !important; }
-		.dropdown-menu.nav-panel.nav-panel-tx.show {
+		.dropdown-menu.nav-panel.nav-panel-grid.show {
 			display: flex !important;
 			flex-direction: column;
 			overflow: hidden !important;
@@ -198,28 +198,27 @@
 			overflow: auto;
 		}
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
-		/* Transactions: Closed, Open and Total share one fixed grid (tx_cols). */
+		/* Grid panels (Transactions, Positions): every table of a panel shares one colgroup (grid_cols). */
 		.nav-panel-wide.nav-panel-tx { width: min(64rem, calc(100vw - 1rem)); }
-		.nav-panel-tx > h2,
-		.nav-panel-tx > p {
+		.nav-panel-grid > :not(.grid-scroll) {
 			flex: 0 0 auto;
 		}
-		.nav-panel-tx > p.m-2 {
+		.nav-panel-grid > p.m-2 {
 			font-size: 0.875em;
 			color: var(--bs-secondary-color);
 		}
 		/* Same gutter on the scroller and the totals keeps their columns aligned
 		   when the browser shows a classic scrollbar. */
-		.nav-panel-tx .tx-scroll {
+		.nav-panel-grid .grid-scroll {
 			flex: 1 1 auto;
 			min-height: 0;
 			overflow: auto;
 			scrollbar-gutter: stable;
 		}
-		.nav-panel-tx .tx-scroll.tx-has-more {
+		.nav-panel-grid .grid-scroll.grid-has-more {
 			mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent);
 		}
-		.nav-panel-tx .tx-more {
+		.nav-panel-grid .grid-more {
 			flex: 0 0 auto;
 			align-self: center;
 			position: relative;
@@ -236,37 +235,29 @@
 			background: var(--bs-body-bg);
 			color: var(--bs-secondary-color);
 		}
-		.nav-panel-tx .tx-more[hidden] { display: none; }
-		.nav-panel-tx .tx-more svg { width: 1rem; height: 1rem; }
-		.nav-panel-tx .tx-foot {
+		.nav-panel-grid .grid-more[hidden] { display: none; }
+		.nav-panel-grid .grid-more svg { width: 1rem; height: 1rem; }
+		.nav-panel-grid .grid-foot {
 			flex: 0 0 auto;
 			overflow: hidden;
 			scrollbar-gutter: stable;
 			border-top: 1px solid var(--bs-border-color);
 		}
-		.nav-panel-tx .tx-scroll > h3 {
+		.nav-panel-grid .grid-scroll > h3 {
 			margin: 1rem 0 0.5rem;
 			font-size: 0.8rem;
 			text-transform: uppercase;
 			letter-spacing: 0.04em;
 		}
-		.nav-panel-tx .tx-scroll > h3:first-child { margin-top: 0; }
-		.tx-table {
+		.nav-panel-grid .grid-scroll > h3:first-child { margin-top: 0; }
+		.grid-table {
 			--bs-table-bg: var(--bs-body-bg);
 			table-layout: fixed;
 			width: 100%;
 			margin-bottom: 0;
 			font-variant-numeric: tabular-nums;
 		}
-		.tx-table col:nth-child(1) { width: 19%; }
-		.tx-table col:nth-child(2) { width: 4%; }
-		.tx-table col:nth-child(3) { width: 9%; }
-		.tx-table col:nth-child(4) { width: 11%; }
-		.tx-table col:nth-child(5) { width: 15%; }
-		.tx-table col:nth-child(6) { width: 15%; }
-		.tx-table col:nth-child(7) { width: 14%; }
-		.tx-table col:nth-child(8) { width: 13%; }
-		.tx-table :is(th, td) {
+		.grid-table :is(th, td) {
 			padding: 0 0.5rem;
 			font-size: 1rem;
 			line-height: 1.5;
@@ -274,16 +265,16 @@
 			vertical-align: baseline;
 			overflow-wrap: normal;
 		}
-		.tx-table tbody > tr:first-child > td { white-space: nowrap; }
-		.tx-table .tx-l { text-align: left; }
-		.tx-table th { font-weight: 400; }
-		.tx-table .tx-icon svg {
+		.grid-table tbody > tr:first-child > td { white-space: nowrap; }
+		.grid-table .grid-l { text-align: left; }
+		.grid-table th { font-weight: 400; }
+		.grid-table .grid-icon svg {
 			width: 1em;
 			height: 1em;
 			vertical-align: -0.125em;
 		}
-		.tx-table td { font-weight: 200; }
-		.tx-table thead th {
+		.grid-table td { font-weight: 200; }
+		.grid-table thead th {
 			position: sticky;
 			top: 0;
 			z-index: 1;
@@ -291,36 +282,36 @@
 			border-bottom-width: 0;
 			box-shadow: inset 0 -1px 0 var(--bs-border-color);
 		}
-		.tx-table tbody > tr:first-child > * { padding-top: 0.5rem; }
-		.tx-table tbody > tr:last-child > * { padding-bottom: 0.5rem; }
-		.tx-table tbody > tr:not(:last-child) > *,
-		.tx-scroll > .tx-table:last-of-type > tbody:last-child > tr:last-child > * { border-bottom-width: 0; }
-		.tx-table:not(.tx-total) tbody > tr + tr > td {
+		.grid-table tbody > tr:first-child > * { padding-top: 0.5rem; }
+		.grid-table tbody > tr:last-child > * { padding-bottom: 0.5rem; }
+		.grid-table tbody > tr:not(:last-child) > *,
+		.grid-scroll > .grid-table:last-of-type > tbody:last-child > tr:last-child > * { border-bottom-width: 0; }
+		.grid-table:not(.grid-total) tbody > tr + tr > td {
 			font-size: 0.75rem;
 			font-weight: 300;
 			color: var(--bs-secondary-color);
 		}
-		.tx-table.tx-total :is(th, td) {
+		.grid-table.grid-total :is(th, td) {
 			text-align: right;
 			border-bottom-width: 0;
 		}
-		.tx-table.tx-total tr:first-child > * { padding-top: 0.5rem; }
-		.tx-table.tx-total tr:last-child > * { padding-bottom: 0; }
-		.tx-table.tx-total td { font-weight: 400; }
-		.tx-table.tx-total tr:nth-child(n+3) > td {
+		.grid-table.grid-total tr:first-child > * { padding-top: 0.5rem; }
+		.grid-table.grid-total tr:last-child > * { padding-bottom: 0; }
+		.grid-table.grid-total td { font-weight: 400; }
+		.grid-table.grid-total tr:nth-child(n+3) > td {
 			font-size: 0.75rem;
 			font-weight: 300;
 			color: var(--bs-secondary-color);
 		}
 		@media (max-width: 960px) {
-			.tx-table :is(th, td) {
+			.grid-table :is(th, td) {
 				padding-inline: 0.25rem;
 				font-size: 0.875rem;
 			}
-			.tx-table :is(th, td):first-child { padding-left: 0.5rem; }
-			.tx-table :is(th, td):last-child { padding-right: 0.5rem; }
-			.tx-table:not(.tx-total) tbody > tr + tr > td,
-			.tx-table.tx-total tr:nth-child(n+3) > td { font-size: 0.75rem; }
+			.grid-table :is(th, td):first-child { padding-left: 0.5rem; }
+			.grid-table :is(th, td):last-child { padding-right: 0.5rem; }
+			.grid-table:not(.grid-total) tbody > tr + tr > td,
+			.grid-table.grid-total tr:nth-child(n+3) > td { font-size: 0.75rem; }
 		}
 		/* Full-width numeric fields so right-aligned digits sit at the column edge
 		   (fixed ch widths left the control itself hugging the left of the cell). */
@@ -579,10 +570,8 @@
 	</div>
 </div>
 {% endmacro %}
-{% macro tx_cols() %}
-<colgroup><col><col><col><col><col><col><col><col></colgroup>
-{% endmacro %}
-{% macro tx_sign(value) %}{% if value is not none and value > 0 %}text-success{% elif value is not none and value < 0 %}text-danger{% endif %}{% endmacro %}
+{% from "_grid.html" import grid_cols, grid_sign, currency_head with context %}
+{% set tx_widths = [19, 4, 9, 11, 15, 15, 14, 13] %}
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid d-flex flex-wrap">
@@ -616,7 +605,7 @@
 					<div class="flex-grow-1" style="max-width:1vw;"></div>
 					<div class="dropdown">
 						<button class="btn btn-outline-light btn-nav-menu" type="button" id="posizioni-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.positions') }}</button>
-						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="posizioni-toggle" hidden>
+						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide nav-panel-grid p-3" aria-labelledby="posizioni-toggle" hidden>
 							<div class="d-flex align-items-center justify-content-between gap-3 mb-3">
 								<h2 class="h6 mb-0">{{ t('positions.title') }}</h2>
 								<div class="pref-slot">
@@ -630,36 +619,11 @@
 									</div>
 								</div>
 							</div>
-							<p class="mb-3" id="positions-help">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}</p>
-							<div id="positions-table" class="table-responsive{% if not positions %} d-none{% endif %}" data-sell-action="{{ url_for('sell') }}" data-sell-label="{{ t('positions.sell') }}">
-							<table class="table table-sm align-middle mb-0">
-								<thead>
-									<tr>
-										<th>{{ t('positions.symbol') }}</th>
-										<th>{{ t('positions.quantity') }}</th>
-										<th>{{ t('positions.cost') }}</th>
-										<th>{{ t('positions.now') }}</th>
-										<th>{{ t('positions.profit') }}</th>
-										<th>{{ t('positions.outcome') }}</th>
-										<th></th>
-									</tr>
-								</thead>
-								<tbody id="positions-body">
-									{% for row in positions %}
-									<tr class="{{ 'table-success' if row.ready else '' }}">
-										<td title="{{ row.score_detail }}">{{ row.asset }}<br><small>{{ row.bought_at|when }}</small>{% if row.score %}<br><small>{{ row.score }}</small>{% endif %}</td>
-										<td>{{ row.amount|qty }}</td>
-										<td>{{ row.buy_price|px }}</td>
-										<td>{{ row.market_price|px }}<br><small>{{ row.market_time|when }}</small></td>
-										<td>{{ row.ratio|pct }}</td>
-										<td>{{ row.outcome }}</td>
-										<td>{% if row.ready %}<form method="post" action="{{ url_for('sell') }}" class="m-0"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="lot" value="{{ row.lot_id }}"><button class="btn btn-primary buy-submit" type="submit">{{ t('positions.sell') }}</button></form>{% endif %}</td>
-									</tr>
-									{% endfor %}
-								</tbody>
-							</table>
+							<div id="positions-table" class="grid-scroll">
+							{% include "_positions.html" %}
 							</div>
-							<p id="positions-empty" class="mb-0{% if positions %} d-none{% endif %}">{{ t('positions.empty') }}</p>
+							<button type="button" class="grid-more" hidden title="{{ t('tx.more') }}" aria-label="{{ t('tx.more') }}">{% include "chevrons-down.svg" %}</button>
+							<p class="m-2 border-top pt-2" id="positions-help">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}</p>
 						</div>
 					</div>
 					<div class="dropdown">
@@ -725,18 +689,18 @@
 					</div>
 					<div class="dropdown">
 						<button class="btn btn-outline-light btn-nav-menu" type="button" id="transazioni-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.transactions') }}</button>
-						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide nav-panel-tx p-3" aria-labelledby="transazioni-toggle" hidden>
+						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide nav-panel-tx nav-panel-grid p-3" aria-labelledby="transazioni-toggle" hidden>
 							<h2 class="h6 mb-3">{{ t('tx.title') }}</h2>
-							<div class="tx-scroll">
+							<div class="grid-scroll">
 							{% if transactions.closed or transactions.open %}
 							{% if transactions.closed %}
 							<h3 class="h6">{{ t('tx.closed') }}</h3>
-							<table class="table tx-table">
-								{{ tx_cols() }}
+							<table class="table grid-table">
+								{{ grid_cols(tx_widths) }}
 								<thead>
 									<tr>
-										<th class="tx-l">{{ t('tx.symbol') }}</th>
-										<th class="tx-l" title="{{ t('tx.currency') }}"><span class="tx-icon" aria-hidden="true">{% include "coins.svg" %}</span><span class="visually-hidden">{{ t('tx.currency') }}</span></th>
+										<th class="grid-l">{{ t('tx.symbol') }}</th>
+										{{ currency_head() }}
 										<th>{{ t('tx.quantity') }}</th>
 										<th title="{{ t('tx.buy_side_title') }}">{{ t('tx.buy_side') }}</th>
 										<th title="{{ t('tx.sell_side_title') }}">{{ t('tx.sell_side') }}</th>
@@ -748,26 +712,26 @@
 								{% for row in transactions.closed %}
 								<tbody>
 									<tr>
-										<td class="tx-l">{{ row.asset }}</td>
-										<td class="tx-l" title="{{ row.currency }}">{{ row.currency|currency }}</td>
+										<td class="grid-l">{{ row.asset }}</td>
+										<td class="grid-l" title="{{ row.currency }}">{{ row.currency|currency }}</td>
 										<td title="{{ row.qty|qty_full }}">{{ row.qty|qty }}</td>
 										<td>{{ row.buy_price|px }}</td>
 										<td>{{ row.sell_price|px }}</td>
 										<td>{{ row.fees|px }}</td>
 										<td>{{ row.taxes|px }}</td>
-										<td class="{{ tx_sign(row.cash) }}" title="{{ t('tx.cash_title') }}">{{ row.cash|signed_px }}</td>
+										<td class="{{ grid_sign(row.cash) }}" title="{{ t('tx.cash_title') }}">{{ row.cash|signed_px }}</td>
 									</tr>
 									<tr>
-										<td class="tx-l">{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
+										<td class="grid-l">{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
 										<td colspan="2"></td>
 										<td>{{ t('tx.cost') }} {{ row.cost|px }}</td>
 										<td>{{ t('tx.proceeds') }} {{ row.proceeds|px }}</td>
 										<td title="{{ t('tx.fee_buy_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.buy_fees|px, rate=row.buy_fee_rate|rate) }}</td>
 										<td title="{{ t('tx.tax_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.tax_of', rate=row.tax_rate|rate, gain=row.taxable_gain|px) }}</td>
-										<td class="{{ tx_sign(row.cash) }}">{{ row.ratio|signed_pct }}</td>
+										<td class="{{ grid_sign(row.cash) }}">{{ row.ratio|signed_pct }}</td>
 									</tr>
 									<tr>
-										<td class="tx-l"{% if row.recorded_at %} title="{{ t('tx.recorded_at', when=row.recorded_at|when) }}"{% endif %}>{{ t('tx.sold_on') }} {{ row.sold_at|when }}</td>
+										<td class="grid-l"{% if row.recorded_at %} title="{{ t('tx.recorded_at', when=row.recorded_at|when) }}"{% endif %}>{{ t('tx.sold_on') }} {{ row.sold_at|when }}</td>
 										<td colspan="4"></td>
 										<td title="{{ t('tx.fee_sell_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.sell_fees|px, rate=row.sell_fee_rate|rate) }}</td>
 										<td colspan="2"></td>
@@ -778,12 +742,12 @@
 							{% endif %}
 							{% if transactions.open %}
 							<h3 class="h6">{{ t('tx.open') }}</h3>
-							<table class="table tx-table">
-								{{ tx_cols() }}
+							<table class="table grid-table">
+								{{ grid_cols(tx_widths) }}
 								<thead>
 									<tr>
-										<th class="tx-l">{{ t('tx.symbol') }}</th>
-										<th class="tx-l" title="{{ t('tx.currency') }}"><span class="tx-icon" aria-hidden="true">{% include "coins.svg" %}</span><span class="visually-hidden">{{ t('tx.currency') }}</span></th>
+										<th class="grid-l">{{ t('tx.symbol') }}</th>
+										{{ currency_head() }}
 										<th>{{ t('tx.quantity') }}</th>
 										<th>{{ t('tx.price') }}</th>
 										<th title="{{ t('tx.cost_title') }}">{{ t('tx.cost') }}</th>
@@ -795,15 +759,15 @@
 								{% for row in transactions.open %}
 								<tbody>
 									<tr>
-										<td class="tx-l">{{ row.asset }}</td>
-										<td class="tx-l" title="{{ row.currency }}">{{ row.currency|currency }}</td>
+										<td class="grid-l">{{ row.asset }}</td>
+										<td class="grid-l" title="{{ row.currency }}">{{ row.currency|currency }}</td>
 										<td title="{{ row.qty|qty_full }}">{{ row.qty|qty }}</td>
 										<td>{{ row.buy_price|px }}</td>
 										<td>{{ row.cost|px }}</td>
 										{% if row.est %}
 										<td title="{{ t('tx.fees_open_title') }}">≈ {{ row.est.fees|px }}</td>
 										<td title="{{ t('tx.taxes_open_title') }}">≈ {{ row.est.taxes|px }}</td>
-										<td class="{{ tx_sign(row.est.net) }}" title="{{ t('tx.cash_open_title') }}">{{ row.est.net|signed_px }}</td>
+										<td class="{{ grid_sign(row.est.net) }}" title="{{ t('tx.cash_open_title') }}">{{ row.est.net|signed_px }}</td>
 										{% else %}
 										<td title="{{ t('tx.fee_buy_title') }}">{{ row.fees|px }}</td>
 										<td title="{{ t('tx.no_price') }}">—</td>
@@ -811,7 +775,7 @@
 										{% endif %}
 									</tr>
 									<tr>
-										<td class="tx-l">{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
+										<td class="grid-l">{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
 										<td colspan="2"></td>
 										{% if row.est %}
 										<td title="{{ row.market_time|when }}">{{ t('tx.now', price=row.market_price|px) }}</td>
@@ -822,13 +786,13 @@
 										<td title="{{ t('tx.fee_buy_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.fees|px, rate=row.buy_fee_rate|rate) }}</td>
 										{% if row.est %}
 										<td title="{{ t('tx.taxes_open_title') }}">{{ t('tx.tax_of', rate=row.est.tax_rate|rate, gain=row.est.taxable_gain|px) }}</td>
-										<td class="{{ tx_sign(row.est.net) }}">{{ row.est.ratio|signed_pct }}</td>
+										<td class="{{ grid_sign(row.est.net) }}">{{ row.est.ratio|signed_pct }}</td>
 										{% else %}
 										<td colspan="2"></td>
 										{% endif %}
 									</tr>
 									<tr>
-										<td class="tx-l">{{ t('tx.sell_now') }}</td>
+										<td class="grid-l">{{ t('tx.sell_now') }}</td>
 										<td colspan="4"></td>
 										{% if row.est %}
 										<td title="{{ t('tx.fee_sell_est_title') }}">≈ {{ t('tx.fee_line', amount=row.est.sell_fees|px, rate=row.est.fee_rate|rate) }}</td>
@@ -845,10 +809,10 @@
 							<p class="mb-0">{{ t('tx.empty') }}</p>
 							{% endif %}
 							</div>
-							<button type="button" class="tx-more" hidden title="{{ t('tx.more') }}" aria-label="{{ t('tx.more') }}">{% include "chevrons-down.svg" %}</button>
-							<div class="tx-foot">
-							<table class="table tx-table tx-total">
-								{{ tx_cols() }}
+							<button type="button" class="grid-more" hidden title="{{ t('tx.more') }}" aria-label="{{ t('tx.more') }}">{% include "chevrons-down.svg" %}</button>
+							<div class="grid-foot">
+							<table class="table grid-table grid-total">
+								{{ grid_cols(tx_widths) }}
 								<tbody>
 									<tr>
 										<td colspan="5"></td>
@@ -873,7 +837,7 @@
 								</tbody>
 							</table>
 							</div>
-							<p class="m-2">{{ t('tx.help') }}</p>
+							<p class="m-2 border-top pt-2">{{ t('tx.help') }}</p>
 						</div>
 					</div>
 					<div class="flex-grow-1" style="max-width:1vw;"></div>
@@ -1144,7 +1108,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=58) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=59) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

@@ -874,28 +874,6 @@ def chart_hits():
     return response
 
 
-def _positions_payload(rows):
-    payload = []
-    for row in rows:
-        payload.append(
-            {
-                "lot_id": row["lot_id"],
-                "asset": row["asset"],
-                "bought": format_when(row["bought_at"]),
-                "score": row.get("score") or "",
-                "score_detail": row.get("score_detail") or "",
-                "amount": format_qty(row["amount"]),
-                "cost": format_price(row["buy_price"]),
-                "now": format_price(row["market_price"]),
-                "now_time": format_when(row["market_time"]),
-                "profit": format_pct(row["ratio"]),
-                "outcome": row["outcome"],
-                "ready": bool(row["ready"]),
-            }
-        )
-    return payload
-
-
 @app.route("/prefs", methods=["POST"])
 def save_prefs():
     values, error = preference_patch(request.form)
@@ -910,7 +888,9 @@ def save_prefs():
         if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours"}.intersection(values):
             rows = position_rows(conn, prefs)
             _attach_score(conn, rows)
-            payload["positions"] = _positions_payload(rows)
+            payload["positions_html"] = render_template(
+                "_positions.html", positions=rows, csrf=session.get("csrf", "")
+            )
             payload["positions_help"] = tr(
                 "positions.help",
                 threshold=format_pct(prefs["profit_threshold"]),

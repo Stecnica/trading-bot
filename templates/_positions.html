@@ -1,0 +1,45 @@
+{% from "_grid.html" import grid_cols, grid_sign, currency_head with context %}
+{% if positions %}
+<table class="table grid-table">
+	{{ grid_cols([22, 5, 12, 15, 15, 17, 14]) }}
+	<thead>
+		<tr>
+			<th class="grid-l">{{ t('positions.symbol') }}</th>
+			{{ currency_head() }}
+			<th>{{ t('positions.quantity') }}</th>
+			<th>{{ t('positions.cost') }}</th>
+			<th title="{{ t('positions.now_title') }}">{{ t('positions.now') }}</th>
+			<th title="{{ t('positions.profit_title') }}">{{ t('positions.profit') }}</th>
+			<th><span class="visually-hidden">{{ t('positions.sell') }}</span></th>
+		</tr>
+	</thead>
+	{% for row in positions %}
+	<tbody{% if row.ready %} class="table-success"{% endif %}>
+		<tr>
+			<td class="grid-l"{% if row.score_detail %} title="{{ row.score_detail }}"{% endif %}>{{ row.asset }}</td>
+			<td class="grid-l" title="{{ row.currency }}">{{ row.currency|currency }}</td>
+			<td title="{{ row.amount|qty_full }}">{{ row.amount|qty }}</td>
+			<td>{{ row.buy_price|px }}</td>
+			<td>{{ row.market_price|px if row.market_price is not none else '—' }}</td>
+			<td class="{{ grid_sign(row.ratio) }}">{{ row.ratio|signed_pct if row.ratio is not none else '—' }}</td>
+			<td>{% if row.ready %}<form method="post" action="{{ url_for('sell') }}" class="m-0"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="lot" value="{{ row.lot_id }}"><button class="btn btn-primary btn-sm" type="submit">{{ t('positions.sell') }}</button></form>{% endif %}</td>
+		</tr>
+		<tr>
+			<td class="grid-l">{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
+			<td colspan="3"></td>
+			<td>{{ row.market_time|when if row.market_time else '' }}</td>
+			<td>{{ row.outcome }}</td>
+			<td></td>
+		</tr>
+		{% if row.score %}
+		<tr>
+			<td class="grid-l" title="{{ row.score_detail }}">{{ row.score }}</td>
+			<td colspan="6"></td>
+		</tr>
+		{% endif %}
+	</tbody>
+	{% endfor %}
+</table>
+{% else %}
+<p class="mb-0">{{ t('positions.empty') }}</p>
+{% endif %}

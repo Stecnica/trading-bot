@@ -1058,6 +1058,7 @@ def position_rows(conn, prefs):
             {
                 "lot_id": lot.tx_id,
                 "asset": lot.asset,
+                "currency": lot.currency,
                 "amount": lot.remaining,
                 "buy_price": lot.price,
                 "bought_at": lot.timestamp,

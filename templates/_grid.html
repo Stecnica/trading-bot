@@ -1,0 +1,3 @@
+{% macro grid_cols(widths) %}<colgroup>{% for width in widths %}<col style="width: {{ width }}%">{% endfor %}</colgroup>{% endmacro %}
+{% macro grid_sign(value) %}{% if value is not none and value > 0 %}text-success{% elif value is not none and value < 0 %}text-danger{% endif %}{% endmacro %}
+{% macro currency_head() %}<th class="grid-l" title="{{ t('tx.currency') }}"><span class="grid-icon" aria-hidden="true">{% include "coins.svg" %}</span><span class="visually-hidden">{{ t('tx.currency') }}</span></th>{% endmacro %}
