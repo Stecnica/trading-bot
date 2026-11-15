@@ -32,13 +32,13 @@ The gear on All opens Mode, Band, Side, Divide and Scale. This picture is Mode A
 
 ![Positions](static/screenshot/Positions.png)
 
-**Positions** lists each open lot on the same grid as Transactions: symbol, currency, quantity, buy price, latest price, net profit, and a Sell button when it is ready to sell. Under them are the buy date, the date of the latest price, the result against the threshold, and the score when there is one. A row is marked when the net profit is at or above the threshold and the price is recent enough. The net profit is the same estimate Transactions shows for the open lot. The picture predates the current layout. This picture is the open lot IDXX, bought on 02/11/2026: quantity 1.48889285 (the maximum investment of 1000 divided by the price), buy price 671.64, latest price 670.71 on 05/11/2026, net profit −0.34%, under the threshold of 5.00%.
+**Positions** lists each open lot on the same grid as Transactions: symbol, currency, quantity, buy price, latest price, net profit, and a Sell button when it is ready to sell. Under them are the buy date, the date of the latest price, the result against the threshold, and the score when there is one. A row is marked when the net profit is at or above the threshold and the price is recent enough. A lot that has reached the threshold since its buy is armed: its result reads the peak close since then and how far the latest close is under it. The net profit is the same estimate Transactions shows for the open lot. The picture predates the current layout. This picture is the open lot IDXX, bought on 02/11/2026: quantity 1.48889285 (the maximum investment of 1000 divided by the price), buy price 671.64, latest price 670.71 on 05/11/2026, net profit −0.34%, under the threshold of 5.00%.
 
 Net profit subtracts the sale commission and the tax on the gain from the proceeds, then compares that with the cost of the buy (price plus the commissions and taxes already stored). The tax is the tax rate times the gain: sale value minus the sale commission, minus the buy value and the buy commission. A loss pays no tax. The threshold, the commission, the tax, and the maximum age of a price are preferences. Every buy and sale stores the commission rate it was charged at, and every sale also stores the tax rate and the gain it was taxed on, so a later change of the preferences does not rewrite what was recorded.
 
 ![Buy](static/screenshot/Buy.png)
 
-**Buy** records a lot with `POST /buy`. The fields are symbol, quantity, price, commissions, and taxes. An empty price uses the latest stored close. Empty commissions use the commission preference, and that rate is stored with the buy. Commissions typed by hand are stored with the rate they make on the amount. Empty taxes stay zero: the tax on the gain is applied when the lot is sold. The amount cannot exceed the maximum investment. In this picture the panel is open over the IDXX candle chart. The symbol field contains MRNA. Quantity, price, and commissions are empty, and taxes are 0.
+**Buy** records a lot with `POST /buy`. The fields are symbol, quantity, price, commissions, and taxes. An empty price uses the latest stored close. Empty commissions use the commission preference, and that rate is stored with the buy. Commissions typed by hand are stored with the rate they make on the amount. Empty taxes stay zero: the tax on the gain is applied when the lot is sold. The amount cannot exceed the maximum investment. Under the fields, **Next bot buys** lists the five names with the highest buy score from the last cycle that are not already owned: symbol and company, score, latest close and its session, and the quantity the maximum investment buys at that close. The list is the one the last cycle stored; before any cycle it says it appears after the next one. In this picture the panel is open over the IDXX candle chart. The symbol field contains MRNA. Quantity, price, and commissions are empty, and taxes are 0.
 
 ![Transactions](static/screenshot/Transactions.png)
 
@@ -48,7 +48,7 @@ The update button is `POST /update`. It starts `cycle.py`: download missing clos
 
 ![Preferences](static/screenshot/Preferences.png)
 
-Preferences are three groups. Operations: threshold, investment, commission, tax, and the maximum price age. Page: flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving one field is `POST /prefs`. The menu stays open and the page does not reload. A new commission or tax applies to the transactions written after it. This picture: threshold 0.05, investment 1000, commission 0.001, tax 0.26, price age 120 hours, flat band 0.005, 50 volume names, 730 history days, 240 return sessions, history symbol MRNA, messages stay 8 seconds, typeface Outfit, size 100, weight regular, theme Light, chart Line, drawing Vector.
+Preferences are three groups. Operations: threshold, investment, commission, tax, the maximum price age, trail, keep score, and maximum days. Page: flat band, how many names the volume chart keeps, history days, return sessions, the history symbol, and how long a message stays. Appearance: typeface, size, weight, theme, chart type, and drawing. Short labels sit on the fields. The full sentence is the `title` of the label and of the field. Saving one field is `POST /prefs`. A number outside its range is stored at the nearest bound, and the field shows the stored value. The menu stays open and the page does not reload. A new commission or tax applies to the transactions written after it. This picture: threshold 0.05, investment 1000, commission 0.001, tax 0.26, price age 120 hours, flat band 0.005, 50 volume names, 730 history days, 240 return sessions, history symbol MRNA, messages stay 8 seconds, typeface Outfit, size 100, weight regular, theme Light, chart Line, drawing Vector.
 
 Theme **Automatic** follows the browser’s local time: light from 07:00 to 19:00, dark otherwise. Light and Dark stay fixed. The first paint uses the server clock; the page then follows the browser.
 
@@ -58,21 +58,21 @@ A message slides out under the bar when an update starts and when it finishes. I
 
 A person uses the buttons. An agent uses the same routes as the form. OpenClaw is one such agent: it signs in, holds the cookie, and posts.
 
-A schedule runs `python cycle.py` once, on weekdays, after the US cash session has closed. The process needs the database variables and `MASSIVE_API_KEY`, the same ones the application uses. The hour belongs in the reader's own crontab. One run does three things, in this order.
+A schedule runs `python cycle.py` on weekdays. The reference crontab runs it every 30 minutes from 15:00 to 21:30 and once more at 22:15, server time, after the US cash session has closed. A closed session is published once, so the runs during the session find no new bars and repeat the same decision on the same close. The process needs the database variables and `MASSIVE_API_KEY`, the same ones the application uses; the crontab reads them from `private/bot.env`. The hours belong in the reader's own crontab. One run does three things, in this order.
 
 It downloads the closed sessions that are not in the archive yet. On Stocks Basic a session is published after it has closed, so that hour is when the new bars arrive.
 
-It sells every open lot whose net profit is at or above the threshold, when the latest price is recent enough. Net profit is the one described under Positions: the sale commission and the tax on the gain come off the proceeds, then the result is compared with the cost of the buy. The sale row stores the commission rate, the tax rate, and the taxed gain.
+It applies the trailing sale to every open lot whose latest price is recent enough. Net profit is the one described under Positions: the sale commission and the tax on the gain come off the proceeds, then the result is compared with the cost of the buy. A lot is armed at the first close since its buy that brings the net profit to the threshold. An armed lot is kept while its score is at least the keep score (0.2) and the latest close is less than the trail (3%) under the highest close since arming. It is sold when the score falls under the keep score, when the close is the trail or more under that peak, or when the net profit falls back to the threshold. These sales never happen at a loss: an armed lot whose net profit is under zero is kept. A trail of 0 sells at the first close over the threshold, as before. The sale row stores the commission rate, the tax rate, and the taxed gain.
 
-It then reads the score. An open lot whose score side is sell is sold. If no lot is open after that, the run records at most one buy: the name with the highest buy score, within the maximum investment. While a lot stays open, it waits. The buy and the sale are rows in `transactions`.
+It then reads the score. An open lot whose score side is sell is sold only when its net profit is at or above the threshold; below it the lot is kept. A lot held longer than the maximum days (120) is sold at the latest close whatever the result. If no lot is open after that, the run records at most one buy: the name with the highest buy score, within the maximum investment. While a lot stays open, it waits. The run also stores the first buy scores for **Next bot buys**. The buy and the sale are rows in `transactions`.
 
-`POST /update` starts that same command. `POST /cycle` runs only the threshold sale.
+`POST /update` starts that same command. `POST /cycle` runs only the trailing sale.
 
 ## Continuing
 
 Two connections carry the same cycle out to a run that decides and orders on its own. The first is the Massive plan on the key, which sets how far back and how live the bars are. The second is a broker API on the write of a buy or a sale. After both, a crontab calls `python cycle.py` at the hours you choose, or an OpenClaw instance studies the stored sessions and the preferences and posts the decision. The orders then leave for the account.
 
-The preferences that decision reads are the threshold, the commission, the tax, the maximum investment, and the score.
+The preferences that decision reads are the threshold, the commission, the tax, the maximum investment, the trail, the keep score, the maximum days, and the score.
 
 **The price plan.** `deploy/prepare.py` writes `private/massive_api.env`. Set `MASSIVE_API_KEY` there to a key of the plan you are exercising. Names, windows, and prices of the plans are in the table under Prices.
 
@@ -92,7 +92,7 @@ Run `python cycle.py`. The bars land in `market_history`, and the threshold sale
 
 Point the call at the broker's paper account. It is the same API with a separate endpoint and simulated money, so the whole path can be tested. Run `python cycle.py`, or sign OpenClaw in and post `/update`. The paper account shows the order, and `transactions` shows the matching row. The funded account is that same call on the live endpoint.
 
-With a live session from Advanced or Business, and with the broker accepting the write, the crontab and OpenClaw act on the preferences: the threshold, the commission, the tax, the maximum investment, and the score.
+With a live session from Advanced or Business, and with the broker accepting the write, the crontab and OpenClaw act on the preferences: the threshold, the commission, the tax, the maximum investment, the trail, the keep score, the maximum days, and the score.
 
 Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the single line in `private/ui_password`. The first successful check replaces that line with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /exit`. Five failed attempts lock the application for 15 minutes.
 
@@ -104,7 +104,7 @@ Every POST carries the `csrf` value from the page. After sign-in the routes are:
 | `POST /sell` | Record one paper sale for an open lot. Fields: `lot` (buy transaction id), `csrf`. Refuses a missing or stale price. Uses the same `quote_sell` path as automatic sales. |
 | `POST /cycle` | Apply the sell rule to lots that are ready. |
 | `POST /update` | Start one price update, which then applies the sell rule. |
-| `POST /prefs` | Save preferences. Field names match the inputs in the dialog. |
+| `POST /prefs` | Save preferences. Field names match the inputs in the dialog. A number out of range is clamped to its bound; unreadable text answers `ok: false` with the error. |
 | `POST /volume` | Save the volume picture: `return_days` (1–240), `names` (10–500, step 10), `volume_class`, `stable_band` (0–0.2), `min_side` (0–2), `order` (`rank` or `volume`), `scope` (`all` or `sector`), `divide` and `scale` (`off` or `on`), `csrf`. |
 | `POST /exit` | End this session. |
 
