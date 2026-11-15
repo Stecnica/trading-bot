@@ -67,8 +67,15 @@ def apply_env_file(path, environ=None):
 
 
 def load_private_env():
-    """Fill the database variables from private/database.env when the process has none."""
-    apply_env_file(PRIVATE / "database.env")
+    """Database variables from private/database.env, else private/bot.env (the crontab file).
+
+    These files win over the process environment: a stale DB_* left in the server environment
+    (Apache envvars, SetEnv) must not shadow the credentials kept in private/.
+    """
+    found = {}
+    apply_env_file(PRIVATE / "database.env", found)
+    apply_env_file(PRIVATE / "bot.env", found)
+    os.environ.update(found)
 
 
 def env_first(*keys, default=None):

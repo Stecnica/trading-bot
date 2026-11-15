@@ -184,7 +184,7 @@ DB_PASSWORD=9f3c1a0e7b24
 DB_NAME=trading
 ```
 
-The password is generated. The same value is the MariaDB user `trading`.
+The password is generated. The same value is the MariaDB user `trading`. Without this file the application reads the same variables from `private/bot.env`, the file the crontab sources. The values in `private/` win over any `DB_*` already in the process environment, so a stale value in the web server configuration does not shadow them; the database credentials do not belong in `.htaccess` or in the server configuration.
 
 `private/massive_api.env`
 
