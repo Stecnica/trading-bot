@@ -1,0 +1,34 @@
+{% from "_grid.html" import grid_cols, grid_sign with context %}
+<h3 class="h6 mt-3">{{ t('topbuy.title') }}</h3>
+{% if top_buy %}
+<table class="table grid-table top-buy">
+	{{ grid_cols([31, 19, 24, 26]) }}
+	<thead>
+		<tr>
+			<th class="grid-l">{{ t('positions.symbol') }}</th>
+			<th title="{{ t('topbuy.score_title') }}">{{ t('topbuy.score') }}</th>
+			<th title="{{ t('topbuy.last_title') }}">{{ t('topbuy.last') }}</th>
+			<th title="{{ t('topbuy.qty_title') }}">{{ t('topbuy.qty') }}</th>
+		</tr>
+	</thead>
+	{% for row in top_buy %}
+	<tbody>
+		<tr>
+			<td class="grid-l">{{ row.symbol }}</td>
+			<td class="{{ grid_sign(row.score) }}">{{ ('%+.3f'|format(row.score)).replace('-', '−') }}</td>
+			<td>{{ row.price|px }}</td>
+			<td{% if row.amount is not none %} title="{{ row.amount|qty_full }}"{% endif %}>{{ row.amount|qty if row.amount is not none else '—' }}</td>
+		</tr>
+		<tr>
+			<td class="grid-l text-truncate" colspan="2" title="{{ row.name }}">{{ row.name }}</td>
+			<td>{{ row.session|when if row.session else '' }}</td>
+			<td></td>
+		</tr>
+	</tbody>
+	{% endfor %}
+</table>
+{% elif top_buy is none %}
+<p class="m-2 text-secondary small">{{ t('topbuy.pending') }}</p>
+{% else %}
+<p class="m-2 text-secondary small">{{ t('topbuy.empty') }}</p>
+{% endif %}

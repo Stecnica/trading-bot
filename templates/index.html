@@ -285,7 +285,8 @@
 		.grid-table tbody > tr:first-child > * { padding-top: 0.5rem; }
 		.grid-table tbody > tr:last-child > * { padding-bottom: 0.5rem; }
 		.grid-table tbody > tr:not(:last-child) > *,
-		.grid-scroll > .grid-table:last-of-type > tbody:last-child > tr:last-child > * { border-bottom-width: 0; }
+		.grid-scroll > .grid-table:last-of-type > tbody:last-child > tr:last-child > *,
+		.top-buy > tbody:last-child > tr:last-child > * { border-bottom-width: 0; }
 		.grid-table:not(.grid-total) tbody > tr + tr > td {
 			font-size: 0.75rem;
 			font-weight: 300;
@@ -653,7 +654,8 @@
 									<button class="btn btn-primary w-100" type="submit" form="buy-form">{{ t('buy.submit') }}</button>
 								</div>
 							</div>
-							<p class="m-2 border-top pt-2">{{ t('buy.help') }}</p>
+							{% include "_top_buy.html" %}
+							<p class="m-2 border-top pt-2">{{ t('buy.help') }} {{ t('topbuy.help') }}</p>
 						</div>
 					</div>
 					<div class="dropdown">

@@ -144,3 +144,24 @@ def test_armed_lot_under_zero_is_kept():
     peak, reason = _trail(["100", "110", "95"], 0.1)
     assert peak == Decimal("110")
     assert reason is None
+
+
+def test_buy_board_keeps_buy_rows_in_ranking_order():
+    from bot_decide import buy_board
+
+    ranked = [
+        {"symbol": "A", "side": BUY, "score": 0.6, "price": Decimal("10"), "timestamp": datetime(2026, 11, 12)},
+        {"symbol": "B", "side": HOLD, "score": 0.5, "price": Decimal("11"), "timestamp": datetime(2026, 11, 12)},
+        {"symbol": "C", "side": BUY, "score": 0.4, "price": Decimal("12"), "timestamp": None},
+    ]
+    board = buy_board(ranked, size=5)
+    assert [row["symbol"] for row in board] == ["A", "C"]
+    assert board[0] == {"symbol": "A", "score": 0.6, "price": "10", "timestamp": "2026-11-12T00:00:00"}
+
+
+def test_top_buys_skip_owned_names_and_stop_at_the_count():
+    from bot_decide import top_buys
+
+    board = [{"symbol": s} for s in ("AMD", "AVGO", "CLX", "ANET", "CEG", "SWKS", "X")]
+    assert [row["symbol"] for row in top_buys(board, {"AMD"}, count=5)] == ["AVGO", "CLX", "ANET", "CEG", "SWKS"]
+    assert top_buys(None, set()) == []

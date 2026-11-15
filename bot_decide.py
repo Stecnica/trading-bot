@@ -1,9 +1,11 @@
 """One decision from the score. The top buy is written. An open lot is sold on a sell side only in profit."""
 
+import json
 from collections import defaultdict
 from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
 
+from bot_chart_cache import get_bytes as cache_get, put_bytes as cache_put
 from bot_db import connect, fetch_transactions, insert_transaction, latest_prices, load_preferences
 from bot_i18n import tr
 from bot_logic import money, open_lots, quote_sell, score_exit
@@ -11,6 +13,8 @@ from bot_news import listed_symbols
 from bot_score import BUY, SELL, Book, warm_rsi
 
 QTY = Decimal("0.00000001")
+BOARD_SIZE = 20
+BOARD_KEY = ("latest",)
 
 
 def score_label(row):
@@ -112,6 +116,45 @@ def score_book(conn):
     return rows
 
 
+def buy_board(ranked, size=BOARD_SIZE):
+    """The first BUY rows of a ranking, as plain values for the cache."""
+    board = []
+    for row in ranked:
+        if row["side"] != BUY:
+            continue
+        board.append(
+            {
+                "symbol": row["symbol"],
+                "score": float(row["score"]),
+                "price": str(row["price"]),
+                "timestamp": row["timestamp"].isoformat() if row.get("timestamp") else None,
+            }
+        )
+        if len(board) >= size:
+            break
+    return board
+
+
+def store_buy_board(ranked):
+    cache_put("buy_board", BOARD_KEY, json.dumps(buy_board(ranked), separators=(",", ":")).encode("utf-8"))
+
+
+def load_buy_board():
+    """The board the last decision stored, or None. Scoring 500 names is too slow for a request."""
+    raw = cache_get("buy_board", BOARD_KEY)
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def top_buys(board, held, count=5):
+    """The next names the bot would buy: BUY side, highest score first, not already owned."""
+    return [row for row in board or [] if row["symbol"] not in held][:count]
+
+
 def _amount_for(budget, price):
     price = money(price)
     budget = money(budget)
@@ -160,6 +203,7 @@ def apply_once(conn):
     """
     prefs = load_preferences(conn)
     ranked = score_book(conn)
+    store_buy_board(ranked)
     lots, _unmatched = open_lots(fetch_transactions(conn))
     held = {lot.asset for lot in lots}
     sold = []

@@ -487,6 +487,7 @@ def home():
         class_tree = classification_tree(conn)
         positions = position_rows(conn, prefs)
         _attach_score(conn, positions)
+        top_buy = _top_buy(positions, catalog, prefs)
         transactions = recent_transactions(conn, prefs)
         balance = paper_balance(conn, prefs)
         assets = list_assets(conn)
@@ -525,6 +526,7 @@ def home():
         blocks=blocks,
         tiles=tiles,
         positions=positions,
+        top_buy=top_buy,
         transactions=transactions,
         paper_balance=balance,
         assets=assets,
@@ -658,6 +660,30 @@ def _volume_board(conn, prefs, order="rank", scope="sector"):
         ),
     )
     return prefs, blocks, tiles, caption, frames
+
+
+def _top_buy(positions, names, prefs):
+    """Next bot candidates from the board the last cycle stored. None before any cycle stored one."""
+    from bot_decide import load_buy_board, top_buys
+
+    board = load_buy_board()
+    if board is None:
+        return None
+    held = {row["asset"] for row in positions}
+    rows = []
+    for item in top_buys(board, held):
+        price = Decimal(item["price"])
+        rows.append(
+            {
+                "symbol": item["symbol"],
+                "name": names.get(item["symbol"], ""),
+                "score": item["score"],
+                "price": price,
+                "session": datetime.fromisoformat(item["timestamp"]) if item.get("timestamp") else None,
+                "amount": prefs["max_investment"] / price if price > 0 else None,
+            }
+        )
+    return rows
 
 
 def _attach_score(conn, rows):
