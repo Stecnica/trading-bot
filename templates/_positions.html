@@ -30,19 +30,14 @@
 			<td colspan="7"><form method="post" action="{{ url_for('sell') }}" class="m-0"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="lot" value="{{ row.lot_id }}"><button class="btn btn-primary btn-sm w-100" type="submit">{{ t('positions.sell') }} {{ row.asset }}</button></form></td>
 		</tr>
 		{% endif %}
-		<tr>
-			<td class="grid-l">{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
+		{# The symbol sub-lines share one cell so a taller outcome cannot push the score down. #}
+		<tr class="pos-sub">
+			<td class="grid-l"><div>{{ t('tx.bought_on') }} {{ row.bought_at|when }}</div>{% if row.score %}<div title="{{ row.score_detail }}">{{ row.score }}</div>{% endif %}</td>
 			<td colspan="3"></td>
 			<td>{{ row.market_time|when if row.market_time else '' }}</td>
-			<td>{{ row.outcome }}</td>
+			<td>{{ row.outcome|glue }}</td>
 			<td></td>
 		</tr>
-		{% if row.score %}
-		<tr>
-			<td class="grid-l" title="{{ row.score_detail }}">{{ row.score }}</td>
-			<td colspan="6"></td>
-		</tr>
-		{% endif %}
 	</tbody>
 	{% endfor %}
 </table>

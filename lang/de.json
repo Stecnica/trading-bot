@@ -39,7 +39,7 @@
   "positions.no_price": "kein Preis",
   "positions.stale": "Preis zu alt zum Verkaufen",
   "positions.ready": "verkaufsbereit",
-  "positions.armed": "scharf · Hoch {peak} · −{drop} %",
+  "positions.armed": "scharf · Hoch {peak} · {drop}",
   "positions.below": "unter der Schwelle",
   "positions.sell": "Verkaufen",
   "sell.saved": "Verkauf von {asset} erfasst.",

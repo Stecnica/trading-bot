@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
@@ -13,6 +13,7 @@ from bot_config import install_import_path
 
 install_import_path()
 
+from markupsafe import Markup
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, session, url_for
 from jinja2 import ChoiceLoader, FileSystemLoader
 
@@ -264,6 +265,18 @@ def prepare():
     _ready = True
 
 
+@app.template_filter("glue")
+def glue_parts(value):
+    """A "a · b · c" line that wraps only after a separator, never inside a part or before a "·"."""
+    if not value:
+        return ""
+    parts = str(value).split(" · ")
+    return Markup(" ").join(
+        Markup('<span class="text-nowrap">{}{}</span>').format(part, Markup("&nbsp;·") if index < len(parts) - 1 else "")
+        for index, part in enumerate(parts)
+    )
+
+
 @app.template_filter("qty")
 def format_qty(value):
     if value is None:
@@ -296,8 +309,8 @@ def format_pct(value):
 def format_signed_pct(value):
     if value is None:
         return "—"
-    number = Decimal(str(value))
-    text = f"{abs(number) * 100:.3f} %"
+    number = (Decimal(str(value)) * 100).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    text = f"{abs(number):.3f} %"
     if number > 0:
         return "+" + text
     if number < 0:

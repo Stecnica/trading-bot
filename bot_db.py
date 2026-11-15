@@ -1087,7 +1087,7 @@ def position_rows(conn, prefs):
                 outcome = tr(
                     "positions.armed",
                     peak=f"{peak:.3f}",
-                    drop=f"{peak_drop(peak, quote['price']) * 100:.3f}",
+                    drop=drop_text(peak_drop(peak, quote["price"])),
                 )
         else:
             outcome = tr("positions.below")
@@ -1282,6 +1282,12 @@ def sell_ready_lots(conn, prefs, scores=None):
             item["score"],
         )
     return sold
+
+
+def drop_text(drop):
+    """The fall from the peak as −x.xxx %; a fall that rounds to zero reads 0.000 %, never −0.000 %."""
+    shown = (Decimal(str(drop)) * 100).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    return f"−{shown:.3f} %" if shown > 0 else "0.000 %"
 
 
 def read_status():

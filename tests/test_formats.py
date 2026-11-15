@@ -1,6 +1,9 @@
+from decimal import Decimal
+
 from bot_charts import _factor, treemap_layout
+from bot_db import drop_text
 from bot_decide import score_label
-from index import history_stats
+from index import format_signed_pct, glue_parts, history_stats
 
 
 def test_chart_stats_use_three_decimals():
@@ -34,3 +37,19 @@ def test_session_amount_shows_the_currency_symbol_per_locale():
         assert _money(950) == "950.000 $"
     finally:
         activate("en")
+
+
+def test_no_negative_zero_in_percentages():
+    assert drop_text(Decimal("0")) == "0.000 %"
+    assert drop_text(Decimal("0.0000004")) == "0.000 %"
+    assert drop_text(Decimal("0.08754")) == "−8.754 %"
+    assert format_signed_pct(Decimal("-0.0000004")) == "0.000 %"
+    assert format_signed_pct(Decimal("-0.04562")) == "−4.562 %"
+
+
+def test_glued_outcome_wraps_only_after_a_separator():
+    html = str(glue_parts("armed · peak 585.300 · 0.000 %"))
+    assert html.count('class="text-nowrap"') == 3
+    assert "&nbsp;·</span> <span" in html
+    assert not html.split("</span> ")[-1].lstrip().startswith("·")
+    assert str(glue_parts("under the threshold")) == '<span class="text-nowrap">under the threshold</span>'

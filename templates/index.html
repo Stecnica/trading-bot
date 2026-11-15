@@ -287,6 +287,7 @@
 		.grid-table tbody > tr:not(:last-child) > *,
 		.grid-scroll > .grid-table:last-of-type > tbody:last-child > tr:last-child > *,
 		.top-buy > tbody:last-child > tr:last-child > * { border-bottom-width: 0; }
+		.grid-table tr.pos-sub > td { vertical-align: top; }
 		.grid-table:not(.grid-total) tbody > tr + tr > td {
 			font-size: 0.75rem;
 			font-weight: 300;
@@ -337,6 +338,8 @@
 		}
 		.sym-btn:hover,
 		.sym-btn:focus-visible { background: rgba(var(--bs-success-rgb), 0.22); }
+		/* The Symbol header starts where the button text starts: button border plus padding. */
+		.grid-table:has(.sym-btn) > thead th:first-child { text-indent: calc(0.3rem + 1px); }
 		#buy-peek .sym-btn { font-size: 0.875em; }
 		.symbol-chart {
 			width: min(64rem, calc(100vw - 1rem));

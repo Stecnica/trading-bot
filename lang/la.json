@@ -39,7 +39,7 @@
   "positions.no_price": "nullum pretium",
   "positions.stale": "pretium nimis vetus ad vendendum",
   "positions.ready": "paratum ad vendendum",
-  "positions.armed": "armatum · summum {peak} · −{drop} %",
+  "positions.armed": "armatum · summum {peak} · {drop}",
   "positions.below": "infra limen",
   "positions.sell": "Vende",
   "sell.saved": "Venditio rei {asset} adscripta est.",

@@ -39,7 +39,7 @@
   "positions.no_price": "no price",
   "positions.stale": "price too old to sell",
   "positions.ready": "ready to sell",
-  "positions.armed": "armed · peak {peak} · −{drop} %",
+  "positions.armed": "armed · peak {peak} · {drop}",
   "positions.below": "under the threshold",
   "positions.sell": "Sell",
   "sell.saved": "Sale of {asset} recorded.",
