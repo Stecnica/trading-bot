@@ -57,9 +57,9 @@ html {
 }
 
 .btn {
-	--bs-btn-font-weight: var(--bs-body-font-weight);
-	--bs-btn-line-height: 1.15;
-	line-height: 1.15;
+--bs-btn-font-weight: var(--bs-body-font-weight);
+--bs-btn-line-height: 1.35;
+line-height: var(--bs-btn-line-height);
 }
 
 .form-control,
