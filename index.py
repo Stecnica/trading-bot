@@ -885,7 +885,7 @@ def save_prefs():
         prefs = load_preferences(conn)
         payload = {"ok": True, "values": values}
         payload["balance"] = format_price(paper_balance(conn, prefs))
-        if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours"}.intersection(values):
+        if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours", "max_hold_days", "trail", "sell_delay_score"}.intersection(values):
             rows = position_rows(conn, prefs)
             _attach_score(conn, rows)
             payload["positions_html"] = render_template(
@@ -894,6 +894,11 @@ def save_prefs():
             payload["positions_help"] = tr(
                 "positions.help",
                 threshold=format_pct(prefs["profit_threshold"]),
+            ) + tr(
+                "positions.help_trail",
+                delay=prefs["sell_delay_score"],
+                trail=format_pct(prefs["trail"]),
+                days=prefs["max_hold_days"],
             )
     finally:
         conn.close()

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from bot_decide import score_exits
-from bot_logic import open_lots, quote_sell, score_exit
+from bot_logic import armed_peak, open_lots, quote_sell, score_exit, trail_exit
 from bot_score import BUY, HOLD, SELL
 
 NOW = datetime(2026, 11, 16, 15, 0)
@@ -11,6 +11,8 @@ PREFS = {
     "fee_rate": Decimal("0.001"),
     "tax_rate": Decimal("0.26"),
     "max_hold_days": 120,
+    "trail": Decimal("0.03"),
+    "sell_delay_score": Decimal("0.2"),
 }
 
 
@@ -88,3 +90,57 @@ def test_score_exits_price_an_unscored_lot_from_the_latest_close():
         bot_decide.latest_prices = original
     assert seen["called"]
     assert [(lot.asset, reason) for lot, _q, _s, reason in exits] == [("OLD", "max_hold")]
+
+
+def _closes(*prices):
+    return [(NOW - timedelta(days=len(prices) - i), Decimal(p)) for i, p in enumerate(prices)]
+
+
+def _trail(prices, score):
+    lot = _lot(price="100")
+    closes = _closes(*prices)
+    peak = armed_peak(lot, closes, PREFS["fee_rate"], PREFS["tax_rate"], PREFS["profit_threshold"])
+    quote = quote_sell(lot, closes[-1][1], PREFS["fee_rate"], PREFS["tax_rate"])
+    return peak, trail_exit(quote, peak, score, PREFS)
+
+
+def test_lot_under_the_threshold_is_not_armed():
+    assert _trail(["100", "103", "104"], 0.5) == (None, None)
+
+
+def test_armed_lot_with_a_good_score_and_a_small_drop_is_kept():
+    peak, reason = _trail(["100", "110", "112", "111"], 0.5)
+    assert peak == Decimal("112")
+    assert reason is None
+
+
+def test_armed_lot_sells_when_the_score_falls_under_the_delay():
+    assert _trail(["100", "110", "112", "111"], 0.1)[1] == "score"
+    assert _trail(["100", "110", "112", "111"], None)[1] == "score"
+
+
+def test_armed_lot_sells_on_a_drop_from_the_peak():
+    peak, reason = _trail(["100", "110", "120", "116"], 0.9)
+    assert peak == Decimal("120")
+    assert reason == "trail"
+
+
+def test_armed_lot_sells_at_the_floor_when_the_ratio_falls_back():
+    peak, reason = _trail(["100", "110", "104"], 0.9)
+    assert peak == Decimal("110")
+    assert reason == "floor"
+
+
+def test_zero_trail_sells_at_the_first_close_over_the_threshold():
+    lot = _lot(price="100")
+    closes = _closes("100", "110")
+    prefs = dict(PREFS, trail=Decimal("0"))
+    peak = armed_peak(lot, closes, prefs["fee_rate"], prefs["tax_rate"], prefs["profit_threshold"])
+    quote = quote_sell(lot, "110", prefs["fee_rate"], prefs["tax_rate"])
+    assert trail_exit(quote, peak, 0.9, prefs) == "trail"
+
+
+def test_armed_lot_under_zero_is_kept():
+    peak, reason = _trail(["100", "110", "95"], 0.1)
+    assert peak == Decimal("110")
+    assert reason is None

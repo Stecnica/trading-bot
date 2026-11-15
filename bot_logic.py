@@ -141,6 +141,53 @@ def quote_sell(lot, market_price, fee_rate, tax_rate):
     }
 
 
+def armed_peak(lot, closes, fee_rate, tax_rate, threshold):
+    """Highest close since the first close whose net ratio reached the threshold.
+
+    closes are (timestamp, price) pairs in time order, from the buy date on.
+    None while no close has reached the threshold: the lot is not armed.
+    """
+    peak = None
+    for _stamp, price in closes:
+        price = money(price)
+        if price is None or price <= 0:
+            continue
+        if peak is None:
+            quote = quote_sell(lot, price, fee_rate, tax_rate)
+            if quote is not None and quote["ratio"] is not None and quote["ratio"] >= threshold:
+                peak = price
+        elif price > peak:
+            peak = price
+    return peak
+
+
+def peak_drop(peak, price):
+    if peak is None or peak <= 0:
+        return None
+    return (peak - money(price)) / peak
+
+
+def trail_exit(quote, peak, score, prefs):
+    """Why an armed lot is sold now, or None to keep it.
+
+    floor: the net ratio is back at or under the threshold, still above zero.
+    trail: the close is trail or more under the peak since arming.
+    score: the score is under sell_delay_score, or there is none.
+    Under zero the lot is kept: these exits never sell at a loss.
+    """
+    if peak is None or quote is None or quote["ratio"] is None:
+        return None
+    if quote["ratio"] <= 0:
+        return None
+    if quote["ratio"] <= prefs["profit_threshold"]:
+        return "floor"
+    if peak_drop(peak, quote["price"]) >= prefs["trail"]:
+        return "trail"
+    if score is None or score < prefs["sell_delay_score"]:
+        return "score"
+    return None
+
+
 def held_too_long(lot, now, max_hold_days):
     """True when the lot was bought more than max_hold_days before now."""
     if lot.timestamp is None:

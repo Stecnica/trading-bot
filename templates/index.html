@@ -427,6 +427,35 @@
 </div>
 <div class="d-flex align-items-start gap-3 text-center">
 	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.trail_title') }}">{{ t('prefs.trail') }}</label>
+		<div class="input-group input-group-sm">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
+			<input class="form-control text-center" data-pref="trail" data-saved="{{ prefs.trail }}" title="{{ t('prefs.trail_title') }}" value="{{ prefs.trail }}" min="0" max="0.5" step="0.01" inputmode="decimal" autocomplete="off">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+		</div>
+	</div>
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.delay_title') }}">{{ t('prefs.delay') }}</label>
+		<div class="input-group input-group-sm">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
+			<input class="form-control text-center" data-pref="sell_delay_score" data-saved="{{ prefs.sell_delay_score }}" title="{{ t('prefs.delay_title') }}" value="{{ prefs.sell_delay_score }}" min="-1" max="1" step="0.05" inputmode="decimal" autocomplete="off">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+		</div>
+	</div>
+</div>
+<div class="d-flex align-items-start gap-3 text-center">
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.hold_title') }}">{{ t('prefs.hold') }}</label>
+		<div class="input-group input-group-sm">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
+			<input class="form-control text-center" data-pref="max_hold_days" data-saved="{{ prefs.max_hold_days }}" title="{{ t('prefs.hold_title') }}" value="{{ prefs.max_hold_days }}" min="1" max="3650" step="1" inputmode="numeric" autocomplete="off">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+		</div>
+	</div>
+	<div class="flex-fill"></div>
+</div>
+<div class="d-flex align-items-start gap-3 text-center">
+	<div class="flex-fill">
 		<label class="form-label" title="{{ t('prefs.capital_title') }}">{{ t('prefs.capital') }}</label>
 		<input class="form-control form-control-sm pref-capital text-end" data-pref="initial_capital" data-saved="{{ prefs.initial_capital }}" title="{{ t('prefs.capital_title') }}" value="{{ prefs.initial_capital }}" inputmode="decimal" autocomplete="off">
 	</div>
@@ -567,7 +596,7 @@
 							{% include "_positions.html" %}
 							</div>
 							<button type="button" class="grid-more" hidden title="{{ t('tx.more') }}" aria-label="{{ t('tx.more') }}">{% include "chevrons-down.svg" %}</button>
-							<p class="m-2 border-top pt-2" id="positions-help">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}</p>
+							<p class="m-2 border-top pt-2" id="positions-help">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}{{ t('positions.help_trail', delay=prefs.sell_delay_score, trail=prefs.trail|pct, days=prefs.max_hold_days) }}</p>
 						</div>
 					</div>
 					<div class="dropdown">

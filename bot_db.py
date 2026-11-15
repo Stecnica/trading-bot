@@ -10,7 +10,7 @@ import mysql.connector
 
 from bot_config import LOCK_PATH, STATUS_PATH, db_config, get_logger
 from bot_i18n import tr
-from bot_logic import CURRENCY, money, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale
+from bot_logic import CURRENCY, armed_peak, money, peak_drop, trail_exit, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -61,6 +61,8 @@ DEFAULTS = {
     "focus_asset": "AAPL",
     "max_price_age_hours": "120",
     "max_hold_days": "120",
+    "trail": "0.03",
+    "sell_delay_score": "0.2",
     "notice_seconds": "8",
     "volume_class": "",
     "volume_order": "rank",
@@ -91,6 +93,8 @@ PREF_LABELS = {
     "focus_asset": "History chart symbol",
     "max_price_age_hours": "Maximum price age for a sale (hours)",
     "max_hold_days": "Days after which a lot is sold at any result",
+    "trail": "Drop from the peak that sells an armed lot (0.03 = 3%)",
+    "sell_delay_score": "Score that keeps an armed lot",
     "notice_seconds": "Message seconds",
     "min_side": "Shorter side of a block, in the 16×9 frame. Below this the block is left out. A lower value keeps more blocks.",
     "volume_divide": "On keeps the shorter ratio when two contiguous blocks have two arrangements. Off keeps the first arrangement.",
@@ -388,6 +392,8 @@ def interpret(raw):
         "focus_asset": normalize_ticker(raw.get("focus_asset") or "AAPL") or "AAPL",
         "max_price_age_hours": _int_between(raw.get("max_price_age_hours"), 1, 720, 120),
         "max_hold_days": _int_between(raw.get("max_hold_days"), 1, 3650, 120),
+        "trail": _decimal_between(raw.get("trail"), Decimal("0"), Decimal("0.5"), "0.03"),
+        "sell_delay_score": _decimal_between(raw.get("sell_delay_score"), Decimal("-1"), Decimal("1"), "0.2"),
         "notice_seconds": _int_between(raw.get("notice_seconds"), 3, 30, 8),
         "volume_order": raw.get("volume_order") if raw.get("volume_order") in VOLUME_ORDERS else "rank",
         "volume_scope": raw.get("volume_scope") if raw.get("volume_scope") in VOLUME_SCOPES else "sector",
@@ -510,7 +516,9 @@ def preference_patch(form):
         ("return_days", lambda: int_value("return_days", 1, 240, "prefs.err.limits")),
         ("names", lambda: int_value("names", 10, 500, "prefs.err.names", 10)),
         ("max_price_age_hours", lambda: int_value("max_price_age_hours", 1, 720, "prefs.err.limits")),
-        ("max_hold_days", lambda: int_value("max_hold_days", 1, 3650, "prefs.err.limits")),
+        ("max_hold_days", lambda: int_value("max_hold_days", 1, 3650, "prefs.err.hold")),
+        ("trail", lambda: decimal_value("trail", Decimal("0"), Decimal("0.5"), "prefs.err.trail")),
+        ("sell_delay_score", lambda: decimal_value("sell_delay_score", Decimal("-1"), Decimal("1"), "prefs.err.delay")),
         ("notice_seconds", lambda: int_value("notice_seconds", 3, 30, "prefs.err.notice")),
         ("ui_scale", lambda: int_value("ui_scale", 80, 120, "prefs.err.scale", 5)),
     )
@@ -1056,6 +1064,21 @@ def position_rows(conn, prefs):
             outcome = tr("positions.stale")
         elif ready:
             outcome = tr("positions.ready")
+            peak = None
+            if lot.timestamp is not None:
+                peak = armed_peak(
+                    lot,
+                    closes_since(conn, lot.asset, lot.timestamp),
+                    prefs["fee_rate"],
+                    prefs["tax_rate"],
+                    prefs["profit_threshold"],
+                )
+            if peak is not None:
+                outcome = tr(
+                    "positions.armed",
+                    peak=f"{peak:.3f}",
+                    drop=f"{peak_drop(peak, quote['price']) * 100:.2f}",
+                )
         else:
             outcome = tr("positions.below")
         rows.append(
@@ -1125,15 +1148,40 @@ def sell_open_lot(conn, prefs, lot_id):
     return lot.asset, None
 
 
-def sell_ready_lots(conn, prefs):
-    """Sells the lots whose net profit reaches the threshold. Returns the number of sales."""
-    lots, unmatched = open_lots(fetch_transactions(conn))
-    if unmatched > 0:
-        log.warning("sales without a matching buy, residual quantity %s", unmatched)
+def closes_since(conn, asset, since):
+    """(timestamp, close) of one name from the session of since on, oldest first."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT timestamp, price
+        FROM market_history
+        WHERE asset_name = %s AND timestamp >= %s
+        ORDER BY timestamp
+        """,
+        (asset, datetime.combine(since.date(), datetime.min.time())),
+    )
+    rows = cur.fetchall()
+    cur.close()
+    return rows
+
+
+def lot_scores(conn, lots):
+    """Score number per held name, from the same reading as the decision."""
+    from bot_decide import scores_for
+
+    found = scores_for(conn, [lot.asset for lot in lots])
+    return {asset: row["score"] for asset, row in found.items()}
+
+
+def threshold_review(conn, prefs, lots=None, scores=None, now=None):
+    """One entry per open lot with a fresh price: quote, peak since arming, drop, score, and the
+    reason to sell now (floor, trail, score) or None to keep. Nothing is written."""
+    if lots is None:
+        lots, _unmatched = open_lots(fetch_transactions(conn))
     prices = latest_prices(conn)
-    now = datetime.now()
+    now = now or datetime.now()
     max_age = prefs["max_price_age_hours"] * 3600
-    sold = 0
+    review = []
     for lot in lots:
         market = prices.get(lot.asset)
         if not market:
@@ -1144,7 +1192,58 @@ def sell_ready_lots(conn, prefs):
         quote = quote_sell(lot, market["price"], prefs["fee_rate"], prefs["tax_rate"])
         if quote is None or quote["ratio"] is None:
             continue
-        if quote["ratio"] < prefs["profit_threshold"]:
+        peak = None
+        if lot.timestamp is not None:
+            peak = armed_peak(
+                lot,
+                closes_since(conn, lot.asset, lot.timestamp),
+                prefs["fee_rate"],
+                prefs["tax_rate"],
+                prefs["profit_threshold"],
+            )
+        score = None
+        if peak is not None:
+            if scores is None:
+                scores = lot_scores(conn, lots)
+            score = scores.get(lot.asset)
+        review.append(
+            {
+                "lot": lot,
+                "quote": quote,
+                "peak": peak,
+                "drop": peak_drop(peak, quote["price"]),
+                "score": score,
+                "reason": trail_exit(quote, peak, score, prefs),
+            }
+        )
+    return review
+
+
+def sell_ready_lots(conn, prefs, scores=None):
+    """Sells the armed lots the trailing rule lets go. Returns the number of sales.
+
+    A lot is armed once a close since the buy brought its net ratio to the
+    threshold. It is kept while the score stays at or above sell_delay_score
+    and the close is less than trail under the peak since arming; it is sold
+    when either fails or when the ratio falls back to the threshold.
+    """
+    lots, unmatched = open_lots(fetch_transactions(conn))
+    if unmatched > 0:
+        log.warning("sales without a matching buy, residual quantity %s", unmatched)
+    now = datetime.now()
+    sold = 0
+    for item in threshold_review(conn, prefs, lots, scores, now):
+        lot, quote = item["lot"], item["quote"]
+        if item["reason"] is None:
+            if item["peak"] is not None:
+                log.info(
+                    "keeping %s: armed, net_profit=%s peak=%s drop=%s score=%s",
+                    lot.asset,
+                    quote["ratio"],
+                    item["peak"],
+                    item["drop"],
+                    item["score"],
+                )
             continue
         insert_transaction(
             conn,
@@ -1162,12 +1261,15 @@ def sell_ready_lots(conn, prefs):
         )
         sold += 1
         log.info(
-            "sale %s qty=%s price=%s net_profit=%s threshold=%s",
+            "sale %s qty=%s price=%s net_profit=%s threshold=%s reason=%s peak=%s score=%s",
             lot.asset,
             quote["amount"],
             quote["price"],
             quote["ratio"],
             prefs["profit_threshold"],
+            item["reason"],
+            item["peak"],
+            item["score"],
         )
     return sold
 
@@ -1215,6 +1317,13 @@ def _decimal(value, fallback):
         return Decimal(str(value))
     except (ArithmeticError, ValueError):
         return Decimal(fallback)
+
+
+def _decimal_between(value, low, high, fallback):
+    number = _decimal(value, fallback)
+    if not number.is_finite() or number < low or number > high:
+        return Decimal(fallback)
+    return number
 
 
 def _int_between(value, low, high, fallback):
