@@ -41,3 +41,11 @@ def test_unreadable_text_is_still_an_error():
     assert values is None and error
     values, error, _clamped = _patch(fee_rate="nan")
     assert values is None and error
+
+
+def test_history_drawing_defaults_to_vector():
+    from bot_db import interpret
+
+    assert interpret({})["chart_render"] == "vector"
+    assert interpret({"chart_render": "bogus"})["chart_render"] == "vector"
+    assert interpret({"chart_render": "image"})["chart_render"] == "image"

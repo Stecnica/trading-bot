@@ -257,7 +257,7 @@
   "prefs.weight_title": "Épaisseur de la police",
   "prefs.theme_title": "Les thèmes clair et sombre restent fixes. « Automatique » suit l'heure locale : thème clair de 7 h à 19 h, thème sombre de 19 h à 7 h.",
   "prefs.chart_title": "Graphique historique",
-  "prefs.draw_title": "Représentation historique",
+  "prefs.draw_title": "Représentation historique. Vectoriel (SVG) par défaut. Image (PNG) en repli pour les machines anciennes.",
   "prefs.light": "Clair",
   "prefs.dark": "Sombre",
   "prefs.auto": "Automatique",

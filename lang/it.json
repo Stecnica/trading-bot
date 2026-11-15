@@ -257,7 +257,7 @@
   "prefs.weight_title": "Peso del carattere",
   "prefs.theme_title": "Chiaro e Scuro restano fissi. Automatico segue l'ora locale: chiaro dalle 7 alle 19, scuro dalle 19 alle 7.",
   "prefs.chart_title": "Grafico storico",
-  "prefs.draw_title": "Disegno dello storico",
+  "prefs.draw_title": "Disegno dello storico. Vettore (SVG) è il predefinito. Immagine (PNG) è il ripiego per le macchine datate.",
   "prefs.light": "Chiaro",
   "prefs.dark": "Scuro",
   "prefs.auto": "Automatico",

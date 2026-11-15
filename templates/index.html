@@ -1052,10 +1052,10 @@
 											</div>
 										</div>
 										<div>
-											<div class="form-label">{{ t('prefs.draw') }}</div>
-											<div class="btn-group btn-group-sm" role="group" aria-label="{{ t('prefs.draw') }}" data-saved="{{ prefs.chart_render }}">
-												<button class="btn btn-outline-primary{% if prefs.chart_render != 'vector' %} active{% endif %}" type="button" data-render="image">{{ t('prefs.image') }}</button>
-												<button class="btn btn-outline-primary{% if prefs.chart_render == 'vector' %} active{% endif %}" type="button" data-render="vector">{{ t('prefs.vector') }}</button>
+											<div class="form-label" title="{{ t('prefs.draw_title') }}">{{ t('prefs.draw') }}</div>
+											<div class="btn-group btn-group-sm" role="group" aria-label="{{ t('prefs.draw') }}" title="{{ t('prefs.draw_title') }}" data-saved="{{ prefs.chart_render }}">
+												<button class="btn btn-outline-primary{% if prefs.chart_render == 'image' %} active{% endif %}" type="button" data-render="image">{{ t('prefs.image') }}</button>
+												<button class="btn btn-outline-primary{% if prefs.chart_render != 'image' %} active{% endif %}" type="button" data-render="vector">{{ t('prefs.vector') }}</button>
 											</div>
 										</div>
 									</div>

@@ -257,7 +257,7 @@
   "prefs.weight_title": "Grosor de la tipografía",
   "prefs.theme_title": "Los modos claro y oscuro permanecen fijos. «Automático» sigue la hora local: modo claro de 7 a 19, modo oscuro de 19 a 7.",
   "prefs.chart_title": "Gráfico histórico",
-  "prefs.draw_title": "Representación histórica",
+  "prefs.draw_title": "Representación histórica. Vector (SVG) es el predeterminado. Imagen (PNG) es la alternativa para equipos antiguos.",
   "prefs.light": "Claro",
   "prefs.dark": "Oscuro",
   "prefs.auto": "Automático",

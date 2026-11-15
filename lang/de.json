@@ -257,7 +257,7 @@
   "prefs.weight_title": "Schriftstärke",
   "prefs.theme_title": "Hell und Dunkel bleiben fest. Automatisch folgt der Ortszeit: hell von 7 bis 19, dunkel von 19 bis 7.",
   "prefs.chart_title": "Verlaufsdiagramm",
-  "prefs.draw_title": "Verlaufszeichnung",
+  "prefs.draw_title": "Verlaufszeichnung. Vektor (SVG) ist der Standard. Bild (PNG) ist der Ausweg für ältere Rechner.",
   "prefs.light": "Hell",
   "prefs.dark": "Dunkel",
   "prefs.auto": "Automatisch",

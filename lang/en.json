@@ -257,7 +257,7 @@
   "prefs.weight_title": "Type weight",
   "prefs.theme_title": "Light and Dark stay fixed. Automatic follows local time: light from 7 to 19, dark from 19 to 7.",
   "prefs.chart_title": "History chart",
-  "prefs.draw_title": "History drawing",
+  "prefs.draw_title": "History drawing. Vector (SVG) is the default. Image (PNG) is the fallback for older machines.",
   "prefs.light": "Light",
   "prefs.dark": "Dark",
   "prefs.auto": "Automatic",
