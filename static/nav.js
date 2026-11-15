@@ -181,10 +181,9 @@ function uiText(key, vars) {
     menu.style.marginTop = "0px";
     menu.style.transform = "none";
     menu.style.zIndex = "2000";
-    /* Cap height so .nav-panel-grid flex can pin Balance and scroll the middle. */
-    var maxH = Math.min(Math.round(window.innerHeight * 0.7), 512);
+    /* Cap height so .nav-panel-grid flex can pin Balance and scroll the middle: 768px, never past the bottom of the screen. */
     var room = Math.max(160, window.innerHeight - Math.round(target) - 8);
-    menu.style.maxHeight = Math.min(maxH, room) + "px";
+    menu.style.maxHeight = Math.min(768, room) + "px";
   }
 
   /* Grid panels (Transactions, Positions): fade and chevron while rows remain below the visible part. */

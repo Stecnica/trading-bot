@@ -17,7 +17,7 @@
 			display: flex !important;
 			flex-direction: column;
 			overflow: hidden !important;
-			max-height: min(70vh, 32rem);
+			max-height: min(768px, calc(100vh - 1rem));
 			background-color: var(--bs-body-bg) !important;
 			background-image: none !important;
 			opacity: 1 !important;
@@ -194,7 +194,7 @@
 		}
 		.nav-panel {
 			width: min(36rem, calc(100vw - 1rem));
-			max-height: min(70vh, 32rem);
+			max-height: min(768px, calc(100vh - 1rem));
 			overflow: auto;
 		}
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
@@ -325,8 +325,30 @@
 		.buy-grid > :first-child { grid-column: span 2; }
 		.buy-grid .form-label { font-weight: 400; }
 		.buy-grid .form-control { font-weight: 200; }
+		.lbl-short { display: none; }
 		@media (max-width: 575.98px) {
 			.buy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+			.nav-panel.p-3 { padding: 0.75rem !important; }
+			/* Phones: one main value per column; sub-lines, currency, per-row fees and taxes are left out. */
+			.grid-table col[style*="--m"] { width: var(--m) !important; }
+			.grid-table .m-hide { display: none; }
+			.lbl-full { display: none; }
+			.lbl-short { display: inline; }
+			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr + tr { display: none; }
+			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr:first-child > * {
+				padding-bottom: 0.5rem;
+				border-bottom-width: var(--bs-border-width);
+			}
+			.nav-panel-grid .grid-table :is(th, td) {
+				padding-inline: 0.2rem;
+				font-size: 0.8125rem;
+			}
+			.nav-panel-grid .grid-table thead th { white-space: normal; }
+			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr + tr.phone-sell { display: table-row; }
+			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.phone-sell > td { padding-block: 0 0.5rem; }
+		}
+		@media (min-width: 576px) {
+			.grid-table tr.phone-sell { display: none; }
 		}
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
 		.volume-step.band { width: 8rem; }
@@ -359,15 +381,12 @@
 			overflow: auto;
 			z-index: 3000;
 		}
-		/* Nested prefs: pin over the parent panel (Buy overflow must not clip). */
+		/* Nested prefs: fixed, so the parent panel keeps its own scroll and size while one is open. */
 		.pref-menu.show {
 			position: fixed !important;
 			display: block !important;
 			z-index: 3000 !important;
 			transform: none !important;
-		}
-		.nav-panel.pref-open {
-			overflow: visible !important;
 		}
 		.pref-menu.split { width: min(48rem, calc(100vw - 1rem)); }
 		.pref-menu .form-select,
@@ -388,7 +407,7 @@
 		.pref-menu #volume-controls .input-group .form-control { min-width: 0; }
 		.pref-menu #volume-controls .btn-group > .btn { flex: 1 1 0; }
 		.pref-menu .form-control.pref-capital { width: 100%; }
-		.history-symbol { width: auto; max-width: 100%; }
+		.history-symbol { width: auto; max-width: 100%; min-width: 0; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
 	</style>
@@ -550,8 +569,10 @@
 	</div>
 </div>
 {% endmacro %}
-{% from "_grid.html" import grid_cols, grid_sign, currency_head with context %}
+{% from "_grid.html" import grid_cols, grid_sign, currency_head, head with context %}
 {% set tx_widths = [19, 4, 9, 11, 15, 15, 14, 13] %}
+{% set tx_phone = [17, 16, 22, 22, 23, 0, 0, 0] %}
+{% set tx_total_phone = [33, 33, 34, 0, 0, 0, 0, 0] %}
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid d-flex flex-wrap">
@@ -673,16 +694,16 @@
 							{% if transactions.closed %}
 							<h3 class="h6">{{ t('tx.closed') }}</h3>
 							<table class="table grid-table">
-								{{ grid_cols(tx_widths) }}
+								{{ grid_cols(tx_widths, tx_phone) }}
 								<thead>
 									<tr>
-										<th class="grid-l">{{ t('tx.symbol') }}</th>
+										<th class="grid-l">{{ head('tx.symbol') }}</th>
 										{{ currency_head() }}
-										<th>{{ t('tx.quantity') }}</th>
+										<th>{{ head('tx.quantity') }}</th>
 										<th title="{{ t('tx.buy_side_title') }}">{{ t('tx.buy_side') }}</th>
 										<th title="{{ t('tx.sell_side_title') }}">{{ t('tx.sell_side') }}</th>
-										<th title="{{ t('tx.fees_title') }}">{{ t('tx.fees') }}</th>
-										<th title="{{ t('tx.taxes_title') }}">{{ t('tx.taxes') }}</th>
+										<th class="m-hide" title="{{ t('tx.fees_title') }}">{{ t('tx.fees') }}</th>
+										<th class="m-hide" title="{{ t('tx.taxes_title') }}">{{ t('tx.taxes') }}</th>
 										<th title="{{ t('tx.cash_title') }}">{{ t('tx.cash') }}</th>
 									</tr>
 								</thead>
@@ -690,12 +711,12 @@
 								<tbody>
 									<tr>
 										<td class="grid-l">{{ row.asset }}</td>
-										<td class="grid-l" title="{{ row.currency }}">{{ row.currency|currency }}</td>
+										<td class="grid-l m-hide" title="{{ row.currency }}">{{ row.currency|currency }}</td>
 										<td title="{{ row.qty|qty_full }}">{{ row.qty|qty }}</td>
 										<td>{{ row.buy_price|px }}</td>
 										<td>{{ row.sell_price|px }}</td>
-										<td>{{ row.fees|px }}</td>
-										<td>{{ row.taxes|px }}</td>
+										<td class="m-hide">{{ row.fees|px }}</td>
+										<td class="m-hide">{{ row.taxes|px }}</td>
 										<td class="{{ grid_sign(row.cash) }}" title="{{ t('tx.cash_title') }}">{{ row.cash|signed_px }}</td>
 									</tr>
 									<tr>
@@ -703,14 +724,14 @@
 										<td colspan="2"></td>
 										<td>{{ t('tx.cost') }} {{ row.cost|px }}</td>
 										<td>{{ t('tx.proceeds') }} {{ row.proceeds|px }}</td>
-										<td title="{{ t('tx.fee_buy_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.buy_fees|px, rate=row.buy_fee_rate|rate) }}</td>
-										<td title="{{ t('tx.tax_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.tax_of', rate=row.tax_rate|rate, gain=row.taxable_gain|px) }}</td>
+										<td title="{{ t('tx.fee_buy_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.buy_fees|px, rate=('≈ ' if row.estimated else '') ~ row.buy_fee_rate|rate) }}</td>
+										<td title="{{ t('tx.tax_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.tax_of', rate=('≈ ' if row.estimated else '') ~ row.tax_rate|rate, gain=row.taxable_gain|px) }}</td>
 										<td class="{{ grid_sign(row.cash) }}">{{ row.ratio|signed_pct }}</td>
 									</tr>
 									<tr>
 										<td class="grid-l"{% if row.recorded_at %} title="{{ t('tx.recorded_at', when=row.recorded_at|when) }}"{% endif %}>{{ t('tx.sold_on') }} {{ row.sold_at|when }}</td>
 										<td colspan="4"></td>
-										<td title="{{ t('tx.fee_sell_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.sell_fees|px, rate=row.sell_fee_rate|rate) }}</td>
+										<td title="{{ t('tx.fee_sell_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.sell_fees|px, rate=('≈ ' if row.estimated else '') ~ row.sell_fee_rate|rate) }}</td>
 										<td colspan="2"></td>
 									</tr>
 								</tbody>
@@ -720,16 +741,16 @@
 							{% if transactions.open %}
 							<h3 class="h6">{{ t('tx.open') }}</h3>
 							<table class="table grid-table">
-								{{ grid_cols(tx_widths) }}
+								{{ grid_cols(tx_widths, tx_phone) }}
 								<thead>
 									<tr>
-										<th class="grid-l">{{ t('tx.symbol') }}</th>
+										<th class="grid-l">{{ head('tx.symbol') }}</th>
 										{{ currency_head() }}
-										<th>{{ t('tx.quantity') }}</th>
+										<th>{{ head('tx.quantity') }}</th>
 										<th>{{ t('tx.price') }}</th>
 										<th title="{{ t('tx.cost_title') }}">{{ t('tx.cost') }}</th>
-										<th title="{{ t('tx.fees_open_title') }}">{{ t('tx.fees') }}</th>
-										<th title="{{ t('tx.taxes_open_title') }}">{{ t('tx.taxes') }}</th>
+										<th class="m-hide" title="{{ t('tx.fees_open_title') }}">{{ t('tx.fees') }}</th>
+										<th class="m-hide" title="{{ t('tx.taxes_open_title') }}">{{ t('tx.taxes') }}</th>
 										<th title="{{ t('tx.cash_open_title') }}">{{ t('tx.cash') }}</th>
 									</tr>
 								</thead>
@@ -737,17 +758,17 @@
 								<tbody>
 									<tr>
 										<td class="grid-l">{{ row.asset }}</td>
-										<td class="grid-l" title="{{ row.currency }}">{{ row.currency|currency }}</td>
+										<td class="grid-l m-hide" title="{{ row.currency }}">{{ row.currency|currency }}</td>
 										<td title="{{ row.qty|qty_full }}">{{ row.qty|qty }}</td>
 										<td>{{ row.buy_price|px }}</td>
 										<td>{{ row.cost|px }}</td>
 										{% if row.est %}
-										<td title="{{ t('tx.fees_open_title') }}">≈ {{ row.est.fees|px }}</td>
-										<td title="{{ t('tx.taxes_open_title') }}">≈ {{ row.est.taxes|px }}</td>
+										<td class="m-hide" title="{{ t('tx.fees_open_title') }}">≈ {{ row.est.fees|px }}</td>
+										<td class="m-hide" title="{{ t('tx.taxes_open_title') }}">≈ {{ row.est.taxes|px }}</td>
 										<td class="{{ grid_sign(row.est.net) }}" title="{{ t('tx.cash_open_title') }}">{{ row.est.net|signed_px }}</td>
 										{% else %}
-										<td title="{{ t('tx.fee_buy_title') }}">{{ row.fees|px }}</td>
-										<td title="{{ t('tx.no_price') }}">—</td>
+										<td class="m-hide" title="{{ t('tx.fee_buy_title') }}">{{ row.fees|px }}</td>
+										<td class="m-hide" title="{{ t('tx.no_price') }}">—</td>
 										<td title="{{ t('tx.no_price') }}">—</td>
 										{% endif %}
 									</tr>
@@ -760,7 +781,7 @@
 										<td>{{ t('tx.no_price') }}</td>
 										{% endif %}
 										<td>{{ t('tx.notional') }} {{ row.notional|px }}</td>
-										<td title="{{ t('tx.fee_buy_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.fees|px, rate=row.buy_fee_rate|rate) }}</td>
+										<td title="{{ t('tx.fee_buy_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.fees|px, rate=('≈ ' if row.estimated else '') ~ row.buy_fee_rate|rate) }}</td>
 										{% if row.est %}
 										<td title="{{ t('tx.taxes_open_title') }}">{{ t('tx.tax_of', rate=row.est.tax_rate|rate, gain=row.est.taxable_gain|px) }}</td>
 										<td class="{{ grid_sign(row.est.net) }}">{{ row.est.ratio|signed_pct }}</td>
@@ -789,23 +810,23 @@
 							<button type="button" class="grid-more" hidden title="{{ t('tx.more') }}" aria-label="{{ t('tx.more') }}">{% include "chevrons-down.svg" %}</button>
 							<div class="grid-foot">
 							<table class="table grid-table grid-total">
-								{{ grid_cols(tx_widths) }}
+								{{ grid_cols(tx_widths, tx_total_phone) }}
 								<tbody>
 									<tr>
-										<td colspan="5"></td>
+										<td class="m-hide" colspan="5"></td>
 										<th title="{{ t('tx.total_fees_title') }}">{{ t('tx.total_fees') }}</th>
 										<th title="{{ t('tx.total_taxes_title') }}">{{ t('tx.total_taxes') }}</th>
 										<th title="{{ t('tx.total_balance_title') }}">{{ t('tx.total_balance') }}</th>
 									</tr>
 									<tr>
-										<td colspan="5"></td>
+										<td class="m-hide" colspan="5"></td>
 										<td>{{ (transactions.totals.fees if transactions.totals else 0)|px }}</td>
 										<td>{{ (transactions.totals.taxes if transactions.totals else 0)|px }}</td>
 										<td data-paper-balance>{{ paper_balance|px }}</td>
 									</tr>
 									{% if transactions.totals and transactions.totals.est_count %}
 									<tr>
-										<td colspan="5"></td>
+										<td class="m-hide" colspan="5"></td>
 										<td title="{{ t('tx.est_fees_title') }}">+ ≈ {{ transactions.totals.est_fees|px }}</td>
 										<td title="{{ t('tx.est_taxes_title') }}">+ ≈ {{ transactions.totals.est_taxes|px }}</td>
 										<td></td>
@@ -995,7 +1016,7 @@
 			</div>
 			<div class="tab-pane fade{% if view == 'history' %} show active{% endif %}" id="history" role="tabpanel" aria-labelledby="history-tab">
 				<div class="d-flex flex-wrap align-items-start gap-3 mb-3">
-					<div class="d-flex align-items-center gap-2">
+					<div class="d-flex align-items-center gap-2 mw-100">
 					<label class="form-label mb-0" for="pref-focus">{{ t('history.symbol') }}</label>
 					<select class="form-select form-select-sm history-symbol" id="pref-focus" data-saved="{{ asset }}">
 						{% if asset not in assets %}<option value="{{ asset }}" selected>{{ asset }}</option>{% endif %}
@@ -1085,7 +1106,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=64) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=66) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

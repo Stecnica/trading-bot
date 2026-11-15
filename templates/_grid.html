@@ -1,3 +1,5 @@
-{% macro grid_cols(widths) %}<colgroup>{% for width in widths %}<col style="width: {{ width }}%">{% endfor %}</colgroup>{% endmacro %}
+{# phone: widths at ≤575.98px. Cells marked m-hide are gone there, so the visible cells fill the first slots and the rest get 0. #}
+{% macro grid_cols(widths, phone=none) %}<colgroup>{% for width in widths %}<col style="width: {{ width }}%{% if phone %}; --m: {{ phone[loop.index0] }}%{% endif %}">{% endfor %}</colgroup>{% endmacro %}
 {% macro grid_sign(value) %}{% if value is not none and value > 0 %}text-success{% elif value is not none and value < 0 %}text-danger{% endif %}{% endmacro %}
-{% macro currency_head() %}<th class="grid-l" title="{{ t('tx.currency') }}"><span class="grid-icon" aria-hidden="true">{% include "coins.svg" %}</span><span class="visually-hidden">{{ t('tx.currency') }}</span></th>{% endmacro %}
+{% macro currency_head() %}<th class="grid-l m-hide" title="{{ t('tx.currency') }}"><span class="grid-icon" aria-hidden="true">{% include "coins.svg" %}</span><span class="visually-hidden">{{ t('tx.currency') }}</span></th>{% endmacro %}
+{% macro head(key) %}<span class="lbl-full">{{ t(key) }}</span><span class="lbl-short">{{ t(key ~ '_short') }}</span>{% endmacro %}
