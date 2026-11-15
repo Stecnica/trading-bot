@@ -851,6 +851,19 @@ function uiText(key, vars) {
   /* The page fills the box only when it opens on History; otherwise the first paint fetches it. */
   var statsKey = statsBox && statsBox.hasAttribute("data-loaded") ? select.value + "|" + chosen("period") : "";
 
+  /* One row when the five cells fit, otherwise two columns. */
+  function fitStats() {
+    if (!statsBox || !statsBox.offsetParent) {
+      return;
+    }
+    statsBox.classList.remove("stats-grid");
+    var cells = statsBox.children;
+    if (cells.length && cells[cells.length - 1].offsetTop > cells[0].offsetTop) {
+      statsBox.classList.add("stats-grid");
+    }
+  }
+  window.addEventListener("resize", fitStats);
+
   function fillStats(data) {
     ["change", "last", "low", "high", "sessions"].forEach(function (name) {
       var node = statsBox.querySelector("[data-stat='" + name + "']");
@@ -861,12 +874,14 @@ function uiText(key, vars) {
     var change = statsBox.querySelector("[data-stat='change']");
     change.classList.remove("text-success", "text-danger", "text-body");
     change.classList.add(data.tone === "success" ? "text-success" : data.tone === "danger" ? "text-danger" : "text-body");
+    fitStats();
   }
 
   function loadStats() {
     if (!statsBox) {
       return;
     }
+    fitStats();
     var key = select.value + "|" + chosen("period");
     if (key === statsKey) {
       return;
@@ -994,8 +1009,7 @@ function uiText(key, vars) {
   }
 
   function priceText(value) {
-    var text = Number(value).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-    return text || "0";
+    return Number(value).toFixed(3);
   }
 
   function axisTicks(low, high) {

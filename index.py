@@ -289,7 +289,7 @@ def format_price(value):
 def format_pct(value):
     if value is None:
         return "—"
-    return f"{Decimal(str(value)) * 100:.2f} %"
+    return f"{Decimal(str(value)) * 100:.3f} %"
 
 
 @app.template_filter("signed_pct")

@@ -336,6 +336,12 @@
 			border-radius: 1rem;
 			opacity: 0.65;
 		}
+		#stats > div { white-space: nowrap; }
+		#stats.stats-grid {
+			display: grid !important;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 0.25rem 1rem !important;
+		}
 		.pref-gear {
 			--bs-btn-padding-x: 0;
 			--bs-btn-padding-y: 0;
@@ -1079,7 +1085,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=62) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=63) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

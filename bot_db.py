@@ -1087,7 +1087,7 @@ def position_rows(conn, prefs):
                 outcome = tr(
                     "positions.armed",
                     peak=f"{peak:.3f}",
-                    drop=f"{peak_drop(peak, quote['price']) * 100:.2f}",
+                    drop=f"{peak_drop(peak, quote['price']) * 100:.3f}",
                 )
         else:
             outcome = tr("positions.below")

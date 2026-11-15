@@ -23,9 +23,9 @@ def score_label(row):
         return "", ""
     score = row["score"]
     sign = "+" if score > 0 else ""
-    short = f"{sign}{score:.2f} {tr('score.' + row['side'])}"
+    short = f"{sign}{score:.3f} {tr('score.' + row['side'])}"
     weights = " ".join(
-        f"{name} {value:.2f}" for name, value in (row.get("weights") or {}).items()
+        f"{name} {value:.3f}" for name, value in (row.get("weights") or {}).items()
     )
     detail = f"{short} · {weights}" if weights else short
     return short, detail

@@ -97,7 +97,7 @@ def treemap_layout(blocks, names=None, order="rank"):
     for (x, y, width, height), block in zip(_squarify(sizes), blocks):
         daily = float(block["daily"])
         sign = "+" if daily > 0 else ""
-        change = f"{sign}{daily * 100:.1f}%"
+        change = f"{sign}{daily * 100:.3f}%"
         if width >= 0.07 and height >= 0.055:
             kind = "big"
         elif width >= 0.028 and height >= 0.028:
@@ -223,7 +223,7 @@ def treemap_png(blocks, order="rank"):
             ax.text(
                 x + w / 2,
                 y + h / 2,
-                f"{block['asset']}\n{sign}{block['daily'] * 100:.1f}%",
+                f"{block['asset']}\n{sign}{block['daily'] * 100:.3f}%",
                 ha="center",
                 va="center",
                 color="white",
@@ -419,15 +419,15 @@ def _usd(amount):
     elif amount >= 1e3:
         text, unit = amount / 1e3, "mila"
     else:
-        return f"{amount:.2f} USD"
-    return f"{text:.2f} {unit} USD"
+        return f"{amount:.3f} USD"
+    return f"{text:.3f} {unit} USD"
 
 
 def _session_lines(row):
     """The amount does not come from Massive: it is share volume times the average price."""
     day = row["timestamp"].strftime("%d/%m/%Y")
     close = float(row["price"])
-    lines = [day, tr("chart.close", price=f"{close:.4f}".rstrip("0").rstrip("."))]
+    lines = [day, tr("chart.close", price=f"{close:.3f}")]
     volume = row.get("volume")
     if not volume:
         lines.append(tr("chart.amount_missing"))
@@ -717,10 +717,7 @@ def _aspect(width, height):
 
 
 def _factor(ratio):
-    text = f"{ratio:.1f}"
-    if text.endswith(".0"):
-        text = text[:-2]
-    return f"(x{text})"
+    return f"(x{ratio:.3f})"
 
 
 def _pack_scale(items, x, y, width, height, min_side):
@@ -1104,7 +1101,7 @@ def _tile_at(rect, block, names, frame_w, frame_h, name=False):
         kind = "tiny"
     daily = float(block["daily"])
     sign = "+" if daily > 0 else ""
-    change = f"{sign}{daily * 100:.1f}%"
+    change = f"{sign}{daily * 100:.3f}%"
     company = (names or {}).get(block["asset"], "")
     title = f"{block['asset']} — {company} {change}" if company else f"{block['asset']} {change}"
     detail = block.get("score_detail") or ""
