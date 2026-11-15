@@ -1650,8 +1650,10 @@ function uiText(key, vars) {
       savePref(fields).then(function (data) {
         var stored = String(data.values[key]);
         document.querySelectorAll("[data-pref='" + key + "']").forEach(function (other) {
-          other.value = stored;
-          other.setAttribute("data-saved", stored);
+          var places = other.getAttribute("data-decimals");
+          var shown = places !== null && stored !== "" && !isNaN(Number(stored)) ? Number(stored).toFixed(Number(places)) : stored;
+          other.value = shown;
+          other.setAttribute("data-saved", shown);
         });
         applyAppearance(key, stored);
         if (data.balance !== undefined && data.balance !== null) {

@@ -203,7 +203,7 @@
 		.nav-panel-grid > :not(.grid-scroll) {
 			flex: 0 0 auto;
 		}
-		.nav-panel-grid > p.m-2 {
+		.nav-panel > p.m-2 {
 			font-size: 0.875em;
 			color: var(--bs-secondary-color);
 		}
@@ -312,10 +312,21 @@
 			.grid-table :is(th, td):last-child { padding-right: 0.5rem; }
 			.grid-table:not(.grid-total) tbody > tr + tr > td,
 			.grid-table.grid-total tr:nth-child(n+3) > td { font-size: 0.75rem; }
+			.buy-grid .form-label { font-size: 0.875rem; }
 		}
-		/* Buy: one Bootstrap row, every numeric field on a col-3 track; labels like grid headers, values like grid cells. */
+		/* Buy: four equal tracks sized for a 12-digit value; Symbol spans two. Two tracks on phones. */
+		.buy-grid {
+			display: grid;
+			grid-template-columns: repeat(4, minmax(0, calc(12ch + 1.5rem + 2px)));
+			gap: 0.75rem 0.5rem;
+			align-items: end;
+		}
+		.buy-grid > :first-child { grid-column: span 2; }
 		.buy-grid .form-label { font-weight: 400; }
 		.buy-grid .form-control { font-weight: 200; }
+		@media (max-width: 575.98px) {
+			.buy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		}
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
 		.volume-step.band { width: 8rem; }
 		#chart-svg { min-height: 280px; }
@@ -561,7 +572,7 @@
 					</div>
 					<div class="dropdown">
 						<button class="btn btn-outline-light btn-nav-menu" type="button" id="buy-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.buy') }}</button>
-						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="buy-toggle" hidden>
+						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="buy-toggle" hidden>
 							<div class="d-flex align-items-center justify-content-between gap-3 mb-3">
 								<h2 class="h6 mb-0">{{ t('buy.title') }}</h2>
 								<div class="pref-slot">
@@ -575,13 +586,12 @@
 									</div>
 								</div>
 							</div>
-							<p class="mb-3">{{ t('buy.help') }}</p>
 							{# Investment on row 1 stays outside buy-form so Enter there does not submit a buy. #}
 							<form id="buy-form" method="post" action="{{ url_for('buy') }}" class="d-none" aria-hidden="true">
 								<input type="hidden" name="csrf" value="{{ csrf }}">
 							</form>
-							<div class="row g-3 align-items-end buy-grid">
-								<div class="col-6">
+							<div class="buy-grid">
+								<div>
 									<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
 									<select class="form-select" id="buy-asset" name="asset" form="buy-form" required>
 										{% if buy_asset not in assets %}<option value="{{ buy_asset }}" selected>{{ buy_asset }}</option>{% endif %}
@@ -590,30 +600,31 @@
 										{% endfor %}
 									</select>
 								</div>
-								<div class="col-3">
+								<div>
 									<label class="form-label" for="buy-amount">{{ t('buy.quantity') }}</label>
 									<input class="form-control text-end" id="buy-amount" name="amount" form="buy-form" inputmode="decimal" min="0" max="1000000000" placeholder="0.000" required>
 								</div>
-								<div class="col-3">
+								<div>
 									<label class="form-label" for="buy-invest" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
-									<input class="form-control text-end" id="buy-invest" data-pref="max_investment" data-saved="{{ prefs.max_investment }}" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment }}" inputmode="decimal" autocomplete="off">
+									<input class="form-control text-end" id="buy-invest" data-pref="max_investment" data-saved="{{ prefs.max_investment|px }}" data-decimals="3" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment|px }}" inputmode="decimal" autocomplete="off">
 								</div>
-								<div class="col-3">
+								<div>
 									<label class="form-label" for="buy-price">{{ t('buy.price') }}</label>
 									<input class="form-control text-end" id="buy-price" name="price" form="buy-form" inputmode="decimal" min="0" max="1000000000" placeholder="{{ t('buy.price_ph') }}">
 								</div>
-								<div class="col-3">
+								<div>
 									<label class="form-label" for="buy-fees">{{ t('buy.fees') }}</label>
 									<input class="form-control text-end" id="buy-fees" name="fees" form="buy-form" inputmode="decimal" placeholder="{{ t('buy.fees_ph') }}">
 								</div>
-								<div class="col-3">
+								<div>
 									<label class="form-label" for="buy-taxes">{{ t('buy.taxes') }}</label>
 									<input class="form-control text-end" id="buy-taxes" name="taxes" form="buy-form" inputmode="decimal" placeholder="0.000">
 								</div>
-								<div class="col-3">
+								<div>
 									<button class="btn btn-primary w-100" type="submit" form="buy-form">{{ t('buy.submit') }}</button>
 								</div>
 							</div>
+							<p class="m-2 border-top pt-2">{{ t('buy.help') }}</p>
 						</div>
 					</div>
 					<div class="dropdown">
@@ -1037,7 +1048,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=59) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=60) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}
