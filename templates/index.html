@@ -4,12 +4,24 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Trading bot</title>
-	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+	<link rel="icon" href="{{ url_for('static', filename='icona.png') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='flag-icon/css/flag-icon.css') }}">
 	{% if running and request.args.get('preview') != 'messages' %}<meta http-equiv="refresh" content="20;url={{ url_for('home') }}">{% endif %}
 	<style>
+		/* Hide nav dropdowns until .show — first rules so a later parse error cannot leave them open. */
+		.dropdown-menu.nav-panel { display: none !important; }
+		.dropdown-menu.nav-panel.show { display: block !important; }
+		.dropdown-menu.nav-panel.nav-panel-tx.show {
+			display: flex !important;
+			flex-direction: column;
+			overflow: hidden !important;
+			max-height: min(70vh, 32rem);
+			background-color: var(--bs-body-bg) !important;
+			background-image: none !important;
+			opacity: 1 !important;
+		}
 		.slide-note {
 			width: min(36rem, calc(100% - 2rem));
 			opacity: 0.62;
@@ -158,16 +170,278 @@
 			transform: translateY(0.7rem);
 		}
 		.slide-note.bg-info { --bs-bg-opacity: 0.4; }
+		/* Navbar + panels above treemap/chart (map tiles use transforms / local z-index). */
+		.navbar {
+			position: relative;
+			z-index: 1030;
+		}
+		.tab-content,
+		#volume-map,
+		#chart-svg {
+			position: relative;
+			z-index: 0;
+		}
+		.dropdown-menu.nav-panel {
+			--bs-dropdown-bg: var(--bs-body-bg);
+			background-color: var(--bs-body-bg) !important;
+			background-image: none !important;
+			opacity: 1 !important;
+			-webkit-backdrop-filter: none !important;
+			backdrop-filter: none !important;
+			mix-blend-mode: normal !important;
+			isolation: isolate;
+			z-index: 2000;
+		}
 		.nav-panel {
 			width: min(36rem, calc(100vw - 1rem));
 			max-height: min(70vh, 32rem);
 			overflow: auto;
 		}
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
-		.panel-note { opacity: 0.62; }
-		.nav-panel .buy-billion { width: calc(10ch + 1.5rem); }
-		.nav-panel .buy-five { width: calc(5ch + 1.5rem); }
-		.nav-panel .buy-tax { width: calc(8ch + 1.5rem); }
+		/* Transactions: wider panel so Buy/Sell/Cost/prices are not clipped. */
+		.nav-panel-wide.nav-panel-tx { width: min(64rem, calc(100vw - 1rem)); }
+		.nav-panel-tx > h2,
+		.nav-panel-tx > p {
+			flex: 0 0 auto;
+		}
+		/* A — Scroll unico + thead sticky */
+		.nav-panel-tx .tx-scroll {
+			flex: 1 1 auto;
+			min-height: 0;
+			overflow: auto;
+			background-color: var(--bs-body-bg) !important;
+		}
+		.nav-panel-tx .tx-scroll .table-responsive {
+			overflow: visible;
+			-webkit-overflow-scrolling: touch;
+		}
+		.nav-panel-tx .tx-scroll .table {
+			--bs-table-bg: var(--bs-body-bg);
+			background-color: var(--bs-body-bg);
+			width: max-content;
+			min-width: 100%;
+			table-layout: auto;
+		}
+		.nav-panel-tx .tx-scroll .table th,
+		.nav-panel-tx .tx-scroll .table td {
+			padding: 0.65rem 0.85rem;
+			vertical-align: top;
+			white-space: normal;
+			overflow-wrap: normal;
+			word-break: normal;
+		}
+		.nav-panel-tx .tx-scroll .table thead th {
+			position: sticky;
+			top: 0;
+			z-index: 1;
+			background-color: var(--bs-body-bg);
+			box-shadow: inset 0 -1px 0 var(--bs-border-color);
+			white-space: nowrap;
+			font-weight: 600;
+		}
+		/* B — Numeri a destra + tabular */
+		.nav-panel-tx .tx-col-qty,
+		.nav-panel-tx .tx-col-buy,
+		.nav-panel-tx .tx-col-sell,
+		.nav-panel-tx .tx-col-price,
+		.nav-panel-tx .tx-col-cost,
+		.nav-panel-tx .tx-col-fees,
+		.nav-panel-tx .tx-col-taxes,
+		.nav-panel-tx .tx-col-cash {
+			text-align: right;
+			font-variant-numeric: tabular-nums;
+		}
+		.nav-panel-tx .tx-col-symbol {
+			text-align: left;
+		}
+		/* C — Min-width header-aware (IT) — DEPRECATED: colgroup with style= now used */
+		/* .nav-panel-tx .tx-col-qty { min-width: 7rem; } */
+		/* .nav-panel-tx .tx-col-price { min-width: 9.5rem; } */
+		/* .nav-panel-tx .tx-col-fees, */
+		/* .nav-panel-tx .tx-col-taxes { min-width: 7rem; } */
+		/* .nav-panel-tx .tx-col-buy, */
+		/* .nav-panel-tx .tx-col-sell { min-width: 11.5rem; } */
+		/* .nav-panel-tx .tx-col-symbol { min-width: 9rem; } */
+		/* .nav-panel-tx .tx-col-cost { min-width: 7rem; } */
+		.nav-panel-tx .tx-balance-bar {
+			display: none;
+		}
+		.nav-panel-tx .tx-balance-footer {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			border-top: 2px solid var(--bs-border-color);
+			padding: 0.75rem 0.65rem 0.5rem;
+			margin-top: 1rem;
+			font-weight: 600;
+		}
+		.nav-panel-tx .tx-balance-value {
+			font-weight: 400;
+			font-variant-numeric: tabular-nums;
+			font-size: 1.1rem;
+		}
+		.nav-panel-tx .tx-legend {
+			font-size: 0.75rem;
+			opacity: 0.65;
+			text-align: center;
+			padding: 0.5rem 0.65rem 0;
+			margin-bottom: 0.5rem;
+		}
+		/* Full-width numeric fields so right-aligned digits sit at the column edge
+		   (fixed ch widths left the control itself hugging the left of the cell). */
+		.nav-panel .buy-billion,
+		.nav-panel .buy-five,
+		.nav-panel .buy-tax,
+		.nav-panel .buy-invest {
+			width: 100%;
+			max-width: 100%;
+		}
+		.buy-fields-row > div:not(.buy-field-symbol) {
+			flex: 1 1 0;
+			min-width: 5em;
+		}
+		.buy-fields-row > div:not(.buy-field-symbol) .form-control {
+			width: 100%;
+		}
+		/* Row1 Symbol|Qty|Invest. Row2 four equal cells: Price|Fees|Taxes|Record buy. */
+		.buy-fields-row {
+			display: flex;
+			flex-wrap: nowrap;
+			align-items: end;
+			gap: 0.75rem;
+		}
+		.buy-fields-row .buy-field-symbol {
+			flex: 1 1 auto;
+			min-width: 0;
+		}
+		.buy-fields-row .buy-field-symbol .form-select {
+			width: 100%;
+			min-width: 0;
+		}
+		.buy-price-row {
+			display: grid !important;
+			grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+			grid-template-rows: auto !important;
+			align-items: end;
+			column-gap: 0.75rem;
+			row-gap: 0;
+		}
+		.buy-price-row > * {
+			min-width: 0;
+			grid-row: 1;
+		}
+		.buy-price-row .form-control { width: 100%; }
+		.buy-price-row .buy-submit-cell {
+			display: flex;
+			align-items: flex-end;
+			justify-content: stretch;
+		}
+		.buy-price-row .buy-submit {
+			width: 100%;
+			white-space: nowrap;
+			flex: 1 1 auto;
+		}
+		/* Numeric buy fields: force end align (class text-end alone was not enough visually
+		   while inputs had fixed ch widths; keep !important + direction-safe end). */
+		.dropdown-menu.nav-panel input.buy-num.form-control,
+		.nav-panel #buy-amount,
+		.nav-panel #buy-invest,
+		.nav-panel #buy-price,
+		.nav-panel #buy-fees,
+		.nav-panel #buy-taxes,
+		.nav-panel input.buy-num {
+			text-align: right !important;
+			text-align: end !important;
+		}
+		.dropdown-menu.nav-panel input.buy-num.form-control::placeholder {
+			text-align: right;
+			text-align: end;
+		}
+		/* D — Meno rumore sulla colonna cash */
+		.tx-gain-cell { min-width: 8rem; }
+		.tx-gain-label {
+			display: none;
+		}
+		.tx-gain {
+			display: block;
+			font-weight: 700;
+			font-size: 1.05rem;
+			font-variant-numeric: tabular-nums;
+			line-height: 1.2;
+		}
+		/* E — Densità Buy/Sell e date */
+		.nav-panel-tx .tx-col-buy small,
+		.nav-panel-tx .tx-col-sell small,
+		.nav-panel-tx .tx-col-symbol small {
+			display: block;
+			line-height: 1.25;
+			margin-top: 0.15rem;
+			white-space: nowrap;
+		}
+		/* Two-row pattern: main row + metadata row */
+		.nav-panel-tx .tx-row-main {
+			font-weight: 500;
+		}
+		.nav-panel-tx .tx-row-main td {
+			padding-top: 0.75rem !important;
+			padding-bottom: 0.25rem !important;
+		}
+		.nav-panel-tx .tx-row-sub {
+			font-size: 0.8rem;
+			opacity: 0.65;
+		}
+		.nav-panel-tx .tx-row-sub td {
+			padding-top: 0.1rem !important;
+			padding-bottom: 0.5rem !important;
+		}
+		.nav-panel-tx .tx-row-sub .tx-col-symbol,
+		.nav-panel-tx .tx-row-sub .tx-col-buy,
+		.nav-panel-tx .tx-row-sub .tx-col-sell {
+			white-space: nowrap;
+		}
+		.tx-gain-cell.tx-gain-up,
+		.tx-gain-cell.tx-gain-up .tx-gain,
+		.tx-gain-cell.tx-gain-up .tx-gain-pct {
+			color: var(--bs-success) !important;
+		}
+		.tx-gain-cell.tx-gain-down,
+		.tx-gain-cell.tx-gain-down .tx-gain,
+		.tx-gain-cell.tx-gain-down .tx-gain-pct {
+			color: var(--bs-danger) !important;
+		}
+		.tx-gain-pct { font-variant-numeric: tabular-nums; opacity: 0.85; }
+		/* F — Help compatto */
+		.nav-panel-tx > p {
+			display: -webkit-box;
+			-webkit-line-clamp: 2;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+			font-size: 0.8125rem;
+			line-height: 1.35;
+			margin-bottom: 0.75rem !important;
+			max-height: 2.7em;
+		}
+		/* G — Spaziatura sezioni + Saldo */
+		.nav-panel-tx .tx-scroll > h3.h6 {
+			margin: 1.25rem 0 0.5rem;
+			font-size: 0.8rem;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			opacity: 0.85;
+		}
+		.nav-panel-tx .tx-scroll > h3.h6:first-child { margin-top: 0; }
+		.nav-panel-tx .tx-scroll > div.table-responsive {
+			margin-bottom: 1rem;
+		}
+		.nav-panel-tx .tx-balance-bar {
+			margin-top: 0;
+			padding-top: 0.65rem;
+		}
+		/* H — Allineamento verticale coerente */
+		.nav-panel-tx .tx-scroll .table th,
+		.nav-panel-tx .tx-scroll .table td {
+			vertical-align: top;
+		}
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
 		.volume-step.band { width: 8rem; }
 		#chart-svg { min-height: 280px; }
@@ -185,10 +459,23 @@
 			align-items: center;
 			justify-content: center;
 		}
+		.pref-slot {
+			position: relative;
+		}
 		.pref-menu {
 			width: min(20rem, calc(100vw - 1rem));
 			overflow: auto;
-			z-index: 1080;
+			z-index: 3000;
+		}
+		/* Nested prefs: pin over the parent panel (Buy overflow must not clip). */
+		.pref-menu.show {
+			position: fixed !important;
+			display: block !important;
+			z-index: 3000 !important;
+			transform: none !important;
+		}
+		.nav-panel.pref-open {
+			overflow: visible !important;
 		}
 		.pref-menu.split { width: min(48rem, calc(100vw - 1rem)); }
 		.pref-menu .form-select,
@@ -208,14 +495,21 @@
 		.pref-menu #volume-controls .input-group { flex-wrap: nowrap; }
 		.pref-menu #volume-controls .input-group .form-control { min-width: 0; }
 		.pref-menu #volume-controls .btn-group > .btn { flex: 1 1 0; }
-		.pref-menu .form-control.pref-invest { width: 25%; margin-inline: auto; }
+		.pref-menu .form-control.pref-capital { width: 100%; }
 		.history-symbol { width: auto; max-width: 100%; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
+		/* I — Valute */
+		.nav-panel-tx .tx-currency {
+			font-size: 0.75rem;
+			opacity: 0.7;
+			margin-left: 0.25rem;
+			vertical-align: super;
+		}
 	</style>
 </head>
-<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}"{% if request.args.get('panel') == 'buy' %} data-panel="buy"{% endif %}>
-{% macro operation_fields(with_investment) %}
+<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}">
+{% macro operation_fields() %}
 <h3 class="h6 mb-0">{{ t('prefs.operations') }}</h3>
 <div class="d-flex align-items-start gap-3 text-center">
 	<div class="flex-fill">
@@ -253,13 +547,17 @@
 		</div>
 	</div>
 </div>
-{% if with_investment %}
-<div class="text-center">
-	<label class="form-label" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
-	<input class="form-control form-control-sm pref-invest" data-pref="max_investment" data-saved="{{ prefs.max_investment }}" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment }}" inputmode="decimal" autocomplete="off">
+<div class="d-flex align-items-start gap-3 text-center">
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.capital_title') }}">{{ t('prefs.capital') }}</label>
+		<input class="form-control form-control-sm pref-capital text-end" data-pref="initial_capital" data-saved="{{ prefs.initial_capital }}" title="{{ t('prefs.capital_title') }}" value="{{ prefs.initial_capital }}" inputmode="decimal" autocomplete="off">
+	</div>
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.balance_title') }}">{{ t('prefs.balance') }}</label>
+		<input class="form-control form-control-sm text-end" data-paper-balance title="{{ t('prefs.balance_title') }}" value="{{ paper_balance|px }}" readonly tabindex="-1">
+	</div>
 </div>
 <p class="small text-secondary mb-0">{{ t('prefs.foot') }}</p>
-{% endif %}
 {% endmacro %}
 {% macro appearance_fields() %}
 <h3 class="h6 mb-0">{{ t('prefs.appearance') }}</h3>
@@ -370,8 +668,8 @@
 					</form>
 					<div class="flex-grow-1" style="max-width:1vw;"></div>
 					<div class="dropdown">
-						<button class="btn btn-outline-light btn-nav-menu" type="button" id="posizioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.positions') }}</button>
-						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="posizioni-toggle">
+						<button class="btn btn-outline-light btn-nav-menu" type="button" id="posizioni-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.positions') }}</button>
+						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="posizioni-toggle" hidden>
 							<div class="d-flex align-items-center justify-content-between gap-3 mb-3">
 								<h2 class="h6 mb-0">{{ t('positions.title') }}</h2>
 								<div class="pref-slot">
@@ -380,13 +678,13 @@
 									</button>
 									<div class="pref-menu dropdown-menu dropdown-menu-end p-3">
 										<div class="d-flex flex-column gap-3">
-											{{ operation_fields(false) }}
+											{{ operation_fields() }}
 										</div>
 									</div>
 								</div>
 							</div>
 							<p class="mb-3" id="positions-help">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}</p>
-							<div id="positions-table" class="table-responsive{% if not positions %} d-none{% endif %}">
+							<div id="positions-table" class="table-responsive{% if not positions %} d-none{% endif %}" data-sell-action="{{ url_for('sell') }}" data-sell-label="{{ t('positions.sell') }}">
 							<table class="table table-sm align-middle mb-0">
 								<thead>
 									<tr>
@@ -396,6 +694,7 @@
 										<th>{{ t('positions.now') }}</th>
 										<th>{{ t('positions.profit') }}</th>
 										<th>{{ t('positions.outcome') }}</th>
+										<th></th>
 									</tr>
 								</thead>
 								<tbody id="positions-body">
@@ -407,6 +706,7 @@
 										<td>{{ row.market_price|px }}<br><small>{{ row.market_time|when }}</small></td>
 										<td>{{ row.ratio|pct }}</td>
 										<td>{{ row.outcome }}</td>
+										<td>{% if row.ready %}<form method="post" action="{{ url_for('sell') }}" class="m-0"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="lot" value="{{ row.lot_id }}"><button class="btn btn-primary buy-submit" type="submit">{{ t('positions.sell') }}</button></form>{% endif %}</td>
 									</tr>
 									{% endfor %}
 								</tbody>
@@ -416,8 +716,8 @@
 						</div>
 					</div>
 					<div class="dropdown">
-						<button class="btn btn-outline-light btn-nav-menu" type="button" id="buy-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.buy') }}</button>
-						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="buy-toggle">
+						<button class="btn btn-outline-light btn-nav-menu" type="button" id="buy-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.buy') }}</button>
+						<div class="dropdown-menu dropdown-menu-end nav-panel p-3" aria-labelledby="buy-toggle" hidden>
 							<div class="d-flex align-items-center justify-content-between gap-3 mb-3">
 								<h2 class="h6 mb-0">{{ t('buy.title') }}</h2>
 								<div class="pref-slot">
@@ -426,21 +726,21 @@
 									</button>
 									<div class="pref-menu dropdown-menu dropdown-menu-end p-3">
 										<div class="d-flex flex-column gap-3">
-											{{ operation_fields(true) }}
+											{{ operation_fields() }}
 										</div>
 									</div>
 								</div>
 							</div>
-							{% if request.args.get('panel') == 'buy' and (err or ok) %}
-							<div class="panel-note border rounded-4 text-center px-3 py-2 mb-3 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' }}" role="status">{{ err or ok }}</div>
-							{% endif %}
 							<p class="mb-3">{{ t('buy.help') }}</p>
-							<form class="d-flex flex-column gap-3" method="post" action="{{ url_for('buy') }}">
+							{# Investment on row 1 stays outside buy-form so Enter there does not submit a buy. #}
+							<form id="buy-form" method="post" action="{{ url_for('buy') }}" class="d-none" aria-hidden="true">
 								<input type="hidden" name="csrf" value="{{ csrf }}">
-								<div class="d-flex align-items-end gap-3">
-									<div class="flex-grow-1">
+							</form>
+							<div class="d-flex flex-column gap-3">
+								<div class="buy-fields-row">
+									<div class="buy-field-symbol">
 										<label class="form-label" for="buy-asset">{{ t('buy.symbol') }}</label>
-										<select class="form-select" id="buy-asset" name="asset" required>
+										<select class="form-select" id="buy-asset" name="asset" form="buy-form" required>
 											{% if buy_asset not in assets %}<option value="{{ buy_asset }}" selected>{{ buy_asset }}</option>{% endif %}
 											{% for item in asset_options %}
 											<option value="{{ item.symbol }}" {% if item.symbol == buy_asset %}selected{% endif %}>{{ item.label }}</option>
@@ -449,57 +749,153 @@
 									</div>
 									<div>
 										<label class="form-label" for="buy-amount">{{ t('buy.quantity') }}</label>
-										<input class="form-control buy-billion" id="buy-amount" name="amount" inputmode="decimal" min="0" max="1000000000" required>
+										<input class="form-control buy-billion buy-num text-end" id="buy-amount" name="amount" form="buy-form" inputmode="decimal" min="0" max="1000000000" required style="text-align:right">
+									</div>
+									<div>
+										<label class="form-label" for="buy-invest" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
+										<input class="form-control buy-invest buy-num text-end" id="buy-invest" data-pref="max_investment" data-saved="{{ prefs.max_investment }}" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment }}" inputmode="decimal" autocomplete="off" style="text-align:right">
 									</div>
 								</div>
-								<div class="d-flex align-items-end gap-3">
+								<div class="buy-price-row">
 									<div>
 										<label class="form-label" for="buy-price">{{ t('buy.price') }}</label>
-										<input class="form-control buy-billion" id="buy-price" name="price" inputmode="decimal" min="0" max="1000000000" placeholder="{{ t('buy.price_ph') }}">
+										<input class="form-control buy-num text-end" id="buy-price" name="price" form="buy-form" inputmode="decimal" min="0" max="1000000000" placeholder="{{ t('buy.price_ph') }}" style="text-align:right">
 									</div>
 									<div>
 										<label class="form-label" for="buy-fees">{{ t('buy.fees') }}</label>
-										<input class="form-control buy-five" id="buy-fees" name="fees" inputmode="decimal" placeholder="{{ t('buy.fees_ph') }}">
+										<input class="form-control buy-num text-end" id="buy-fees" name="fees" form="buy-form" inputmode="decimal" placeholder="{{ t('buy.fees_ph') }}" style="text-align:right">
 									</div>
 									<div>
 										<label class="form-label" for="buy-taxes">{{ t('buy.taxes') }}</label>
-										<input class="form-control buy-tax" id="buy-taxes" name="taxes" inputmode="decimal" placeholder="0">
+										<input class="form-control buy-num text-end" id="buy-taxes" name="taxes" form="buy-form" inputmode="decimal" placeholder="0" style="text-align:right">
+									</div>
+									<div class="buy-submit-cell">
+										<button class="btn btn-primary buy-submit" type="submit" form="buy-form">{{ t('buy.submit') }}</button>
 									</div>
 								</div>
-								<div>
-									<button class="btn btn-primary" type="submit">{{ t('buy.submit') }}</button>
-								</div>
-							</form>
+							</div>
 						</div>
 					</div>
 					<div class="dropdown">
-						<button class="btn btn-outline-light btn-nav-menu" type="button" id="transazioni-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.transactions') }}</button>
-						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide p-3" aria-labelledby="transazioni-toggle">
+						<button class="btn btn-outline-light btn-nav-menu" type="button" id="transazioni-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.transactions') }}</button>
+						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide nav-panel-tx p-3" aria-labelledby="transazioni-toggle" hidden>
 							<h2 class="h6 mb-3">{{ t('tx.title') }}</h2>
-							{% if transactions %}
+							<p class="mb-3">{{ t('tx.help') }}</p>
+							<div class="tx-scroll">
+							{% if transactions.closed or transactions.open %}
+							{% if transactions.closed %}
 							<div class="table-responsive">
 							<table class="table table-sm align-middle mb-0">
+								<colgroup>
+									<col class="tx-col-symbol" style="width: 9rem;">
+									<col class="tx-col-qty" style="width: 7rem;">
+									<col class="tx-col-price" style="width: 9.5rem;">
+									<col class="tx-col-cost" style="width: 7rem;">
+									<col class="tx-col-fees" style="width: 7rem;">
+									<col class="tx-col-taxes" style="width: 7rem;">
+									<col class="tx-col-cash" style="width: 8rem;">
+								</colgroup>
 								<thead>
-									<tr><th>{{ t('tx.date') }}</th><th>{{ t('tx.type') }}</th><th>{{ t('tx.symbol') }}</th><th>{{ t('tx.quantity') }}</th><th>{{ t('tx.price') }}</th><th>{{ t('tx.fees') }}</th><th>{{ t('tx.taxes') }}</th></tr>
+									<tr>
+										<th class="tx-col-symbol">{{ t('tx.symbol') }}</th>
+										<th class="tx-col-qty">{{ t('tx.quantity') }}</th>
+										<th class="tx-col-buy" title="{{ t('tx.buy_side_title') }}">{{ t('tx.buy_side') }}</th>
+										<th class="tx-col-sell" title="{{ t('tx.sell_side_title') }}">{{ t('tx.sell_side') }}</th>
+										<th class="tx-col-fees" title="{{ t('tx.fees_title') }}">{{ t('tx.fees') }}</th>
+										<th class="tx-col-taxes" title="{{ t('tx.taxes_title') }}">{{ t('tx.taxes') }}</th>
+										<th class="tx-col-cash" title="{{ t('tx.cash_title') }}">{{ t('tx.cash') }}</th>
+									</tr>
 								</thead>
 								<tbody>
-									{% for tx in transactions %}
-									<tr>
-										<td>{{ tx.timestamp|when }}</td>
-										<td>{{ t('tx.buy') if tx.type == 'buy' else t('tx.sell') }}</td>
-										<td>{{ tx.asset_name }}</td>
-										<td>{{ tx.amount|qty }}</td>
-										<td>{{ tx.price|px }}</td>
-										<td>{{ tx.fees|px }}</td>
-										<td>{{ tx.taxes|px }}</td>
+									{% for row in transactions.closed %}
+									<tr class="tx-row-main">
+										<td class="tx-col-symbol">{{ row.asset }}</td>
+										<td class="tx-col-qty">{{ row.qty|qty }}</td>
+										<td class="tx-col-buy">{{ row.buy_price|px }}</td>
+										<td class="tx-col-sell">{{ row.sell_price|px }}</td>
+										<td class="tx-col-fees">{{ row.fees|px }}</td>
+										<td class="tx-col-taxes">{{ row.taxes|px }}</td>
+										<td class="tx-col-cash tx-gain-cell{% if row.cash is not none and row.cash > 0 %} tx-gain-up text-success{% elif row.cash is not none and row.cash < 0 %} tx-gain-down text-danger{% endif %}" title="{{ t('tx.cash_title') }}">
+											{{ row.cash|signed_px }}
+										</td>
+									</tr>
+									<tr class="tx-row-sub">
+										<td class="tx-col-symbol"><small>{{ t('tx.sold_on') }} {{ row.sold_at|when }}</small></td>
+										<td></td>
+										<td class="tx-col-buy"><small>{{ t('tx.cost') }} {{ row.cost|px }}</small><br><small>{{ row.bought_at|when }}</small></td>
+										<td class="tx-col-sell"><small>{{ t('tx.proceeds') }} {{ row.proceeds|px }}</small></td>
+										<td title="{{ t('tx.fees_detail', buy=row.buy_fees|px, sell=row.sell_fees|px) }}"></td>
+										<td title="{{ t('tx.taxes_detail', buy=row.buy_taxes|px, sell=row.sell_taxes|px) }}"></td>
+										<td class="tx-col-cash">
+											<small class="tx-gain-pct">{{ row.ratio|signed_pct }}</small>
+										</td>
 									</tr>
 									{% endfor %}
 								</tbody>
 							</table>
 							</div>
+							{% endif %}
+							{% if transactions.open %}
+							<div class="table-responsive">
+							<table class="table table-sm align-middle mb-0">
+								<colgroup>
+									<col class="tx-col-symbol" style="width: 9rem;">
+									<col class="tx-col-qty" style="width: 7rem;">
+									<col class="tx-col-price" style="width: 9.5rem;">
+									<col class="tx-col-cost" style="width: 7rem;">
+									<col class="tx-col-fees" style="width: 7rem;">
+									<col class="tx-col-taxes" style="width: 7rem;">
+									<col class="tx-col-cash" style="width: 8rem;">
+								</colgroup>
+								<thead>
+									<tr>
+										<th class="tx-col-symbol">{{ t('tx.symbol') }}</th>
+										<th class="tx-col-qty">{{ t('tx.qty_open') }}</th>
+										<th class="tx-col-price">{{ t('tx.buy_price') }}</th>
+										<th class="tx-col-cost" title="{{ t('tx.cost_title') }}">{{ t('tx.cost') }}</th>
+										<th class="tx-col-fees" title="{{ t('tx.fees_title') }}">{{ t('tx.fees') }}</th>
+										<th class="tx-col-taxes" title="{{ t('tx.taxes_title') }}">{{ t('tx.taxes') }}</th>
+										<th class="tx-col-cash" title="{{ t('tx.cash_title') }}">{{ t('tx.cash') }}</th>
+									</tr>
+								</thead>
+								<tbody>
+									{% for row in transactions.open %}
+									<tr class="tx-row-main">
+										<td class="tx-col-symbol">{{ row.asset }}</td>
+										<td class="tx-col-qty">{{ row.qty|qty }}</td>
+										<td class="tx-col-price">{{ row.buy_price|px }}</td>
+										<td class="tx-col-cost">{{ row.cost|px }}</td>
+										<td class="tx-col-fees">{{ row.fees|px }}</td>
+										<td class="tx-col-taxes">{{ row.taxes|px }}</td>
+										<td class="tx-col-cash tx-gain-cell{% if row.cash is not none and row.cash > 0 %} tx-gain-up text-success{% elif row.cash is not none and row.cash < 0 %} tx-gain-down text-danger{% endif %}" title="{{ t('tx.cash_title') }}">
+											{{ row.cash|signed_px }}
+										</td>
+									</tr>
+									<tr class="tx-row-sub">
+										<td class="tx-col-symbol"><small>{{ row.bought_at|when }}</small></td>
+										<td></td>
+										<td></td>
+										<td></td>
+										<td></td>
+										<td></td>
+										<td></td>
+									</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+							</div>
+							{% endif %}
 							{% else %}
 							<p class="mb-0">{{ t('tx.empty') }}</p>
 							{% endif %}
+							</div>
+							<div class="tx-balance-footer">
+								<span class="tx-balance-label"><strong>{{ t('prefs.balance') }}</strong></span>
+								<span class="tx-balance-value" data-paper-balance>{{ paper_balance|px }}</span>
+							</div>
+							<div class="tx-legend">
+								<small>{{ t('tx.closed') }} — {{ t('tx.open') }}</small>
+							</div>
 						</div>
 					</div>
 					<div class="flex-grow-1" style="max-width:1vw;"></div>
@@ -529,7 +925,7 @@
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
 			<div class="slide-note preview border rounded-4 text-center pe-none px-3 py-2" data-preview role="status"></div>
 		</div>
-		{% elif (err or ok or sync_notice) and request.args.get('panel') != 'buy' %}
+		{% elif err or ok or sync_notice %}
 		<div class="nav-reveal position-absolute top-100 start-0 end-0 z-1 d-flex justify-content-center pe-none">
 			<div class="slide-note border rounded-4 text-center pe-none px-3 py-2 {{ 'text-danger bg-danger-subtle border-danger' if err else 'text-success bg-success-subtle border-success' if ok or status.state == 'ok' else 'text-primary bg-info border-primary opacity-50' }}{{ ' stay' if running and not ok and not err else '' }}" style="--linger: {{ prefs.notice_seconds }}s" role="status">
 				{% if err %}{{ err }}{% elif ok %}{{ ok }}{% else %}{{ status.message }}{% endif %}
@@ -653,7 +1049,7 @@
 							</div>
 						</div>
 					</div>
-				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary{% if scope == 'all' %} all-map{% endif %}{% if scope == 'all' and prefs.volume_scale == 'on' %} scale{% endif %}" role="group" aria-label="{{ t('volume.map') }}">
+				<div id="volume-map" class="treemap position-relative w-100 rounded bg-body-tertiary{% if scope == 'all' %} all-map{% endif %}{% if scope == 'all' and prefs.volume_scale == 'on' %} scale{% endif %}" role="group" aria-label="{{ t('volume.map') }}"{% if volume_lazy %} data-lazy="1"{% endif %}>
 					{% for frame in frames %}
 					<div class="map-frame {{ frame.level }} position-absolute" style="--x:{{ frame.x }}%;--y:{{ frame.y }}%;--w:{{ frame.w }}%;--h:{{ frame.h }}%"{% if frame.title %} title="{{ frame.title }}"{% endif %}>{% if frame.label %}<span>{{ frame.label }}</span>{% endif %}</div>
 					{% endfor %}
@@ -753,7 +1149,7 @@
 					</div>
 				</div>
 				<div id="chart-frame" class="position-relative" data-render="{{ prefs.chart_render }}" data-series="{{ url_for('chart_series') }}">
-				<img id="chart" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="{{ t('history.alt', asset=asset) }}" data-history="{{ url_for('chart_history') }}"{% if prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, period=period, chart=chart, scale=prefs.ui_scale, theme=theme, weight=prefs.ui_weight) }}"{% endif %}>
+				<img id="chart" class="w-100 h-auto d-block{% if prefs.chart_render == 'vector' %} d-none{% endif %}" alt="{{ t('history.alt', asset=asset) }}" data-history="{{ url_for('chart_history') }}"{% if view == 'history' and prefs.chart_render != 'vector' %} src="{{ url_for('chart_history', asset=asset, period=period, chart=chart, scale=prefs.ui_scale, theme=theme, weight=prefs.ui_weight) }}"{% endif %}>
 				<svg id="chart-svg" class="d-block w-100{% if prefs.chart_render != 'vector' %} d-none{% endif %}" role="img" aria-label="{{ t('history.alt', asset=asset) }}"></svg>
 				<div id="chart-hit" class="position-absolute top-0 start-0 w-100 h-100 z-1{% if prefs.chart_render == 'vector' %} d-none{% endif %}" data-hits="{{ url_for('chart_hits') }}"></div>
 				</div>
@@ -770,7 +1166,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=52) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=57) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

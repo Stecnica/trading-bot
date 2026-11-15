@@ -10,7 +10,7 @@ import mysql.connector
 
 from bot_config import LOCK_PATH, STATUS_PATH, db_config, get_logger
 from bot_i18n import tr
-from bot_logic import money, one_day_floor, open_lots, quote_sell
+from bot_logic import money, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -45,6 +45,7 @@ DAY_END = 19
 DEFAULTS = {
     "profit_threshold": "0.05",
     "max_investment": "1000",
+    "initial_capital": "10000",
     "names": "100",
     "chart_type": "line",
     "chart_render": "image",
@@ -73,6 +74,7 @@ DEFAULTS = {
 PREF_LABELS = {
     "profit_threshold": "Net profit threshold (0.05 = 5%)",
     "max_investment": "Maximum investment per buy",
+    "initial_capital": "Starting paper capital",
     "names": "How many names to show (10 to 500, step 10)",
     "chart_type": "History chart",
     "chart_render": "History drawing",
@@ -160,6 +162,7 @@ def ensure_schema(conn):
             timestamp DATETIME NOT NULL,
             fees DECIMAL(18,8) NOT NULL,
             taxes DECIMAL(18,8) NOT NULL,
+            currency VARCHAR(3) DEFAULT 'USD',
             PRIMARY KEY (id),
             KEY idx_tx_timestamp (timestamp),
             KEY idx_tx_type (type),
@@ -167,6 +170,10 @@ def ensure_schema(conn):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """
     )
+    cur.execute("SHOW COLUMNS FROM transactions")
+    tx_columns = {row[0] for row in cur.fetchall()}
+    if "currency" not in tx_columns:
+        cur.execute("ALTER TABLE transactions ADD COLUMN currency VARCHAR(3) DEFAULT 'USD'")
     cur.execute("SHOW COLUMNS FROM market_history")
     columns = {row[0] for row in cur.fetchall()}
     additions = []
@@ -301,6 +308,7 @@ def interpret(raw):
     prefs = {
         "profit_threshold": _decimal(raw.get("profit_threshold"), "0.05"),
         "max_investment": _decimal(raw.get("max_investment"), "1000"),
+        "initial_capital": _decimal(raw.get("initial_capital"), "10000"),
         "names": _step_between(raw.get("names"), 10, 500, 10, 100),
         "volume_class": (raw.get("volume_class") or "").strip(),
         "chart_type": raw.get("chart_type") if raw.get("chart_type") in ("line", "candle") else "line",
@@ -430,6 +438,7 @@ def preference_patch(form):
     checks = (
         ("profit_threshold", lambda: decimal_value("profit_threshold", Decimal("0"), Decimal("5"), "prefs.err.profit")),
         ("max_investment", lambda: decimal_value("max_investment", Decimal("0"), Decimal("1E24"), "prefs.err.invest")),
+        ("initial_capital", lambda: decimal_value("initial_capital", Decimal("0"), Decimal("1E24"), "prefs.err.capital")),
         ("fee_rate", lambda: decimal_value("fee_rate", Decimal("0"), Decimal("0.1"), "prefs.err.fee")),
         ("tax_rate", lambda: decimal_value("tax_rate", Decimal("0"), Decimal("0.5"), "prefs.err.tax")),
         ("stable_band", lambda: decimal_value("stable_band", Decimal("0"), Decimal("0.2"), "prefs.err.band")),
@@ -448,6 +457,8 @@ def preference_patch(form):
             return None, error
         if name == "max_investment" and Decimal(stored) <= 0:
             return None, tr("prefs.err.invest")
+        if name == "initial_capital" and Decimal(stored) <= 0:
+            return None, tr("prefs.err.capital")
         values[name] = stored
     if "focus_asset" in form:
         focus = normalize_ticker(form.get("focus_asset", ""))
@@ -573,6 +584,29 @@ def load_bars_since(conn, days):
     return rows
 
 
+def market_window_fingerprint(conn, days):
+    """Cheap identity of the volume-board bar window (count + newest stamp)."""
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """
+        SELECT COUNT(*) AS n, MAX(timestamp) AS last_ts
+        FROM market_history
+        WHERE asset_name <> 'test'
+          AND timestamp >= (NOW() - INTERVAL %s DAY)
+        """,
+        (int(days),),
+    )
+    row = cur.fetchone() or {}
+    cur.close()
+    n = int(row.get("n") or 0)
+    stamp = row.get("last_ts")
+    if not n or not stamp:
+        return "empty"
+    if hasattr(stamp, "isoformat"):
+        stamp = stamp.isoformat(sep=" ", timespec="seconds")
+    return f"{n}|{stamp}"
+
+
 def load_asset_history(conn, asset, days):
     if int(days) == 1:
         return _load_one_day(conn, asset)
@@ -590,6 +624,51 @@ def load_asset_history(conn, asset, days):
     rows = cur.fetchall()
     cur.close()
     return rows
+
+
+def _bar_fingerprint(count, last):
+    if not count or not last:
+        return "empty"
+    stamp = last["timestamp"]
+    if hasattr(stamp, "isoformat"):
+        stamp = stamp.isoformat(sep=" ", timespec="seconds")
+    return f"{count}|{stamp}|{last.get('price')}|{last.get('volume')}"
+
+
+def asset_history_fingerprint(conn, asset, days):
+    """Row count + last bar identity. Cheap enough to check the chart cache first."""
+    if int(days) == 1:
+        series = _load_one_day(conn, asset)
+        return _bar_fingerprint(len(series), series[-1] if series else None)
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """
+        SELECT COUNT(*) AS n
+        FROM market_history
+        WHERE asset_name = %s
+          AND timestamp >= (NOW() - INTERVAL %s DAY)
+        """,
+        (asset, int(days)),
+    )
+    count_row = cur.fetchone() or {}
+    n = int(count_row.get("n") or 0)
+    if n <= 0:
+        cur.close()
+        return "empty"
+    cur.execute(
+        """
+        SELECT timestamp, price, volume
+        FROM market_history
+        WHERE asset_name = %s
+          AND timestamp >= (NOW() - INTERVAL %s DAY)
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """,
+        (asset, int(days)),
+    )
+    last = cur.fetchone()
+    cur.close()
+    return _bar_fingerprint(n, last)
 
 
 def _load_one_day(conn, asset):
@@ -656,7 +735,7 @@ def fetch_transactions(conn):
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """
-        SELECT id, type, asset_name, amount, price, timestamp, fees, taxes
+        SELECT id, type, asset_name, amount, price, timestamp, fees, taxes, currency
         FROM transactions
         ORDER BY timestamp, id
         """
@@ -667,27 +746,26 @@ def fetch_transactions(conn):
 
 
 def recent_transactions(conn, limit=20):
-    cur = conn.cursor(dictionary=True)
-    cur.execute(
-        """
-        SELECT id, type, asset_name, amount, price, timestamp, fees, taxes
-        FROM transactions
-        ORDER BY timestamp DESC, id DESC
-        LIMIT %s
-        """,
-        (int(limit),),
-    )
-    rows = cur.fetchall()
-    cur.close()
-    return rows
+    """Transactions panel: newest closed FIFO slices, then open lots.
+
+    limit applies to closed slices (newest first). Open lots are all returned.
+    """
+    views = fifo_transaction_views(fetch_transactions(conn))
+    closed = list(reversed(views["closed"]))[: int(limit)]
+    return {"closed": closed, "open": views["open"]}
 
 
-def insert_transaction(conn, kind, asset, amount, price, fees, taxes, when=None):
+def paper_balance(conn, prefs):
+    """Current paper cash (Balance) from initial capital and all transactions."""
+    return paper_cash_balance(fetch_transactions(conn), prefs["initial_capital"])
+
+
+def insert_transaction(conn, kind, asset, amount, price, fees, taxes, when=None, currency="USD"):
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO transactions (type, asset_name, amount, price, timestamp, fees, taxes)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO transactions (type, asset_name, amount, price, timestamp, fees, taxes, currency)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             kind,
@@ -697,6 +775,7 @@ def insert_transaction(conn, kind, asset, amount, price, fees, taxes, when=None)
             when or datetime.now().replace(microsecond=0),
             money(fees),
             money(taxes),
+            currency,
         ),
     )
     conn.commit()
@@ -881,6 +960,7 @@ def position_rows(conn, prefs):
             outcome = tr("positions.below")
         rows.append(
             {
+                "lot_id": lot.tx_id,
                 "asset": lot.asset,
                 "amount": lot.remaining,
                 "buy_price": lot.price,
@@ -893,6 +973,51 @@ def position_rows(conn, prefs):
             }
         )
     return rows
+
+
+def sell_open_lot(conn, prefs, lot_id):
+    """Paper-sell one open lot by buy transaction id.
+
+    Same quote_sell + insert_transaction path as automatic sales. Refuses a
+    missing or stale market price. Returns (asset, None) on success, or
+    (None, catalog key) on refusal.
+    """
+    try:
+        lot_id = int(lot_id)
+    except (TypeError, ValueError):
+        return None, "sell.bad_lot"
+    lots, _unmatched = open_lots(fetch_transactions(conn))
+    lot = next((item for item in lots if item.tx_id == lot_id), None)
+    if lot is None:
+        return None, "sell.missing"
+    market = latest_prices(conn).get(lot.asset)
+    if not market:
+        return None, "sell.no_price"
+    now = datetime.now()
+    max_age = prefs["max_price_age_hours"] * 3600
+    if (now - market["timestamp"]).total_seconds() > max_age:
+        return None, "sell.stale"
+    quote = quote_sell(lot, market["price"], prefs["fee_rate"], prefs["tax_rate"])
+    if quote is None:
+        return None, "sell.no_price"
+    insert_transaction(
+        conn,
+        "sell",
+        lot.asset,
+        quote["amount"],
+        quote["price"],
+        quote["fees"],
+        quote["taxes"],
+        now.replace(microsecond=0),
+    )
+    log.info(
+        "manual sale %s qty=%s price=%s net_profit=%s",
+        lot.asset,
+        quote["amount"],
+        quote["price"],
+        quote["ratio"],
+    )
+    return lot.asset, None
 
 
 def sell_ready_lots(conn, prefs):

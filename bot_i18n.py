@@ -29,6 +29,7 @@ _STATUS_FIELDS = {
     "reread.fetch": ("day", "index", "total"),
     "reread.done": ("stored",),
     "buy.saved": ("asset",),
+    "sell.saved": ("asset",),
     "quotes.fetch_recent": ("index", "total", "count"),
     "quotes.fetch_full": ("index", "total", "count"),
     "quotes.skip": ("index",),

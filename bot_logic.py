@@ -33,7 +33,7 @@ def money(value):
 
 
 class Lot:
-    def __init__(self, tx_id, asset, original, price, fees, taxes, timestamp):
+    def __init__(self, tx_id, asset, original, price, fees, taxes, timestamp, currency=None):
         self.tx_id = tx_id
         self.asset = asset
         self.original = money(original)
@@ -42,6 +42,7 @@ class Lot:
         self.fees = money(fees)
         self.taxes = money(taxes)
         self.timestamp = timestamp
+        self.currency = currency or "USD"
 
 
 def open_lots(transactions):
@@ -112,3 +113,151 @@ def quote_sell(lot, market_price, fee_rate, tax_rate):
         "price": price,
         "amount": qty,
     }
+
+
+def fifo_transaction_views(transactions):
+    """FIFO ledger for the Transactions panel: closed slices + open lots.
+
+    Each sell is split across the buy lot(s) it closes (same order as open_lots).
+    Fees and taxes on both sides are allocated by quantity share of that slice —
+    a buy of 2 with a sell of 1 keeps half the buy fees on the closed slice and
+    half on the remaining open lot. Margin is net after those fees and taxes.
+    """
+    buckets = {}
+    order = []
+    closed = []
+    for tx in transactions:
+        kind = (tx.get("type") or "").lower()
+        asset = tx["asset_name"]
+        amount = money(tx["amount"])
+        if amount is None or amount <= 0:
+            continue
+        if kind == "buy":
+            lot = Lot(
+                tx["id"],
+                asset,
+                amount,
+                tx["price"],
+                tx["fees"],
+                tx["taxes"],
+                tx.get("timestamp"),
+                tx.get("currency", "USD"),
+            )
+            if lot.price is None or lot.original <= 0:
+                continue
+            if lot.fees is None:
+                lot.fees = Decimal("0")
+            if lot.taxes is None:
+                lot.taxes = Decimal("0")
+            buckets.setdefault(asset, []).append(lot)
+            order.append(lot)
+            continue
+        if kind != "sell":
+            continue
+        sell_price = money(tx["price"])
+        sell_fees_row = money(tx.get("fees")) or Decimal("0")
+        sell_taxes_row = money(tx.get("taxes")) or Decimal("0")
+        if sell_price is None or sell_price <= 0:
+            continue
+        left = amount
+        for lot in buckets.get(asset, []):
+            if left <= 0:
+                break
+            if lot.remaining <= 0:
+                continue
+            take = lot.remaining if lot.remaining <= left else left
+            buy_share = take / lot.original
+            sell_share = take / amount
+            buy_fees = lot.fees * buy_share
+            buy_taxes = lot.taxes * buy_share
+            sell_fees = sell_fees_row * sell_share
+            sell_taxes = sell_taxes_row * sell_share
+            buy_notional = take * lot.price
+            sell_notional = take * sell_price
+            cost = buy_notional + buy_fees + buy_taxes
+            proceeds = sell_notional - sell_fees - sell_taxes
+            net = proceeds - cost
+            ratio = None if cost <= 0 else net / cost
+            closed.append(
+                {
+                    "kind": "closed",
+                    "buy_id": lot.tx_id,
+                    "sell_id": tx["id"],
+                    "asset": asset,
+                    "qty": money(take),
+                    "bought_at": lot.timestamp,
+                    "sold_at": tx.get("timestamp"),
+                    "buy_price": lot.price,
+                    "sell_price": sell_price,
+                    "buy_fees": money(buy_fees),
+                    "buy_taxes": money(buy_taxes),
+                    "sell_fees": money(sell_fees),
+                    "sell_taxes": money(sell_taxes),
+                    "fees": money(buy_fees + sell_fees),
+                    "taxes": money(buy_taxes + sell_taxes),
+                    "cost": money(cost),
+                    "proceeds": money(proceeds),
+                    "net": money(net),
+                    # Closed slice cash effect on Balance equals net P&L.
+                    "cash": money(net),
+                    "ratio": ratio,
+                    "currency": tx.get("currency", "USD"),
+                }
+            )
+            lot.remaining = money(lot.remaining - take)
+            left = money(left - take)
+    opens = []
+    for lot in order:
+        if lot.remaining <= DUST:
+            continue
+        share = lot.remaining / lot.original
+        buy_fees = lot.fees * share
+        buy_taxes = lot.taxes * share
+        cost = lot.remaining * lot.price + buy_fees + buy_taxes
+        # Open lot still ties up carrying cost: Balance contribution is negative.
+        cash = money(-cost)
+        opens.append(
+            {
+                "kind": "open",
+                "buy_id": lot.tx_id,
+                "asset": lot.asset,
+                "qty": lot.remaining,
+                "bought_at": lot.timestamp,
+                "buy_price": lot.price,
+                "fees": money(buy_fees),
+                "taxes": money(buy_taxes),
+                "cost": money(cost),
+                "cash": cash,
+                "currency": lot.currency or "USD",
+            }
+        )
+    return {"closed": closed, "open": opens}
+
+
+def paper_cash_balance(transactions, initial_capital):
+    """Paper cash position relative to the starting budget.
+
+    Buys spend notional + commissions + taxes. Sells return notional minus
+    commissions and taxes. No broker API — ledger only.
+    """
+    cash = money(initial_capital)
+    if cash is None:
+        cash = Decimal("0")
+    for tx in transactions:
+        kind = (tx.get("type") or "").lower()
+        amount = money(tx.get("amount"))
+        price = money(tx.get("price"))
+        fees = money(tx.get("fees"))
+        taxes = money(tx.get("taxes"))
+        if amount is None or price is None or amount <= 0 or price <= 0:
+            continue
+        if fees is None:
+            fees = Decimal("0")
+        if taxes is None:
+            taxes = Decimal("0")
+        notional = amount * price
+        if kind == "buy":
+            cash = money(cash - notional - fees - taxes)
+        elif kind == "sell":
+            cash = money(cash + notional - fees - taxes)
+    return cash

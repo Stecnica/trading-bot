@@ -12,6 +12,8 @@ LOG_PATH = PRIVATE / "trading-bot.log"
 STATUS_PATH = PRIVATE / "cycle_status.json"
 LOCK_PATH = PRIVATE / "cycle.lock"
 UI_PASSWORD_PATH = PRIVATE / "ui_password"
+# Temporary computerUse QA user (qa_cursor). Remove with private/ui_password_qa.
+UI_PASSWORD_QA_PATH = PRIVATE / "ui_password_qa"
 FLASK_SECRET_PATH = PRIVATE / "flask_secret"
 UNIVERSE_CACHE = PRIVATE / "sp500_symbols.txt"
 NAMES_CACHE = PRIVATE / "sp500_names.tsv"

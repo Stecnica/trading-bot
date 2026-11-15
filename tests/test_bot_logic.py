@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from bot_logic import Lot, money, one_day_floor, open_lots, quote_sell
+from bot_logic import Lot, money, one_day_floor, open_lots, quote_sell, paper_cash_balance, fifo_transaction_views
 
 
 def test_money_rejects_garbage():
@@ -122,3 +122,37 @@ def test_quote_sell_rejects_empty_lot_and_bad_price():
     empty = Lot(9, "TSLA", "10", "100", "0", "0", 1)
     empty.remaining = money("0")
     assert quote_sell(empty, "120", "0.01", "0.25") is None
+
+
+def test_paper_cash_balance_tracks_buys_and_sells():
+    txs = [
+        {"type": "buy", "amount": "1", "price": "100", "fees": "1", "taxes": "0"},
+        {"type": "sell", "amount": "1", "price": "120", "fees": "1", "taxes": "5"},
+    ]
+    assert paper_cash_balance(txs, "1000") == Decimal("1013")
+
+
+def test_fifo_views_expose_net_money_on_closed_slices():
+    txs = [
+        {"id": 1, "type": "buy", "asset_name": "TSLA", "amount": "1", "price": "100", "fees": "0", "taxes": "0", "timestamp": 1},
+        {"id": 2, "type": "sell", "asset_name": "TSLA", "amount": "1", "price": "110", "fees": "0", "taxes": "0", "timestamp": 2},
+    ]
+    views = fifo_transaction_views(txs)
+    assert len(views["closed"]) == 1
+    assert views["closed"][0]["net"] == Decimal("10")
+    assert views["closed"][0]["cash"] == Decimal("10")
+    assert views["open"] == []
+
+
+def test_fifo_views_open_cash_is_negative_carrying_cost():
+    txs = [
+        {"id": 1, "type": "buy", "asset_name": "AMD", "amount": "2", "price": "50", "fees": "2", "taxes": "0", "timestamp": 1},
+        {"id": 2, "type": "sell", "asset_name": "AMD", "amount": "1", "price": "60", "fees": "1", "taxes": "0", "timestamp": 2},
+    ]
+    views = fifo_transaction_views(txs)
+    assert len(views["closed"]) == 1
+    assert views["closed"][0]["cash"] == views["closed"][0]["net"]
+    assert len(views["open"]) == 1
+    assert views["open"][0]["cash"] == -views["open"][0]["cost"]
+    assert views["open"][0]["cash"] == Decimal("-51")
+    assert paper_cash_balance(txs, "1000") == Decimal("1000") + views["closed"][0]["cash"] + views["open"][0]["cash"]

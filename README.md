@@ -101,6 +101,7 @@ Every POST carries the `csrf` value from the page. After sign-in the routes are:
 | Route | Role |
 | --- | --- |
 | `POST /buy` | Record a buy. Fields: `asset`, `amount`, `price`, `fees`, `taxes`, `csrf`. |
+| `POST /sell` | Record one paper sale for an open lot. Fields: `lot` (buy transaction id), `csrf`. Refuses a missing or stale price. Uses the same `quote_sell` path as automatic sales. |
 | `POST /cycle` | Apply the sell rule to lots that are ready. |
 | `POST /update` | Start one price update, which then applies the sell rule. |
 | `POST /prefs` | Save preferences. Field names match the inputs in the dialog. |

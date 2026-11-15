@@ -100,6 +100,56 @@ function uiText(key, vars) {
 })();
 
 (function () {
+  function clearPanelPlace(menu) {
+    if (!menu) {
+      return;
+    }
+    menu.style.marginTop = "";
+    menu.style.transform = "";
+    menu.style.position = "";
+    menu.style.top = "";
+    menu.style.left = "";
+    menu.style.right = "";
+    menu.style.zIndex = "";
+    menu.style.maxHeight = "";
+  }
+
+  /* Never restore Positions/Buy/Transactions open after reload (bfcache/hash/stale .show). */
+  function shutNavPanels() {
+    document.querySelectorAll(".navbar [data-bs-toggle='dropdown']").forEach(function (button) {
+      var menu = button.nextElementSibling;
+      if (!menu || !menu.classList.contains("nav-panel")) {
+        return;
+      }
+      button.classList.remove("show");
+      button.setAttribute("aria-expanded", "false");
+      menu.classList.remove("show");
+      menu.setAttribute("hidden", "");
+      clearPanelPlace(menu);
+      menu.style.removeProperty("display");
+      if (window.bootstrap && bootstrap.Dropdown) {
+        var inst = bootstrap.Dropdown.getInstance(button);
+        if (inst) {
+          inst.hide();
+        }
+      }
+    });
+    try {
+      ["panel", "menu", "nav_panel", "open_panel"].forEach(function (key) {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+    } catch (error) {
+      /* ignore private-mode storage errors */
+    }
+    if (location.hash && /(?:posizioni|buy|transazioni)-toggle/i.test(location.hash)) {
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+  }
+
+  shutNavPanels();
+  window.addEventListener("pageshow", shutNavPanels);
+
   function place(button) {
     var menu = button.nextElementSibling;
     if (!menu) {
@@ -107,39 +157,61 @@ function uiText(key, vars) {
     }
     menu.style.transform = "";
     if (!menu.classList.contains("nav-panel")) {
-      menu.style.marginTop = "";
+      clearPanelPlace(menu);
       return;
     }
+    menu.removeAttribute("hidden");
+    menu.style.removeProperty("display");
+    /* Fixed + high z-index: escape navbar stacking so the treemap cannot paint through. */
     var drop = button.parentElement.getBoundingClientRect();
     var note = document.querySelector(".slide-note");
     var target = note ? note.getBoundingClientRect().bottom + 8 : drop.bottom + 2;
-    menu.style.marginTop = Math.max(2, Math.round(target - drop.bottom)) + "px";
-    var width = Math.min(menu.classList.contains("nav-panel-wide") ? 832 : 576, document.documentElement.clientWidth - 16);
-    var leftEdge = drop.right - width;
-    if (leftEdge < 8) {
-      menu.style.transform = "translateX(" + Math.round(8 - leftEdge) + "px)";
+    /* Transactions (.nav-panel-tx) needs more width for Buy/Sell/Cost columns. */
+    var wide = menu.classList.contains("nav-panel-wide");
+    var tx = menu.classList.contains("nav-panel-tx");
+    var width = Math.min(tx ? 1024 : (wide ? 832 : 576), document.documentElement.clientWidth - 16);
+    var left = Math.max(8, Math.round(drop.right - width));
+    if (left + width > document.documentElement.clientWidth - 8) {
+      left = Math.max(8, document.documentElement.clientWidth - 8 - width);
     }
+    menu.style.position = "fixed";
+    menu.style.top = Math.round(target) + "px";
+    menu.style.left = left + "px";
+    menu.style.right = "auto";
+    menu.style.marginTop = "0px";
+    menu.style.transform = "none";
+    menu.style.zIndex = "2000";
+    /* Cap height so .nav-panel-tx flex can pin Balance and scroll the middle. */
+    var maxH = Math.min(Math.round(window.innerHeight * 0.7), 512);
+    var room = Math.max(160, window.innerHeight - Math.round(target) - 8);
+    menu.style.maxHeight = Math.min(maxH, room) + "px";
   }
 
   document.querySelectorAll(".navbar [data-bs-toggle='dropdown']").forEach(function (button) {
-    button.addEventListener("show.bs.dropdown", place.bind(null, button));
+    button.addEventListener("show.bs.dropdown", function () {
+      var menu = button.nextElementSibling;
+      if (menu) {
+        menu.removeAttribute("hidden");
+        menu.style.removeProperty("display");
+      }
+      place(button);
+    });
+    /* Re-pin after Bootstrap finishes — static display skips Popper, but keep parity. */
+    button.addEventListener("shown.bs.dropdown", function () {
+      place(button);
+    });
     button.addEventListener("hidden.bs.dropdown", function () {
       var menu = button.nextElementSibling;
-      if (!menu) {
-        return;
+      if (menu) {
+        menu.classList.remove("pref-open");
       }
-      menu.style.marginTop = "";
-      menu.style.transform = "";
+      clearPanelPlace(menu);
+      if (menu && menu.classList.contains("nav-panel")) {
+        menu.setAttribute("hidden", "");
+        menu.style.removeProperty("display");
+      }
     });
   });
-
-  var openPanel = document.body.dataset.panel;
-  if (openPanel) {
-    var toggle = document.getElementById(openPanel + "-toggle");
-    if (toggle) {
-      bootstrap.Dropdown.getOrCreateInstance(toggle).show();
-    }
-  }
 
   var volumeControls = document.getElementById("volume-controls");
   var volumeMap = document.getElementById("volume-map");
@@ -470,6 +542,16 @@ function uiText(key, vars) {
       }
       volumeWait.classList.toggle("d-none", !busy);
       volumeWait.classList.toggle("d-flex", busy);
+    }
+
+    var volumeTabEl = document.getElementById("volume-tab");
+    if (volumeTabEl) {
+      volumeTabEl.addEventListener("shown.bs.tab", function () {
+        if (volumeMap && volumeMap.getAttribute("data-lazy") === "1") {
+          volumeMap.removeAttribute("data-lazy");
+          pushVolume();
+        }
+      });
     }
 
     function pushVolume() {
@@ -1199,6 +1281,10 @@ function uiText(key, vars) {
   }
 
   function paint() {
+    var pane = img.closest(".tab-pane");
+    if (pane && !pane.classList.contains("active") && !pane.classList.contains("show")) {
+      return;
+    }
     var box = frame();
     if (box.w < 200) {
       return;
@@ -1375,6 +1461,17 @@ function uiText(key, vars) {
   function closeMenus() {
     document.querySelectorAll(".pref-menu.show").forEach(function (menu) {
       menu.classList.remove("show");
+      menu.style.position = "";
+      menu.style.top = "";
+      menu.style.left = "";
+      menu.style.right = "";
+      menu.style.width = "";
+      menu.style.maxHeight = "";
+      menu.style.zIndex = "";
+      menu.style.transform = "";
+    });
+    document.querySelectorAll(".nav-panel.pref-open").forEach(function (panel) {
+      panel.classList.remove("pref-open");
     });
   }
 
@@ -1382,19 +1479,31 @@ function uiText(key, vars) {
     var box = button.getBoundingClientRect();
     var margin = 8;
     var top = Math.round(box.bottom + 4);
+    var panel = menu.closest(".nav-panel");
+    if (panel) {
+      panel.classList.add("pref-open");
+    }
     menu.style.position = "fixed";
+    menu.style.transform = "none";
+    menu.style.zIndex = "3000";
     menu.style.top = top + "px";
     menu.style.left = "auto";
     menu.style.width = "";
     menu.style.right = Math.round(window.innerWidth - box.right) + "px";
     menu.style.maxHeight = Math.max(160, window.innerHeight - top - margin) + "px";
-    var width = menu.getBoundingClientRect().width;
-    var right = Math.round(window.innerWidth - box.right);
-    if (right + width > window.innerWidth - margin) {
-      menu.style.left = margin + "px";
-      menu.style.right = margin + "px";
-      menu.style.width = "auto";
-    }
+    /* Measure after paint so first open is not clipped / zero-width. */
+    requestAnimationFrame(function () {
+      if (!menu.classList.contains("show")) {
+        return;
+      }
+      var width = menu.getBoundingClientRect().width;
+      var right = Math.round(window.innerWidth - box.right);
+      if (right + width > window.innerWidth - margin) {
+        menu.style.left = margin + "px";
+        menu.style.right = margin + "px";
+        menu.style.width = "auto";
+      }
+    });
   }
 
   document.querySelectorAll("[data-pref-gear]").forEach(function (button) {
@@ -1455,6 +1564,9 @@ function uiText(key, vars) {
     if (empty) {
       empty.classList.add("d-none");
     }
+    var sellAction = table ? table.getAttribute("data-sell-action") : "";
+    var sellLabel = table ? table.getAttribute("data-sell-label") || "" : "";
+    var csrf = document.querySelector("input[name=csrf]");
     rows.forEach(function (row) {
       var line = document.createElement("tr");
       if (row.ready) {
@@ -1481,7 +1593,28 @@ function uiText(key, vars) {
         when.textContent = row.now_time;
         now.append(when);
       }
-      line.append(symbol, cell(row.amount || ""), cell(row.cost || ""), now, cell(row.profit || ""), cell(row.outcome || ""));
+      var action = document.createElement("td");
+      if (row.ready && sellAction && row.lot_id != null) {
+        var form = document.createElement("form");
+        form.method = "post";
+        form.action = sellAction;
+        form.className = "m-0";
+        var token = document.createElement("input");
+        token.type = "hidden";
+        token.name = "csrf";
+        token.value = csrf ? csrf.value : "";
+        var lot = document.createElement("input");
+        lot.type = "hidden";
+        lot.name = "lot";
+        lot.value = String(row.lot_id);
+        var button = document.createElement("button");
+        button.type = "submit";
+        button.className = "btn btn-primary buy-submit";
+        button.textContent = sellLabel;
+        form.append(token, lot, button);
+        action.append(form);
+      }
+      line.append(symbol, cell(row.amount || ""), cell(row.cost || ""), now, cell(row.profit || ""), cell(row.outcome || ""), action);
       body.append(line);
     });
   }
@@ -1567,6 +1700,16 @@ function uiText(key, vars) {
           other.setAttribute("data-saved", stored);
         });
         applyAppearance(key, stored);
+        if (data.balance !== undefined && data.balance !== null) {
+          var shown = String(data.balance);
+          document.querySelectorAll("[data-paper-balance]").forEach(function (node) {
+            if (node.tagName === "INPUT" || node.tagName === "TEXTAREA") {
+              node.value = shown;
+            } else {
+              node.textContent = shown;
+            }
+          });
+        }
         if (data.positions) {
           paintPositions(data);
         }

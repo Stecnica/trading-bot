@@ -7,12 +7,13 @@ import json
 import os
 import time
 
-from bot_config import PRIVATE, UI_PASSWORD_PATH, get_logger
+from bot_config import PRIVATE, UI_PASSWORD_PATH, UI_PASSWORD_QA_PATH, get_logger
 from bot_i18n import tr
 
 log = get_logger()
 
 USERNAME = "bot"
+QA_USERNAME = "qa_cursor"
 MAX_FAILS = 5
 LOCK_SECONDS = 15 * 60
 ATTEMPTS_PATH = PRIVATE / "login_attempts.json"
@@ -20,23 +21,23 @@ SCRYPT_N = 2**14
 SCRYPT_R = 8
 SCRYPT_P = 1
 
+# username -> password file (primary + optional temporary QA)
+_USER_FILES = {
+    USERNAME: UI_PASSWORD_PATH,
+    QA_USERNAME: UI_PASSWORD_QA_PATH,
+}
+
 
 def ensure_password_hash():
-    """If the file still holds the password in clear text, replace it with the hash."""
-    try:
-        current = UI_PASSWORD_PATH.read_text(encoding="utf-8").strip()
-    except OSError:
-        return False
-    if not current or current.startswith("scrypt$"):
-        return current.startswith("scrypt$")
-    stored = _format_hash(current)
-    temporary = UI_PASSWORD_PATH.with_suffix(".tmp")
-    temporary.write_text(stored + "\n", encoding="utf-8")
-    os.chmod(temporary, 0o600)
-    os.replace(temporary, UI_PASSWORD_PATH)
-    os.chmod(UI_PASSWORD_PATH, 0o600)
-    log.info("sign-in password hashed and removed from the clear-text file")
-    return True
+    """If a password file still holds clear text, replace it with the hash.
+
+    Returns True when the primary `bot` hash is ready. QA file is hashed too
+    when present; a missing QA file is fine (that user simply cannot sign in).
+    """
+    primary_ok = _ensure_file_hash(UI_PASSWORD_PATH)
+    if UI_PASSWORD_QA_PATH.exists():
+        _ensure_file_hash(UI_PASSWORD_QA_PATH)
+    return primary_ok
 
 
 def authenticate(username, password, ip):
@@ -54,7 +55,7 @@ def authenticate(username, password, ip):
         log.info("login failed from %s, attempt %s", ip, fails)
         return False, tr("auth.bad")
     _clear_failures(ip)
-    log.info("login succeeded from %s", ip)
+    log.info("login succeeded from %s user=%s", ip, username)
     return True, ""
 
 
@@ -75,19 +76,49 @@ def stamp_session(session):
     session["csrf"] = os.urandom(16).hex()
 
 
+def _ensure_file_hash(path):
+    try:
+        current = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+    if not current:
+        return False
+    if current.startswith("scrypt$"):
+        return True
+    stored = _format_hash(current)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(stored + "\n", encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+    os.chmod(path, 0o600)
+    log.info("sign-in password hashed for %s", path.name)
+    return True
+
+
 def _password_matches(username, password):
-    stored = _read_hash()
+    name = username or ""
+    path = _USER_FILES.get(name)
+    if path is None:
+        # Unknown user: still burn a scrypt against primary salt shape if possible,
+        # otherwise a dummy, so timing stays closer across usernames.
+        stored = _read_hash(UI_PASSWORD_PATH) or {
+            "salt": b"\0" * 16,
+            "hash": b"\0" * 32,
+        }
+        candidate = _scrypt(password or "", stored["salt"])
+        hmac.compare_digest(candidate, stored["hash"])
+        return False
+    stored = _read_hash(path)
     if not stored:
         return False
     candidate = _scrypt(password or "", stored["salt"])
-    user_ok = hmac.compare_digest(username or "", USERNAME)
-    pass_ok = hmac.compare_digest(candidate, stored["hash"])
-    return user_ok and pass_ok
+    return hmac.compare_digest(candidate, stored["hash"])
 
 
-def _read_hash():
+def _read_hash(path=None):
+    target = path if path is not None else UI_PASSWORD_PATH
     try:
-        text = UI_PASSWORD_PATH.read_text(encoding="utf-8").strip()
+        text = target.read_text(encoding="utf-8").strip()
     except OSError:
         return None
     parts = text.split("$")

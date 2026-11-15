@@ -1,5 +1,6 @@
 """Trading bot page: volume blocks, history, and sales at the threshold."""
 
+import json
 import os
 import subprocess
 import sys
@@ -16,7 +17,7 @@ from flask import Flask, Response, abort, jsonify, redirect, render_template, re
 from jinja2 import ChoiceLoader, FileSystemLoader
 
 from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_session
-from bot_charts import history_hits, history_model, history_png, treemap_grouped, treemap_grouped_png, treemap_layout, treemap_png
+from bot_chart_cache import get_bytes as chart_cache_get, put_bytes as chart_cache_put
 from bot_market import constituents, security_names
 from bot_config import (
     FLASK_SECRET_PATH,
@@ -32,6 +33,7 @@ from bot_db import (
     WEIGHT_CHOICES,
     WEIGHT_IDS,
     accepted_volume_class,
+    asset_history_fingerprint,
     build_blocks,
     class_symbols,
     classification_tree,
@@ -45,20 +47,51 @@ from bot_db import (
     load_asset_history,
     load_bars_since,
     load_preferences,
+    market_window_fingerprint,
     resolved_theme,
     normalize_ticker,
     position_rows,
     recent_transactions,
+    paper_balance,
     save_preferences,
     seed_preferences,
+    sell_open_lot,
     sell_ready_lots,
     symbol_places,
     preference_patch,
     write_status,
     read_status,
 )
-from bot_decide import score_label, scores_for
 from bot_logic import money
+
+
+def _charts():
+    """Lazy import: matplotlib must not load on /login (single-thread WSGI)."""
+    from bot_charts import (
+        history_hits,
+        history_model,
+        history_png,
+        treemap_grouped,
+        treemap_grouped_png,
+        treemap_layout,
+        treemap_png,
+    )
+
+    return {
+        "history_hits": history_hits,
+        "history_model": history_model,
+        "history_png": history_png,
+        "treemap_grouped": treemap_grouped,
+        "treemap_grouped_png": treemap_grouped_png,
+        "treemap_layout": treemap_layout,
+        "treemap_png": treemap_png,
+    }
+
+
+def _decide():
+    from bot_decide import score_label, scores_for
+
+    return score_label, scores_for
 
 log = get_logger()
 app = Flask(__name__)
@@ -166,7 +199,8 @@ def harden(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; "
         "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
     )
     if response.mimetype == "text/html":
@@ -234,15 +268,14 @@ def prepare():
 def format_qty(value):
     if value is None:
         return "—"
-    text = f"{Decimal(str(value)):.8f}".rstrip("0").rstrip(".")
-    return text or "0"
+    return f"{Decimal(str(value)):.3f}"
 
 
 @app.template_filter("px")
 def format_price(value):
     if value is None:
         return "—"
-    return f"{Decimal(str(value)):.4f}".rstrip("0").rstrip(".")
+    return f"{Decimal(str(value)):.3f}"
 
 
 @app.template_filter("pct")
@@ -250,6 +283,32 @@ def format_pct(value):
     if value is None:
         return "—"
     return f"{Decimal(str(value)) * 100:.2f} %"
+
+
+@app.template_filter("signed_pct")
+def format_signed_pct(value):
+    if value is None:
+        return "—"
+    number = Decimal(str(value))
+    text = f"{abs(number) * 100:.2f} %"
+    if number > 0:
+        return "+" + text
+    if number < 0:
+        return "−" + text
+    return text
+
+
+@app.template_filter("signed_px")
+def format_signed_price(value):
+    if value is None:
+        return "—"
+    number = Decimal(str(value))
+    text = f"{abs(number):.3f}"
+    if number > 0:
+        return "+" + text
+    if number < 0:
+        return "−" + text
+    return text
 
 
 @app.template_filter("when")
@@ -375,15 +434,27 @@ def home():
         buy_asset = posted_asset or asset
         order = prefs["volume_order"]
         scope = prefs["volume_scope"]
-        prefs, blocks, tiles, volume_caption_text, frames = _volume_board(conn, prefs, order, scope)
+        view = prefs["page_view"]
+        # History refresh must not rebuild the volume treemap/scores (~6s+).
+        # Volume map JSON is loaded lazily when that tab is opened.
+        volume_lazy = view == "history"
+        if volume_lazy:
+            blocks, tiles, frames = [], [], []
+            volume_caption_text = ""
+        else:
+            prefs, blocks, tiles, volume_caption_text, frames = _volume_board(conn, prefs, order, scope)
         catalog = security_names()
         class_tree = classification_tree(conn)
         positions = position_rows(conn, prefs)
         _attach_score(conn, positions)
         transactions = recent_transactions(conn)
+        balance = paper_balance(conn, prefs)
         assets = list_assets(conn)
         period, days = _span(prefs["history_period"])
-        stats = history_stats(load_asset_history(conn, asset, days))
+        if view == "history":
+            stats = history_stats(load_asset_history(conn, asset, days))
+        else:
+            stats = history_stats([])
         asset_options = [
             {"symbol": symbol, "label": f"{symbol} — {catalog[symbol]}" if catalog.get(symbol) else symbol}
             for symbol in assets
@@ -402,9 +473,8 @@ def home():
         ok = ""
     status = dict(status)
     status["message"] = status_text(status.get("message"))
-    view = prefs["page_view"]
     chart = prefs["chart_type"]
-    return render_template(
+    html = render_template(
         "index.html",
         prefs=prefs,
         theme=resolved_theme(prefs["ui_theme"]),
@@ -416,6 +486,7 @@ def home():
         tiles=tiles,
         positions=positions,
         transactions=transactions,
+        paper_balance=balance,
         assets=assets,
         asset_options=asset_options,
         status=status,
@@ -434,7 +505,11 @@ def home():
         order=order,
         scope=scope,
         frames=frames,
+        volume_lazy=volume_lazy,
     )
+    response = Response(html, mimetype="text/html")
+    response.headers["X-Page-Cache"] = "SKIP-VOLUME" if volume_lazy else "VOLUME"
+    return response
 
 
 def _pack_choice():
@@ -458,8 +533,9 @@ def chart_blocks():
     finally:
         conn.close()
     if scope == "all":
-        return _png(treemap_grouped_png(frames, tiles))
-    return _png(treemap_png(blocks, order))
+        charts = _charts()
+        return _png(charts["treemap_grouped_png"](frames, tiles))
+    return _png(_charts()["treemap_png"](blocks, order))
 
 
 def volume_caption(prefs, shown, scope="sector"):
@@ -482,11 +558,33 @@ def volume_caption(prefs, shown, scope="sector"):
 
 
 def _volume_board(conn, prefs, order="rank", scope="sector"):
+    """Build volume tiles/frames. Disk-cache the JSON so refresh does not re-score 500 names."""
     prefs = dict(prefs)
     prefs["volume_class"] = accepted_volume_class(conn, prefs.get("volume_class"))
     # History length is not part of this: the ranking sessions are enough.
     # Three calendar days per session cover weekends.
     window_days = max(prefs["return_days"] * 3, 40)
+    fp = market_window_fingerprint(conn, window_days)
+    parts = (
+        current(),
+        order,
+        scope,
+        prefs["return_days"],
+        prefs["names"],
+        prefs.get("volume_class") or "",
+        str(prefs.get("stable_band")),
+        str(prefs.get("min_side")),
+        prefs.get("volume_divide"),
+        prefs.get("volume_scale"),
+        fp,
+    )
+    cached = chart_cache_get("volume", parts)
+    if cached is not None:
+        try:
+            payload = json.loads(cached.decode("utf-8"))
+            return prefs, [], payload.get("tiles") or [], payload.get("caption") or "", payload.get("frames") or []
+        except (UnicodeDecodeError, ValueError, TypeError):
+            pass
     wide = scope == "all"
     allowed = None if wide else class_symbols(conn, prefs["volume_class"])
     blocks = build_blocks(load_bars_since(conn, window_days), prefs, allowed, limit=not wide)
@@ -498,8 +596,9 @@ def _volume_board(conn, prefs, order="rank", scope="sector"):
             block["group"] = group
     _attach_score(conn, blocks)
     names = security_names()
+    charts = _charts()
     if wide:
-        frames, tiles = treemap_grouped(
+        frames, tiles = charts["treemap_grouped"](
             blocks,
             names,
             order,
@@ -509,11 +608,20 @@ def _volume_board(conn, prefs, order="rank", scope="sector"):
         )
     else:
         frames = []
-        tiles = treemap_layout(blocks, names, order)
-    return prefs, blocks, tiles, volume_caption(prefs, len(tiles), scope), frames
+        tiles = charts["treemap_layout"](blocks, names, order)
+    caption = volume_caption(prefs, len(tiles), scope)
+    chart_cache_put(
+        "volume",
+        parts,
+        json.dumps({"tiles": tiles, "frames": frames, "caption": caption}, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        ),
+    )
+    return prefs, blocks, tiles, caption, frames
 
 
 def _attach_score(conn, rows):
+    score_label, scores_for = _decide()
     found = scores_for(conn, [row["asset"] for row in rows])
     for row in rows:
         short, detail = score_label(found.get(row["asset"]))
@@ -629,24 +737,32 @@ def chart_stats():
     return jsonify(stats)
 
 
-def _history_query():
+def _history_context():
+    """Prefs + fingerprint first; full bars only when a cache miss must rebuild."""
     conn = connect()
     try:
         prefs = load_preferences(conn)
         asset = normalize_ticker(request.args.get("asset", "")) or prefs["focus_asset"]
         _period, days = _span(request.args.get("period"))
-        series = load_asset_history(conn, asset, days)
         chart_type = request.args.get("chart")
         if chart_type not in ("line", "candle"):
             chart_type = prefs["chart_type"]
+        fp = asset_history_fingerprint(conn, asset, days)
+        return conn, asset, days, chart_type, fp
+    except Exception:
+        conn.close()
+        raise
+
+
+def _history_series(conn, asset, days):
+    try:
+        return load_asset_history(conn, asset, days)
     finally:
         conn.close()
-    return asset, series, chart_type
 
 
 @app.route("/chart/history.png")
 def chart_history():
-    asset, series, chart_type = _history_query()
     width = _chart_px("w", 1280, 480, 4096)
     height = _chart_px("h", 720, 280, 2160)
     scale = _chart_px("scale", 100, 80, 120)
@@ -657,22 +773,64 @@ def chart_history():
     weight = request.args.get("weight")
     if weight not in WEIGHT_IDS:
         weight = "400"
-    return _png(history_png(series, asset, chart_type, width, height, scale, theme, weight))
+    conn, asset, days, chart_type, fp = _history_context()
+    parts = (current(), asset, days, chart_type, width, height, scale, theme, weight, fp)
+    cached = chart_cache_get("png", parts)
+    if cached is not None:
+        conn.close()
+        return _png_bytes(cached, hit=True)
+    series = _history_series(conn, asset, days)
+    buffer = _charts()["history_png"](series, asset, chart_type, width, height, scale, theme, weight)
+    payload = buffer.getvalue()
+    chart_cache_put("png", parts, payload)
+    return _png_bytes(payload, hit=False)
 
 
 @app.route("/chart/series.json")
 def chart_series():
-    asset, series, chart_type = _history_query()
-    response = jsonify(history_model(series, asset, chart_type))
+    conn, asset, days, chart_type, fp = _history_context()
+    parts = (current(), asset, days, chart_type, fp)
+    cached = chart_cache_get("series", parts)
+    if cached is not None:
+        conn.close()
+        response = Response(cached, mimetype="application/json")
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Chart-Cache"] = "HIT"
+        return response
+    series = _history_series(conn, asset, days)
+    payload = json.dumps(
+        _charts()["history_model"](series, asset, chart_type),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    chart_cache_put("series", parts, payload)
+    response = Response(payload, mimetype="application/json")
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Chart-Cache"] = "MISS"
     return response
 
 
 @app.route("/chart/sessions.json")
 def chart_hits():
-    _asset, series, chart_type = _history_query()
-    response = jsonify(hits=history_hits(series, chart_type))
+    conn, asset, days, chart_type, fp = _history_context()
+    parts = (current(), asset, days, chart_type, fp)
+    cached = chart_cache_get("hits", parts)
+    if cached is not None:
+        conn.close()
+        response = Response(cached, mimetype="application/json")
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Chart-Cache"] = "HIT"
+        return response
+    series = _history_series(conn, asset, days)
+    payload = json.dumps(
+        {"hits": _charts()["history_hits"](series, chart_type)},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    chart_cache_put("hits", parts, payload)
+    response = Response(payload, mimetype="application/json")
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Chart-Cache"] = "MISS"
     return response
 
 
@@ -681,6 +839,7 @@ def _positions_payload(rows):
     for row in rows:
         payload.append(
             {
+                "lot_id": row["lot_id"],
                 "asset": row["asset"],
                 "bought": format_when(row["bought_at"]),
                 "score": row.get("score") or "",
@@ -707,6 +866,7 @@ def save_prefs():
         save_preferences(conn, values)
         prefs = load_preferences(conn)
         payload = {"ok": True, "values": values}
+        payload["balance"] = format_price(paper_balance(conn, prefs))
         if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours"}.intersection(values):
             rows = position_rows(conn, prefs)
             _attach_score(conn, rows)
@@ -722,7 +882,6 @@ def save_prefs():
 
 
 def _buy_back(**extra):
-    extra["panel"] = "buy"
     return redirect(url_for("home", **extra))
 
 
@@ -765,10 +924,28 @@ def buy():
             taxes = Decimal("0")
         if taxes < 0 or fees < 0:
             return _buy_back(err=tr("buy.negative"), asset=asset)
+        cash_out = money(notional + fees + taxes) or Decimal("0")
+        available = paper_balance(conn, prefs)
+        if cash_out > available:
+            return _buy_back(err=tr("buy.over_balance"), asset=asset)
         insert_transaction(conn, "buy", asset, amount, price, fees, taxes)
     finally:
         conn.close()
     return _buy_back(ok=tr("buy.saved", asset=asset), asset=asset)
+
+
+@app.route("/sell", methods=["POST"])
+def sell():
+    """Record one paper sale for an open lot. Same path as bot sells."""
+    conn = connect()
+    try:
+        prefs = load_preferences(conn)
+        asset, error = sell_open_lot(conn, prefs, request.form.get("lot"))
+    finally:
+        conn.close()
+    if error:
+        return redirect(url_for("home", err=tr(error)))
+    return redirect(url_for("home", ok=tr("sell.saved", asset=asset)))
 
 
 @app.route("/cycle", methods=["POST"])
@@ -829,6 +1006,11 @@ def _chart_px(name, default, low, high):
 
 
 def _png(buffer):
-    response = Response(buffer.getvalue(), mimetype="image/png")
+    return _png_bytes(buffer.getvalue(), hit=False)
+
+
+def _png_bytes(payload, hit=False):
+    response = Response(payload, mimetype="image/png")
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Chart-Cache"] = "HIT" if hit else "MISS"
     return response
