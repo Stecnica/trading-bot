@@ -152,8 +152,10 @@ def fifo_transaction_views(transactions, prices=None, fee_rate=None, tax_rate=No
 
     With prices ({asset: {"price", "timestamp"}}) and the current fee and tax
     rates, an open lot also carries what quote_sell would record if it were sold
-    now: the sale commission, the tax on the unrealized gain, and the net result.
-    Those estimates are not cash and never enter paper_cash_balance.
+    now: the sale commission, the buy plus that sale commission, the tax on the
+    unrealized gain, and the net result. Totals fees and taxes are what the stored
+    rows charged; est_fees and est_taxes add up those estimates. They are not cash
+    and never enter paper_cash_balance.
     """
     buckets = {}
     order = []
@@ -273,6 +275,7 @@ def fifo_transaction_views(transactions, prices=None, fee_rate=None, tax_rate=No
                 row["market_time"] = market.get("timestamp")
                 row["est"] = {
                     "sell_fees": quote["fees"],
+                    "fees": money(buy_fees + quote["fees"]),
                     "fee_rate": quote["fee_rate"],
                     "taxes": quote["taxes"],
                     "tax_rate": quote["tax_rate"],
@@ -285,6 +288,7 @@ def fifo_transaction_views(transactions, prices=None, fee_rate=None, tax_rate=No
     totals = {
         "fees": money(sum((r["fees"] for r in closed), zero) + sum((r["fees"] for r in opens), zero)),
         "taxes": money(sum((r["taxes"] for r in closed), zero) + sum((r["taxes"] for r in opens), zero)),
+        "est_fees": money(sum((r["est"]["sell_fees"] for r in opens if r["est"]), zero)),
         "est_taxes": money(sum((r["est"]["taxes"] for r in opens if r["est"]), zero)),
         "est_count": sum(1 for r in opens if r["est"]),
     }

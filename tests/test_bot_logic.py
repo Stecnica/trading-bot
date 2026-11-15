@@ -179,6 +179,9 @@ def test_open_lot_estimate_matches_the_sale_quote_sell_would_record():
     assert row["notional"] == money(Decimal("1.48889285") * Decimal("671.64"))
     assert row["buy_fee_rate"] == Decimal("0.001")
     assert views["totals"]["est_taxes"] == quote["taxes"]
+    assert row["est"]["fees"] == money(row["fees"] + quote["fees"])
+    assert views["totals"]["est_fees"] == quote["fees"]
+    assert views["totals"]["fees"] == row["fees"]
     assert paper_cash_balance([buy], "10000") == Decimal("10000") + row["cash"]
 
 

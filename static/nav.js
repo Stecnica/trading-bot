@@ -187,6 +187,35 @@ function uiText(key, vars) {
     menu.style.maxHeight = Math.min(maxH, room) + "px";
   }
 
+  /* Transactions: fade and chevron while rows remain below the visible part. */
+  function txMore(menu) {
+    var scroll = menu && menu.querySelector(".tx-scroll");
+    var more = menu && menu.querySelector(".tx-more");
+    if (!scroll || !more) {
+      return;
+    }
+    var below = scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop > 2;
+    scroll.classList.toggle("tx-has-more", below);
+    more.hidden = !below;
+  }
+
+  document.querySelectorAll(".nav-panel-tx").forEach(function (menu) {
+    var scroll = menu.querySelector(".tx-scroll");
+    var more = menu.querySelector(".tx-more");
+    if (!scroll || !more) {
+      return;
+    }
+    scroll.addEventListener("scroll", function () {
+      txMore(menu);
+    }, { passive: true });
+    window.addEventListener("resize", function () {
+      txMore(menu);
+    });
+    more.addEventListener("click", function () {
+      scroll.scrollBy({ top: Math.max(48, scroll.clientHeight - 48), behavior: "smooth" });
+    });
+  });
+
   document.querySelectorAll(".navbar [data-bs-toggle='dropdown']").forEach(function (button) {
     button.addEventListener("show.bs.dropdown", function () {
       var menu = button.nextElementSibling;
@@ -199,6 +228,7 @@ function uiText(key, vars) {
     /* Re-pin after Bootstrap finishes — static display skips Popper, but keep parity. */
     button.addEventListener("shown.bs.dropdown", function () {
       place(button);
+      txMore(button.nextElementSibling);
     });
     button.addEventListener("hidden.bs.dropdown", function () {
       var menu = button.nextElementSibling;
