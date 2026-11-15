@@ -19,3 +19,18 @@ def test_volume_labels_use_three_decimals():
     assert _factor(1.6) == "(x1.600)"
     short, detail = score_label({"score": 0.5, "side": "buy", "weights": {"trend": 0.25}})
     assert short.startswith("+0.500 ") and "trend 0.250" in detail
+
+
+def test_session_amount_shows_the_currency_symbol_per_locale():
+    from bot_charts import _money
+    from bot_i18n import activate
+
+    try:
+        activate("it")
+        assert _money(11_357_000_000) == "$ 11.357 miliardi"
+        activate("en")
+        assert _money(11_357_000_000) == "$11.357 billion"
+        activate("de")
+        assert _money(950) == "950.000 $"
+    finally:
+        activate("en")

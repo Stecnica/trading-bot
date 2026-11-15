@@ -14,6 +14,7 @@ import matplotlib
 matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 from bot_i18n import tr
+from bot_logic import CURRENCY
 from matplotlib.dates import date2num
 from matplotlib.patches import Rectangle
 
@@ -409,18 +410,14 @@ def history_hits(series, chart_type):
     ]
 
 
-def _usd(amount):
-    if amount >= 1e12:
-        text, unit = amount / 1e12, "bilioni"
-    elif amount >= 1e9:
-        text, unit = amount / 1e9, "miliardi"
-    elif amount >= 1e6:
-        text, unit = amount / 1e6, "milioni"
-    elif amount >= 1e3:
-        text, unit = amount / 1e3, "mila"
+def _money(amount):
+    for size, unit in ((1e12, "trillion"), (1e9, "billion"), (1e6, "million"), (1e3, "thousand")):
+        if amount >= size:
+            text = f"{amount / size:.3f} {tr('chart.unit.' + unit)}"
+            break
     else:
-        return f"{amount:.3f} USD"
-    return f"{text:.3f} {unit} USD"
+        text = f"{amount:.3f}"
+    return tr("chart.money", symbol=CURRENCY, amount=text)
 
 
 def _session_lines(row):
@@ -441,7 +438,7 @@ def _session_lines(row):
     else:
         price = close
         basis = tr("chart.basis_close")
-    lines.append(tr("chart.amount", value=_usd(shares * price)))
+    lines.append(tr("chart.amount", value=_money(shares * price)))
     lines.append(tr("chart.shares", shares=share_text, basis=basis))
     return lines
 
