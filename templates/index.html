@@ -780,7 +780,6 @@
 						<button class="btn btn-outline-light btn-nav-menu" type="button" id="transazioni-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.transactions') }}</button>
 						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide nav-panel-tx p-3" aria-labelledby="transazioni-toggle" hidden>
 							<h2 class="h6 mb-3">{{ t('tx.title') }}</h2>
-							<p class="mb-3">{{ t('tx.help') }}</p>
 							<div class="tx-scroll">
 							{% if transactions.closed or transactions.open %}
 							{% if transactions.closed %}
@@ -895,6 +894,7 @@
 								<span class="tx-balance-label"><strong>{{ t('prefs.balance') }}</strong></span>
 								<span class="tx-balance-value" data-paper-balance>{{ paper_balance|px }}</span>
 							</div>
+							<p class="mb-3">{{ t('tx.help') }}</p>
 						</div>
 					</div>
 					<div class="flex-grow-1" style="max-width:1vw;"></div>
