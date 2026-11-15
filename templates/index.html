@@ -997,7 +997,7 @@
 					</select>
 					</div>
 					<div class="flex-grow-1"></div>
-					<div id="stats" class="d-flex flex-wrap align-items-start justify-content-end gap-3 text-end px-3 py-1" data-stats="{{ url_for('chart_stats') }}" aria-live="polite">
+					<div id="stats" class="d-flex flex-wrap align-items-start justify-content-end gap-3 text-end px-3 py-1" data-stats="{{ url_for('chart_stats') }}"{% if view == 'history' %} data-loaded{% endif %} aria-live="polite">
 					<div>
 						<div class="form-label">{{ t('history.change') }}</div>
 						<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
@@ -1077,7 +1077,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=61) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=62) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

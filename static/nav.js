@@ -848,7 +848,8 @@ function uiText(key, vars) {
 
   var drawn = "";
   var statsBox = document.getElementById("stats");
-  var statsKey = select.value + "|" + chosen("period");
+  /* The page fills the box only when it opens on History; otherwise the first paint fetches it. */
+  var statsKey = statsBox && statsBox.hasAttribute("data-loaded") ? select.value + "|" + chosen("period") : "";
 
   function fillStats(data) {
     ["change", "last", "low", "high", "sessions"].forEach(function (name) {
