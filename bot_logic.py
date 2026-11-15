@@ -63,6 +63,7 @@ def open_lots(transactions):
                 tx["fees"],
                 tx["taxes"],
                 tx["timestamp"],
+                tx.get("currency"),
             )
             buckets.setdefault(asset, []).append(lot)
             order.append(lot)
@@ -141,7 +142,7 @@ def fifo_transaction_views(transactions):
                 tx["fees"],
                 tx["taxes"],
                 tx.get("timestamp"),
-                tx.get("currency", "USD"),
+                tx.get("currency"),
             )
             if lot.price is None or lot.original <= 0:
                 continue
@@ -201,7 +202,7 @@ def fifo_transaction_views(transactions):
                     # Closed slice cash effect on Balance equals net P&L.
                     "cash": money(net),
                     "ratio": ratio,
-                    "currency": tx.get("currency", "USD"),
+                    "currency": tx.get("currency") or lot.currency,
                 }
             )
             lot.remaining = money(lot.remaining - take)
@@ -228,7 +229,7 @@ def fifo_transaction_views(transactions):
                 "taxes": money(buy_taxes),
                 "cost": money(cost),
                 "cash": cash,
-                "currency": lot.currency or "USD",
+                "currency": lot.currency,
             }
         )
     return {"closed": closed, "open": opens}

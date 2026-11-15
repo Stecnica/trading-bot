@@ -290,7 +290,7 @@ def format_signed_pct(value):
     if value is None:
         return "—"
     number = Decimal(str(value))
-    text = f"{abs(number) * 100:.2f} %"
+    text = f"{abs(number) * 100:.3f} %"
     if number > 0:
         return "+" + text
     if number < 0:
@@ -309,6 +309,30 @@ def format_signed_price(value):
     if number < 0:
         return "−" + text
     return text
+
+
+_CURRENCY_SYMBOLS = {
+    "USD": "$",
+    "EUR": "€",
+    "GBP": "£",
+    "JPY": "¥",
+    "CNY": "¥",
+    "CHF": "CHF",
+    "CAD": "C$",
+    "AUD": "A$",
+    "HKD": "HK$",
+    "INR": "₹",
+    "KRW": "₩",
+}
+
+
+@app.template_filter("currency")
+def format_currency(value):
+    """Symbol for an ISO code; rows that already store a symbol pass through."""
+    if not value:
+        return "—"
+    code = str(value).strip()
+    return _CURRENCY_SYMBOLS.get(code.upper(), code)
 
 
 @app.template_filter("when")

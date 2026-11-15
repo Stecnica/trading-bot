@@ -198,94 +198,89 @@
 			overflow: auto;
 		}
 		.nav-panel-wide { width: min(52rem, calc(100vw - 1rem)); }
-		/* Transactions: wider panel so Buy/Sell/Cost/prices are not clipped. */
+		/* Transactions: Closed, Open and Total share one fixed grid (tx_cols). */
 		.nav-panel-wide.nav-panel-tx { width: min(64rem, calc(100vw - 1rem)); }
 		.nav-panel-tx > h2,
 		.nav-panel-tx > p {
 			flex: 0 0 auto;
 		}
-		/* A — Scroll unico + thead sticky */
 		.nav-panel-tx .tx-scroll {
 			flex: 1 1 auto;
 			min-height: 0;
 			overflow: auto;
-			background-color: var(--bs-body-bg) !important;
 		}
-		.nav-panel-tx .tx-scroll .table-responsive {
-			overflow: visible;
-			-webkit-overflow-scrolling: touch;
+		.nav-panel-tx .tx-scroll > h3 {
+			margin: 1rem 0 0.5rem;
+			font-size: 0.8rem;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
 		}
-		.nav-panel-tx .tx-scroll .table {
+		.nav-panel-tx .tx-scroll > h3:first-child { margin-top: 0; }
+		.tx-table {
 			--bs-table-bg: var(--bs-body-bg);
-			background-color: var(--bs-body-bg);
-			width: max-content;
-			min-width: 100%;
-			table-layout: auto;
+			table-layout: fixed;
+			width: 100%;
+			margin-bottom: 0;
+			font-variant-numeric: tabular-nums;
 		}
-		.nav-panel-tx .tx-scroll .table th,
-		.nav-panel-tx .tx-scroll .table td {
-			padding: 0.65rem 0.85rem;
-			vertical-align: top;
-			white-space: normal;
+		.tx-table col:nth-child(1) { width: 21%; }
+		.tx-table col:nth-child(2) { width: 9%; }
+		.tx-table col:nth-child(3) { width: 9%; }
+		.tx-table col:nth-child(4) { width: 12.5%; }
+		.tx-table col:nth-child(5) { width: 16.5%; }
+		.tx-table col:nth-child(6) { width: 11.5%; }
+		.tx-table col:nth-child(7) { width: 10%; }
+		.tx-table col:nth-child(8) { width: 10.5%; }
+		.tx-table :is(th, td) {
+			padding: 0 0.5rem;
+			font-size: 1rem;
+			line-height: 1.5;
+			text-align: right;
+			vertical-align: baseline;
 			overflow-wrap: normal;
-			word-break: normal;
 		}
-		.nav-panel-tx .tx-scroll .table thead th {
+		.tx-table tbody > tr:first-child > td { white-space: nowrap; }
+		.tx-table :is(th, td):nth-child(-n+2) { text-align: left; }
+		.tx-table th { font-weight: 400; }
+		.tx-table td { font-weight: 200; }
+		.tx-table thead th {
 			position: sticky;
 			top: 0;
 			z-index: 1;
-			background-color: var(--bs-body-bg);
+			padding-block: 0.5rem;
+			border-bottom-width: 0;
 			box-shadow: inset 0 -1px 0 var(--bs-border-color);
-			white-space: nowrap;
-			font-weight: 600;
 		}
-		/* B — Numeri a destra + tabular */
-		.nav-panel-tx .tx-col-qty,
-		.nav-panel-tx .tx-col-buy,
-		.nav-panel-tx .tx-col-sell,
-		.nav-panel-tx .tx-col-price,
-		.nav-panel-tx .tx-col-cost,
-		.nav-panel-tx .tx-col-fees,
-		.nav-panel-tx .tx-col-taxes,
-		.nav-panel-tx .tx-col-cash {
-			text-align: right;
-			font-variant-numeric: tabular-nums;
+		.tx-table tbody > tr:first-child > * { padding-top: 0.5rem; }
+		.tx-table tbody > tr:last-child > * { padding-bottom: 0.5rem; }
+		.tx-table tbody > tr:not(:last-child) > * { border-bottom-width: 0; }
+		.tx-table:not(.tx-total) tbody > tr + tr > td {
+			font-size: 0.8125rem;
+			font-weight: 300;
+			color: var(--bs-secondary-color);
 		}
-		.nav-panel-tx .tx-col-symbol {
-			text-align: left;
-		}
-		/* C — Min-width header-aware (IT) — DEPRECATED: colgroup with style= now used */
-		/* .nav-panel-tx .tx-col-qty { min-width: 7rem; } */
-		/* .nav-panel-tx .tx-col-price { min-width: 9.5rem; } */
-		/* .nav-panel-tx .tx-col-fees, */
-		/* .nav-panel-tx .tx-col-taxes { min-width: 7rem; } */
-		/* .nav-panel-tx .tx-col-buy, */
-		/* .nav-panel-tx .tx-col-sell { min-width: 11.5rem; } */
-		/* .nav-panel-tx .tx-col-symbol { min-width: 9rem; } */
-		/* .nav-panel-tx .tx-col-cost { min-width: 7rem; } */
-		.nav-panel-tx .tx-balance-bar {
-			display: none;
-		}
-		.nav-panel-tx .tx-balance-footer {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			border-top: 2px solid var(--bs-border-color);
-			padding: 0.75rem 0.65rem 0.5rem;
+		.tx-table.tx-total {
+			position: sticky;
+			bottom: 0;
+			z-index: 2;
 			margin-top: 1rem;
-			font-weight: 600;
+			border-top: 2px solid var(--bs-border-color);
 		}
-		.nav-panel-tx .tx-balance-value {
-			font-weight: 400;
-			font-variant-numeric: tabular-nums;
-			font-size: 1.1rem;
+		.tx-table.tx-total :is(th, td) {
+			text-align: right;
+			border-bottom-width: 0;
 		}
-		.nav-panel-tx .tx-legend {
-			font-size: 0.75rem;
-			opacity: 0.65;
-			text-align: center;
-			padding: 0.5rem 0.65rem 0;
-			margin-bottom: 0.5rem;
+		.tx-table.tx-total tr:first-child > * { padding-top: 0.5rem; }
+		.tx-table.tx-total tr:last-child > * { padding-bottom: 0; }
+		.tx-table.tx-total td { font-weight: 400; }
+		@media (max-width: 960px) {
+			.tx-table :is(th, td) {
+				padding-inline: 0.25rem;
+				font-size: 0.875rem;
+			}
+			.tx-table :is(th, td):first-child { padding-left: 0.5rem; }
+			.tx-table :is(th, td):last-child { padding-right: 0.5rem; }
+			.tx-table:not(.tx-total) tbody > tr + tr > td { font-size: 0.75rem; }
 		}
 		/* Full-width numeric fields so right-aligned digits sit at the column edge
 		   (fixed ch widths left the control itself hugging the left of the cell). */
@@ -357,91 +352,6 @@
 			text-align: right;
 			text-align: end;
 		}
-		/* D — Meno rumore sulla colonna cash */
-		.tx-gain-cell { min-width: 8rem; }
-		.tx-gain-label {
-			display: none;
-		}
-		.tx-gain {
-			display: block;
-			font-weight: 700;
-			font-size: 1.05rem;
-			font-variant-numeric: tabular-nums;
-			line-height: 1.2;
-		}
-		/* E — Densità Buy/Sell e date */
-		.nav-panel-tx .tx-col-buy small,
-		.nav-panel-tx .tx-col-sell small,
-		.nav-panel-tx .tx-col-symbol small {
-			display: block;
-			line-height: 1.25;
-			margin-top: 0.15rem;
-			white-space: nowrap;
-		}
-		/* Two-row pattern: main row + metadata row */
-		.nav-panel-tx .tx-row-main {
-			font-weight: 500;
-		}
-		.nav-panel-tx .tx-row-main td {
-			padding-top: 0.75rem !important;
-			padding-bottom: 0.25rem !important;
-		}
-		.nav-panel-tx .tx-row-sub {
-			font-size: 0.8rem;
-			opacity: 0.65;
-		}
-		.nav-panel-tx .tx-row-sub td {
-			padding-top: 0.1rem !important;
-			padding-bottom: 0.5rem !important;
-		}
-		.nav-panel-tx .tx-row-sub .tx-col-symbol,
-		.nav-panel-tx .tx-row-sub .tx-col-buy,
-		.nav-panel-tx .tx-row-sub .tx-col-sell {
-			white-space: nowrap;
-		}
-		.tx-gain-cell.tx-gain-up,
-		.tx-gain-cell.tx-gain-up .tx-gain,
-		.tx-gain-cell.tx-gain-up .tx-gain-pct {
-			color: var(--bs-success) !important;
-		}
-		.tx-gain-cell.tx-gain-down,
-		.tx-gain-cell.tx-gain-down .tx-gain,
-		.tx-gain-cell.tx-gain-down .tx-gain-pct {
-			color: var(--bs-danger) !important;
-		}
-		.tx-gain-pct { font-variant-numeric: tabular-nums; opacity: 0.85; }
-		/* F — Help compatto */
-		.nav-panel-tx > p {
-			display: -webkit-box;
-			-webkit-line-clamp: 2;
-			-webkit-box-orient: vertical;
-			overflow: hidden;
-			font-size: 0.8125rem;
-			line-height: 1.35;
-			margin-bottom: 0.75rem !important;
-			max-height: 2.7em;
-		}
-		/* G — Spaziatura sezioni + Saldo */
-		.nav-panel-tx .tx-scroll > h3.h6 {
-			margin: 1.25rem 0 0.5rem;
-			font-size: 0.8rem;
-			text-transform: uppercase;
-			letter-spacing: 0.04em;
-			opacity: 0.85;
-		}
-		.nav-panel-tx .tx-scroll > h3.h6:first-child { margin-top: 0; }
-		.nav-panel-tx .tx-scroll > div.table-responsive {
-			margin-bottom: 1rem;
-		}
-		.nav-panel-tx .tx-balance-bar {
-			margin-top: 0;
-			padding-top: 0.65rem;
-		}
-		/* H — Allineamento verticale coerente */
-		.nav-panel-tx .tx-scroll .table th,
-		.nav-panel-tx .tx-scroll .table td {
-			vertical-align: top;
-		}
 		.volume-step { width: 6.5rem; flex: 0 0 auto; }
 		.volume-step.band { width: 8rem; }
 		#chart-svg { min-height: 280px; }
@@ -499,13 +409,6 @@
 		.history-symbol { width: auto; max-width: 100%; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
-		/* I — Valute */
-		.nav-panel-tx .tx-currency {
-			font-size: 0.75rem;
-			opacity: 0.7;
-			margin-left: 0.25rem;
-			vertical-align: super;
-		}
 	</style>
 </head>
 <body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}">
@@ -635,6 +538,12 @@
 		<button class="btn btn-outline-primary{% if prefs.volume_scale == 'on' %} active{% endif %}" type="button" data-scale="on" title="{{ t('prefs.volume_scale_title') }}">{{ t('prefs.on') }}</button>
 	</div>
 </div>
+{% endmacro %}
+{% macro tx_cols() %}
+<colgroup><col><col><col><col><col><col><col><col></colgroup>
+{% endmacro %}
+{% macro tx_balance(row) %}
+<td class="{% if row.cash is not none and row.cash > 0 %}text-success{% elif row.cash is not none and row.cash < 0 %}text-danger{% endif %}" title="{{ t('tx.cash_title') }}">{{ row.cash|signed_px }}</td>
 {% endmacro %}
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
@@ -784,115 +693,102 @@
 							{% if transactions.closed or transactions.open %}
 							{% if transactions.closed %}
 							<h3 class="h6">{{ t('tx.closed') }}</h3>
-							<div class="table-responsive">
-							<table class="table table-sm align-middle mb-0">
-								<colgroup>
-									<col class="tx-col-symbol" style="width: 9rem;">
-									<col class="tx-col-qty" style="width: 7rem;">
-									<col class="tx-col-price" style="width: 9.5rem;">
-									<col class="tx-col-cost" style="width: 7rem;">
-									<col class="tx-col-fees" style="width: 7rem;">
-									<col class="tx-col-taxes" style="width: 7rem;">
-									<col class="tx-col-cash" style="width: 8rem;">
-								</colgroup>
+							<table class="table tx-table">
+								{{ tx_cols() }}
 								<thead>
 									<tr>
-										<th class="tx-col-symbol">{{ t('tx.symbol') }}</th>
-										<th class="tx-col-qty">{{ t('tx.quantity') }}</th>
-										<th class="tx-col-buy" title="{{ t('tx.buy_side_title') }}">{{ t('tx.buy_side') }}</th>
-										<th class="tx-col-sell" title="{{ t('tx.sell_side_title') }}">{{ t('tx.sell_side') }}</th>
-										<th class="tx-col-fees" title="{{ t('tx.fees_title') }}">{{ t('tx.fees') }}</th>
-										<th class="tx-col-taxes" title="{{ t('tx.taxes_title') }}">{{ t('tx.taxes') }}</th>
-										<th class="tx-col-cash" title="{{ t('tx.cash_title') }}">{{ t('tx.cash') }}</th>
+										<th>{{ t('tx.symbol') }}</th>
+										<th>{{ t('tx.currency') }}</th>
+										<th>{{ t('tx.quantity') }}</th>
+										<th title="{{ t('tx.buy_side_title') }}">{{ t('tx.buy_side') }}</th>
+										<th title="{{ t('tx.sell_side_title') }}">{{ t('tx.sell_side') }}</th>
+										<th title="{{ t('tx.fees_title') }}">{{ t('tx.fees') }}</th>
+										<th title="{{ t('tx.taxes_title') }}">{{ t('tx.taxes') }}</th>
+										<th title="{{ t('tx.cash_title') }}">{{ t('tx.cash') }}</th>
 									</tr>
 								</thead>
+								{% for row in transactions.closed %}
 								<tbody>
-									{% for row in transactions.closed %}
-									<tr class="tx-row-main">
-										<td class="tx-col-symbol">{{ row.asset }}</td>
-										<td class="tx-col-qty">{{ row.qty|qty }}</td>
-										<td class="tx-col-buy">{{ row.buy_price|px }}</td>
-										<td class="tx-col-sell">{{ row.sell_price|px }}</td>
-										<td class="tx-col-fees">{{ row.fees|px }}</td>
-										<td class="tx-col-taxes">{{ row.taxes|px }}</td>
-										<td class="tx-col-cash tx-gain-cell{% if row.cash is not none and row.cash > 0 %} tx-gain-up text-success{% elif row.cash is not none and row.cash < 0 %} tx-gain-down text-danger{% endif %}" title="{{ t('tx.cash_title') }}">
-											{{ row.cash|signed_px }}
-										</td>
+									<tr>
+										<td>{{ row.asset }}</td>
+										<td title="{{ row.currency }}">{{ row.currency|currency }}</td>
+										<td>{{ row.qty|qty }}</td>
+										<td>{{ row.buy_price|px }}</td>
+										<td>{{ row.sell_price|px }}</td>
+										<td title="{{ t('tx.fees_detail', buy=row.buy_fees|px, sell=row.sell_fees|px) }}">{{ row.fees|px }}</td>
+										<td title="{{ t('tx.taxes_detail', buy=row.buy_taxes|px, sell=row.sell_taxes|px) }}">{{ row.taxes|px }}</td>
+										{{ tx_balance(row) }}
 									</tr>
-									<tr class="tx-row-sub">
-										<td class="tx-col-symbol"><small>{{ t('tx.sold_on') }} {{ row.sold_at|when }}</small></td>
+									<tr>
+										<td>{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
 										<td></td>
-										<td class="tx-col-buy"><small>{{ t('tx.cost') }} {{ row.cost|px }}</small><br><small>{{ row.bought_at|when }}</small></td>
-										<td class="tx-col-sell"><small>{{ t('tx.proceeds') }} {{ row.proceeds|px }}</small></td>
-										<td title="{{ t('tx.fees_detail', buy=row.buy_fees|px, sell=row.sell_fees|px) }}"></td>
-										<td title="{{ t('tx.taxes_detail', buy=row.buy_taxes|px, sell=row.sell_taxes|px) }}"></td>
-										<td class="tx-col-cash">
-											<small class="tx-gain-pct">{{ row.ratio|signed_pct }}</small>
-										</td>
+										<td></td>
+										<td>{{ t('tx.cost') }} {{ row.cost|px }}</td>
+										<td>{{ t('tx.proceeds') }} {{ row.proceeds|px }}</td>
+										<td></td>
+										<td></td>
+										<td class="{% if row.cash is not none and row.cash > 0 %}text-success{% elif row.cash is not none and row.cash < 0 %}text-danger{% endif %}">{{ row.ratio|signed_pct }}</td>
 									</tr>
-									{% endfor %}
+									<tr>
+										<td>{{ t('tx.sold_on') }} {{ row.sold_at|when }}</td>
+										<td colspan="7"></td>
+									</tr>
 								</tbody>
+								{% endfor %}
 							</table>
-							</div>
 							{% endif %}
 							{% if transactions.open %}
 							<h3 class="h6">{{ t('tx.open') }}</h3>
-							<div class="table-responsive">
-							<table class="table table-sm align-middle mb-0">
-								<colgroup>
-									<col class="tx-col-symbol" style="width: 9rem;">
-									<col class="tx-col-qty" style="width: 7rem;">
-									<col class="tx-col-price" style="width: 9.5rem;">
-									<col class="tx-col-cost" style="width: 7rem;">
-									<col class="tx-col-fees" style="width: 7rem;">
-									<col class="tx-col-taxes" style="width: 7rem;">
-									<col class="tx-col-cash" style="width: 8rem;">
-								</colgroup>
+							<table class="table tx-table">
+								{{ tx_cols() }}
 								<thead>
 									<tr>
-										<th class="tx-col-symbol">{{ t('tx.symbol') }}</th>
-										<th class="tx-col-qty">{{ t('tx.qty_open') }}</th>
-										<th class="tx-col-price">{{ t('tx.buy_price') }}</th>
-										<th class="tx-col-cost" title="{{ t('tx.cost_title') }}">{{ t('tx.cost') }}</th>
-										<th class="tx-col-fees" title="{{ t('tx.fees_title') }}">{{ t('tx.fees') }}</th>
-										<th class="tx-col-taxes" title="{{ t('tx.taxes_title') }}">{{ t('tx.taxes') }}</th>
-										<th class="tx-col-cash" title="{{ t('tx.cash_title') }}">{{ t('tx.cash') }}</th>
+										<th>{{ t('tx.symbol') }}</th>
+										<th>{{ t('tx.currency') }}</th>
+										<th>{{ t('tx.quantity') }}</th>
+										<th>{{ t('tx.price') }}</th>
+										<th title="{{ t('tx.cost_title') }}">{{ t('tx.cost') }}</th>
+										<th title="{{ t('tx.fees_title') }}">{{ t('tx.fees') }}</th>
+										<th title="{{ t('tx.taxes_title') }}">{{ t('tx.taxes') }}</th>
+										<th title="{{ t('tx.cash_title') }}">{{ t('tx.cash') }}</th>
 									</tr>
 								</thead>
+								{% for row in transactions.open %}
 								<tbody>
-									{% for row in transactions.open %}
-									<tr class="tx-row-main">
-										<td class="tx-col-symbol">{{ row.asset }}</td>
-										<td class="tx-col-qty">{{ row.qty|qty }}</td>
-										<td class="tx-col-price">{{ row.buy_price|px }}</td>
-										<td class="tx-col-cost">{{ row.cost|px }}</td>
-										<td class="tx-col-fees">{{ row.fees|px }}</td>
-										<td class="tx-col-taxes">{{ row.taxes|px }}</td>
-										<td class="tx-col-cash tx-gain-cell{% if row.cash is not none and row.cash > 0 %} tx-gain-up text-success{% elif row.cash is not none and row.cash < 0 %} tx-gain-down text-danger{% endif %}" title="{{ t('tx.cash_title') }}">
-											{{ row.cash|signed_px }}
-										</td>
+									<tr>
+										<td>{{ row.asset }}</td>
+										<td title="{{ row.currency }}">{{ row.currency|currency }}</td>
+										<td>{{ row.qty|qty }}</td>
+										<td>{{ row.buy_price|px }}</td>
+										<td>{{ row.cost|px }}</td>
+										<td>{{ row.fees|px }}</td>
+										<td>{{ row.taxes|px }}</td>
+										{{ tx_balance(row) }}
 									</tr>
-									<tr class="tx-row-sub">
-										<td class="tx-col-symbol"><small>{{ row.bought_at|when }}</small></td>
-										<td></td>
-										<td></td>
-										<td></td>
-										<td></td>
-										<td></td>
-										<td></td>
+									<tr>
+										<td>{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
+										<td colspan="7"></td>
 									</tr>
-									{% endfor %}
 								</tbody>
+								{% endfor %}
 							</table>
-							</div>
 							{% endif %}
 							{% else %}
 							<p class="mb-0">{{ t('tx.empty') }}</p>
 							{% endif %}
-							</div>
-							<div class="tx-balance-footer">
-								<span class="tx-balance-label"><strong>{{ t('prefs.balance') }}</strong></span>
-								<span class="tx-balance-value" data-paper-balance>{{ paper_balance|px }}</span>
+							<table class="table tx-table tx-total">
+								{{ tx_cols() }}
+								<tbody>
+									<tr>
+										<td colspan="6"></td>
+										<th colspan="2">{{ t('tx.total_balance') }}</th>
+									</tr>
+									<tr>
+										<td colspan="6"></td>
+										<td colspan="2" data-paper-balance>{{ paper_balance|px }}</td>
+									</tr>
+								</tbody>
+							</table>
 							</div>
 							<p class="m-2">{{ t('tx.help') }}</p>
 						</div>

@@ -1009,6 +1009,7 @@ def sell_open_lot(conn, prefs, lot_id):
         quote["fees"],
         quote["taxes"],
         now.replace(microsecond=0),
+        lot.currency,
     )
     log.info(
         "manual sale %s qty=%s price=%s net_profit=%s",
@@ -1050,6 +1051,7 @@ def sell_ready_lots(conn, prefs):
             quote["fees"],
             quote["taxes"],
             now.replace(microsecond=0),
+            lot.currency,
         )
         sold += 1
         log.info(
