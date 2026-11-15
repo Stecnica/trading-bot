@@ -1,11 +1,12 @@
-"""One decision from the score. The top buy is written. An open lot is sold when its side is sell."""
+"""One decision from the score. The top buy is written. An open lot is sold on a sell side only in profit."""
 
 from collections import defaultdict
+from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
 
-from bot_db import connect, fetch_transactions, insert_transaction, load_preferences
+from bot_db import connect, fetch_transactions, insert_transaction, latest_prices, load_preferences
 from bot_i18n import tr
-from bot_logic import money, open_lots, quote_sell
+from bot_logic import money, open_lots, quote_sell, score_exit
 from bot_news import listed_symbols
 from bot_score import BUY, SELL, Book, warm_rsi
 
@@ -122,27 +123,48 @@ def _amount_for(budget, price):
     return amount, price
 
 
-def apply_once(conn):
-    """Writes at most one buy, the highest score, and sells open lots whose side is sell.
+def score_exits(conn, prefs, ranked, lots, now=None):
+    """The lots the score step closes, with the bar that prices each sale. Nothing is written."""
+    now = now or datetime.now()
+    by_symbol = {row["symbol"]: row for row in ranked}
+    latest = None
+    exits = []
+    for lot in lots:
+        row = by_symbol.get(lot.asset)
+        if row is not None:
+            price, stamp = row["price"], row["timestamp"]
+        else:
+            if latest is None:
+                latest = latest_prices(conn)
+            market = latest.get(lot.asset)
+            if not market:
+                continue
+            price, stamp = market["price"], market["timestamp"]
+        quote = quote_sell(lot, price, prefs["fee_rate"], prefs["tax_rate"])
+        if quote is None:
+            continue
+        reason = score_exit(lot, quote, row is not None and row["side"] == SELL, prefs, now)
+        if reason:
+            exits.append((lot, quote, stamp, reason))
+    return exits
 
-    Both rows carry the session date of the bar they priced (midnight) and the
-    rates used; insert_transaction adds the moment of the write.
+
+def apply_once(conn):
+    """Writes at most one buy, the highest score, and closes the lots the score step lets go.
+
+    A lot whose side is sell is sold only at or above the profit threshold. A lot
+    held longer than max_hold_days is sold at the latest close at any result.
+    While any lot stays open, nothing is bought. Both rows carry the session
+    date of the bar they priced (midnight) and the rates used;
+    insert_transaction adds the moment of the write.
     """
     prefs = load_preferences(conn)
     ranked = score_book(conn)
-    by_symbol = {row["symbol"]: row for row in ranked}
     lots, _unmatched = open_lots(fetch_transactions(conn))
     held = {lot.asset for lot in lots}
     sold = []
-    holding = False
-    for lot in lots:
-        row = by_symbol.get(lot.asset)
-        if row is None or row["side"] != SELL:
-            holding = True
-            continue
-        quote = quote_sell(lot, row["price"], prefs["fee_rate"], prefs["tax_rate"])
-        if quote is None:
-            continue
+    exits = score_exits(conn, prefs, ranked, lots)
+    for lot, quote, stamp, reason in exits:
         insert_transaction(
             conn,
             "sell",
@@ -151,13 +173,14 @@ def apply_once(conn):
             quote["price"],
             quote["fees"],
             quote["taxes"],
-            row["timestamp"],
+            stamp,
             lot.currency,
             quote["fee_rate"],
             quote["tax_rate"],
             quote["taxable_gain"],
         )
         sold.append(lot.asset)
+    holding = len(exits) < len(lots)
     bought = None
     if holding:
         return {"bought": bought, "sold": sold}

@@ -207,3 +207,8 @@ def test_partial_sale_splits_taxable_gain_and_totals_cover_both_sides():
     assert taxable_gains_by_sale(txs) == {3: Decimal("24.665")}
     assert views["totals"]["fees"] == Decimal("0.39")
     assert views["totals"]["taxes"] == Decimal("3")
+
+
+def test_lot_without_currency_uses_the_stored_symbol():
+    lot = open_lots([_tx(1, "buy", "1")])[0][0]
+    assert lot.currency == "$"

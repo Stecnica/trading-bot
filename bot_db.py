@@ -10,7 +10,7 @@ import mysql.connector
 
 from bot_config import LOCK_PATH, STATUS_PATH, db_config, get_logger
 from bot_i18n import tr
-from bot_logic import money, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale
+from bot_logic import CURRENCY, money, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -60,6 +60,7 @@ DEFAULTS = {
     "return_days": "20",
     "focus_asset": "AAPL",
     "max_price_age_hours": "120",
+    "max_hold_days": "120",
     "notice_seconds": "8",
     "volume_class": "",
     "volume_order": "rank",
@@ -89,6 +90,7 @@ PREF_LABELS = {
     "return_days": "Sessions used to measure the return",
     "focus_asset": "History chart symbol",
     "max_price_age_hours": "Maximum price age for a sale (hours)",
+    "max_hold_days": "Days after which a lot is sold at any result",
     "notice_seconds": "Message seconds",
     "min_side": "Shorter side of a block, in the 16×9 frame. Below this the block is left out. A lower value keeps more blocks.",
     "volume_divide": "On keeps the shorter ratio when two contiguous blocks have two arrangements. Off keeps the first arrangement.",
@@ -162,7 +164,7 @@ def ensure_schema(conn):
             timestamp DATETIME NOT NULL,
             fees DECIMAL(18,8) NOT NULL,
             taxes DECIMAL(18,8) NOT NULL,
-            currency VARCHAR(3) DEFAULT 'USD',
+            currency VARCHAR(3) DEFAULT '$',
             fee_rate DECIMAL(10,6) NULL,
             tax_rate DECIMAL(10,6) NULL,
             taxable_gain DECIMAL(18,8) NULL,
@@ -178,7 +180,7 @@ def ensure_schema(conn):
     cur.execute("SHOW COLUMNS FROM transactions")
     tx_columns = {row[0] for row in cur.fetchall()}
     if "currency" not in tx_columns:
-        cur.execute("ALTER TABLE transactions ADD COLUMN currency VARCHAR(3) DEFAULT 'USD'")
+        cur.execute("ALTER TABLE transactions ADD COLUMN currency VARCHAR(3) DEFAULT '$'")
     tx_additions = [
         f"ADD COLUMN {name} {kind}"
         for name, kind in (
@@ -385,6 +387,7 @@ def interpret(raw):
         "return_days": _int_between(raw.get("return_days"), 1, 240, 20),
         "focus_asset": normalize_ticker(raw.get("focus_asset") or "AAPL") or "AAPL",
         "max_price_age_hours": _int_between(raw.get("max_price_age_hours"), 1, 720, 120),
+        "max_hold_days": _int_between(raw.get("max_hold_days"), 1, 3650, 120),
         "notice_seconds": _int_between(raw.get("notice_seconds"), 3, 30, 8),
         "volume_order": raw.get("volume_order") if raw.get("volume_order") in VOLUME_ORDERS else "rank",
         "volume_scope": raw.get("volume_scope") if raw.get("volume_scope") in VOLUME_SCOPES else "sector",
@@ -507,6 +510,7 @@ def preference_patch(form):
         ("return_days", lambda: int_value("return_days", 1, 240, "prefs.err.limits")),
         ("names", lambda: int_value("names", 10, 500, "prefs.err.names", 10)),
         ("max_price_age_hours", lambda: int_value("max_price_age_hours", 1, 720, "prefs.err.limits")),
+        ("max_hold_days", lambda: int_value("max_hold_days", 1, 3650, "prefs.err.limits")),
         ("notice_seconds", lambda: int_value("notice_seconds", 3, 30, "prefs.err.notice")),
         ("ui_scale", lambda: int_value("ui_scale", 80, 120, "prefs.err.scale", 5)),
     )
@@ -838,7 +842,7 @@ def insert_transaction(
     fees,
     taxes,
     when=None,
-    currency="USD",
+    currency=CURRENCY,
     fee_rate=None,
     tax_rate=None,
     taxable_gain=None,

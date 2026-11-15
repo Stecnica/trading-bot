@@ -4,6 +4,7 @@ from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 QTY = Decimal("0.00000001")
+CURRENCY = "$"
 DUST = Decimal("0.00000001")
 
 
@@ -53,7 +54,7 @@ class Lot:
         self.fees = money(fees)
         self.taxes = money(taxes)
         self.timestamp = timestamp
-        self.currency = currency or "USD"
+        self.currency = currency or CURRENCY
         self.fee_rate = rate(fee_rate)
         self.estimated = estimated
 
@@ -138,6 +139,28 @@ def quote_sell(lot, market_price, fee_rate, tax_rate):
         "tax_rate": Decimal(str(tax_rate)),
         "taxable_gain": money(gain) if gain > 0 else Decimal("0"),
     }
+
+
+def held_too_long(lot, now, max_hold_days):
+    """True when the lot was bought more than max_hold_days before now."""
+    if lot.timestamp is None:
+        return False
+    return now - lot.timestamp > timedelta(days=max_hold_days)
+
+
+def score_exit(lot, quote, score_says_sell, prefs, now):
+    """Why the score step closes a lot, or None to keep it.
+
+    A sell signal closes the lot only in profit, at or above the threshold.
+    Past max_hold_days the lot closes at any result.
+    """
+    if held_too_long(lot, now, prefs["max_hold_days"]):
+        return "max_hold"
+    if not score_says_sell or quote is None or quote["ratio"] is None:
+        return None
+    if quote["ratio"] >= prefs["profit_threshold"]:
+        return "score"
+    return None
 
 
 def fifo_transaction_views(transactions, prices=None, fee_rate=None, tax_rate=None):

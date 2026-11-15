@@ -96,7 +96,7 @@ def main():
                 (type, asset_name, amount, price, timestamp, fees, taxes,
                  currency, fee_rate, rates_source, recorded_at)
             VALUES ('buy', 'DEMOA', 10, 10, '2020-01-06 00:00:00', 0.1, 0,
-                    'USD', 0.001, 'recorded', '2020-01-06 00:00:00')
+                    '$', 0.001, 'recorded', '2020-01-06 00:00:00')
             """
         )
         conn.commit()
