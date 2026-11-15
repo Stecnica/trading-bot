@@ -2,7 +2,7 @@
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 
@@ -38,6 +38,7 @@ HISTORY_PERIODS = ("1", "7", "30", "90", "180", "ytd", "365", "730")
 PAGE_VIEWS = ("volume", "history")
 VOLUME_ORDERS = ("rank", "volume")
 VOLUME_SCOPES = ("all", "sector")
+LOT_SIZINGS = ("fractional", "whole")
 # Automatic: light by day and dark in the evening, on the local clock.
 DAY_START = 7
 DAY_END = 19
@@ -63,6 +64,8 @@ DEFAULTS = {
     "max_hold_days": "120",
     "trail": "0.03",
     "sell_delay_score": "0.2",
+    "lot_sizing": "fractional",
+    "max_buys_per_day": "0",
     "notice_seconds": "8",
     "volume_class": "",
     "volume_order": "rank",
@@ -95,6 +98,8 @@ PREF_LABELS = {
     "max_hold_days": "Days after which a lot is sold at any result",
     "trail": "Drop from the peak that sells an armed lot (0.03 = 3%)",
     "sell_delay_score": "Score that keeps an armed lot",
+    "lot_sizing": "Lot quantity: fractional (max investment / price) or whole shares",
+    "max_buys_per_day": "Bot buys per day (0 = no limit)",
     "notice_seconds": "Message seconds",
     "min_side": "Shorter side of a block, in the 16×9 frame. Below this the block is left out. A lower value keeps more blocks.",
     "volume_divide": "On keeps the shorter ratio when two contiguous blocks have two arrangements. Off keeps the first arrangement.",
@@ -250,6 +255,25 @@ def ensure_schema(conn):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bot_decisions (
+            id INT NOT NULL AUTO_INCREMENT,
+            created_at DATETIME NOT NULL,
+            cash_before DECIMAL(18,8) NOT NULL,
+            action VARCHAR(10) NOT NULL,
+            reason VARCHAR(16) NOT NULL,
+            symbol VARCHAR(16) NULL,
+            amount DECIMAL(18,8) NULL,
+            price DECIMAL(18,8) NULL,
+            cost DECIMAL(18,8) NULL,
+            sold VARCHAR(255) NOT NULL DEFAULT '',
+            candidates TEXT NOT NULL,
+            PRIMARY KEY (id),
+            KEY idx_decision_time (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+    )
     cur.close()
     conn.commit()
     backfill_transaction_rates(conn)
@@ -394,6 +418,8 @@ def interpret(raw):
         "max_hold_days": _int_between(raw.get("max_hold_days"), 1, 3650, 120),
         "trail": _decimal_between(raw.get("trail"), Decimal("0"), Decimal("0.5"), "0.03"),
         "sell_delay_score": _decimal_between(raw.get("sell_delay_score"), Decimal("-1"), Decimal("1"), "0.2"),
+        "lot_sizing": raw.get("lot_sizing") if raw.get("lot_sizing") in LOT_SIZINGS else "fractional",
+        "max_buys_per_day": _int_between(raw.get("max_buys_per_day"), 0, 100, 0),
         "notice_seconds": _int_between(raw.get("notice_seconds"), 3, 30, 8),
         "volume_order": raw.get("volume_order") if raw.get("volume_order") in VOLUME_ORDERS else "rank",
         "volume_scope": raw.get("volume_scope") if raw.get("volume_scope") in VOLUME_SCOPES else "sector",
@@ -533,6 +559,7 @@ def preference_patch(form, clamped=None):
         ("max_hold_days", lambda: int_value("max_hold_days", 1, 3650, "prefs.err.hold")),
         ("trail", lambda: decimal_value("trail", Decimal("0"), Decimal("0.5"), "prefs.err.trail")),
         ("sell_delay_score", lambda: decimal_value("sell_delay_score", Decimal("-1"), Decimal("1"), "prefs.err.delay")),
+        ("max_buys_per_day", lambda: int_value("max_buys_per_day", 0, 100, "prefs.err.limits")),
         ("notice_seconds", lambda: int_value("notice_seconds", 3, 30, "prefs.err.notice")),
         ("ui_scale", lambda: int_value("ui_scale", 80, 120, "prefs.err.scale", 5)),
     )
@@ -560,6 +587,7 @@ def preference_patch(form, clamped=None):
         ("volume_scope", VOLUME_SCOPES, "prefs.err.limits"),
         ("volume_divide", ("off", "on"), "prefs.err.limits"),
         ("volume_scale", ("off", "on"), "prefs.err.limits"),
+        ("lot_sizing", LOT_SIZINGS, "prefs.err.limits"),
     )
     for name, allowed, error in enums:
         if name not in form:
@@ -849,6 +877,69 @@ def recent_transactions(conn, prefs, limit=20):
 def paper_balance(conn, prefs):
     """Current paper cash (Balance) from initial capital and all transactions."""
     return paper_cash_balance(fetch_transactions(conn), prefs["initial_capital"])
+
+
+def record_decision(conn, when, cash, choice, reason, sold, candidates):
+    """One row per cycle: the cash before the buy, the sales, the names considered and what was done."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO bot_decisions
+            (created_at, cash_before, action, reason, symbol, amount, price, cost, sold, candidates)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            when.replace(microsecond=0),
+            money(cash),
+            "buy" if choice else "none",
+            reason,
+            choice["symbol"] if choice else None,
+            money(choice["amount"]) if choice else None,
+            money(choice["price"]) if choice else None,
+            money(choice["cost"]) if choice else None,
+            ",".join(sold)[:255],
+            json.dumps(candidates, separators=(",", ":")),
+        ),
+    )
+    conn.commit()
+    cur.close()
+
+
+def bot_buys_on(conn, day):
+    """Buys the cycle wrote on day, from bot_decisions. Buys recorded by hand do not count."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(*) FROM bot_decisions WHERE action = 'buy' AND created_at >= %s AND created_at < %s",
+        (datetime(day.year, day.month, day.day), datetime(day.year, day.month, day.day) + timedelta(days=1)),
+    )
+    count = cur.fetchone()[0]
+    cur.close()
+    return int(count)
+
+
+def recent_decisions(conn, limit=5):
+    """The newest cycle decisions, candidates decoded. Empty before the table exists."""
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute(
+            """
+            SELECT created_at, cash_before, action, reason, symbol, amount, price, cost, sold, candidates
+            FROM bot_decisions ORDER BY created_at DESC, id DESC LIMIT %s
+            """,
+            (int(limit),),
+        )
+        rows = cur.fetchall()
+    except mysql.connector.Error:
+        return []
+    finally:
+        cur.close()
+    for row in rows:
+        try:
+            row["candidates"] = json.loads(row["candidates"] or "[]")
+        except ValueError:
+            row["candidates"] = []
+        row["sold"] = [item for item in (row["sold"] or "").split(",") if item]
+    return rows
 
 
 def insert_transaction(
@@ -1229,13 +1320,14 @@ def threshold_review(conn, prefs, lots=None, scores=None, now=None):
     return review
 
 
-def sell_ready_lots(conn, prefs, scores=None):
+def sell_ready_lots(conn, prefs, scores=None, sold_out=None):
     """Sells the armed lots the trailing rule lets go. Returns the number of sales.
 
     A lot is armed once a close since the buy brought its net ratio to the
     threshold. It is kept while the score stays at or above sell_delay_score
     and the close is less than trail under the peak since arming; it is sold
-    when either fails or when the ratio falls back to the threshold.
+    when either fails or when the ratio falls back to the threshold. The symbols
+    sold are appended to sold_out when a list is given.
     """
     lots, unmatched = open_lots(fetch_transactions(conn))
     if unmatched > 0:
@@ -1270,6 +1362,8 @@ def sell_ready_lots(conn, prefs, scores=None):
             quote["taxable_gain"],
         )
         sold += 1
+        if sold_out is not None:
+            sold_out.append(lot.asset)
         log.info(
             "sale %s qty=%s price=%s net_profit=%s threshold=%s reason=%s peak=%s score=%s",
             lot.asset,

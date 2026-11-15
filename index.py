@@ -54,6 +54,8 @@ from bot_db import (
     position_rows,
     recent_transactions,
     paper_balance,
+    bot_buys_on,
+    recent_decisions,
     save_preferences,
     seed_preferences,
     sell_open_lot,
@@ -500,9 +502,10 @@ def home():
         class_tree = classification_tree(conn)
         positions = position_rows(conn, prefs)
         _attach_score(conn, positions)
-        top_buy = _top_buy(positions, catalog, prefs)
         transactions = recent_transactions(conn, prefs)
         balance = paper_balance(conn, prefs)
+        top_buy = _top_buy(conn, positions, catalog, prefs, balance)
+        decisions = recent_decisions(conn)
         assets = list_assets(conn)
         period, days = _span(prefs["history_period"])
         if view == "history":
@@ -540,6 +543,7 @@ def home():
         tiles=tiles,
         positions=positions,
         top_buy=top_buy,
+        decisions=decisions,
         transactions=transactions,
         paper_balance=balance,
         assets=assets,
@@ -675,28 +679,44 @@ def _volume_board(conn, prefs, order="rank", scope="sector"):
     return prefs, blocks, tiles, caption, frames
 
 
-def _top_buy(positions, names, prefs):
-    """Next bot candidates from the board the last cycle stored. None before any cycle stored one."""
-    from bot_decide import load_buy_board, top_buys
+def _top_buy(conn, positions, names, prefs, cash):
+    """Next bot candidates from the board the last cycle stored, sized as the cycle sizes a lot,
+    with how many of them the cash covers in order and today's bot buys against the daily cap.
+    rows is None before any cycle stored a board."""
+    from bot_decide import load_buy_board, lot_cost, lot_size, top_buys
 
     board = load_buy_board()
-    if board is None:
-        return None
     held = {row["asset"] for row in positions}
-    rows = []
-    for item in top_buys(board, held):
-        price = Decimal(item["price"])
-        rows.append(
-            {
-                "symbol": item["symbol"],
-                "name": names.get(item["symbol"], ""),
-                "score": item["score"],
-                "price": price,
-                "session": datetime.fromisoformat(item["timestamp"]) if item.get("timestamp") else None,
-                "amount": prefs["max_investment"] / price if price > 0 else None,
-            }
-        )
-    return rows
+    candidates = top_buys(board, held, prefs, count=len(board or []))
+    left = cash
+    lots = 0
+    for item in candidates:
+        _fees, cost = lot_cost(lot_size(prefs, item["price"]), item["price"], prefs["fee_rate"])
+        if cost > left:
+            break
+        left -= cost
+        lots += 1
+    rows = None
+    if board is not None:
+        rows = []
+        for item in candidates[:5]:
+            rows.append(
+                {
+                    "symbol": item["symbol"],
+                    "name": names.get(item["symbol"], ""),
+                    "score": item["score"],
+                    "price": Decimal(item["price"]),
+                    "session": datetime.fromisoformat(item["timestamp"]) if item.get("timestamp") else None,
+                    "amount": lot_size(prefs, item["price"]),
+                }
+            )
+    return {
+        "rows": rows,
+        "cash": cash,
+        "lots": lots,
+        "cap": prefs["max_buys_per_day"],
+        "done": bot_buys_on(conn, datetime.now().date()) if prefs["max_buys_per_day"] else 0,
+    }
 
 
 def _attach_score(conn, rows):
@@ -926,6 +946,13 @@ def save_prefs():
         prefs = load_preferences(conn)
         payload = {"ok": True, "values": values, "clamped": clamped}
         payload["balance"] = format_price(paper_balance(conn, prefs))
+        if {"max_investment", "initial_capital", "fee_rate", "lot_sizing", "max_buys_per_day"}.intersection(values):
+            rows = position_rows(conn, prefs)
+            payload["top_buy_html"] = render_template(
+                "_top_buy.html",
+                top_buy=_top_buy(conn, rows, security_names(), prefs, paper_balance(conn, prefs)),
+                decisions=recent_decisions(conn),
+            )
         if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours", "max_hold_days", "trail", "sell_delay_score"}.intersection(values):
             rows = position_rows(conn, prefs)
             _attach_score(conn, rows)

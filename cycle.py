@@ -49,13 +49,16 @@ def main():
             log.info(message)
 
         stored, warning = update_from_massive(conn, progress)
-        sold = sell_ready_lots(conn, prefs)
-        decision = apply_once(conn)
+        trailing = []
+        sold = sell_ready_lots(conn, prefs, sold_out=trailing)
+        decision = apply_once(conn, sold_before=trailing)
         bought = decision["bought"]
         log.info(
-            "score decision buy=%s score_sold=%s",
+            "score decision buy=%s score_sold=%s cash=%s reason=%s",
             bought["symbol"] if bought else "none",
             ",".join(decision["sold"]) or "none",
+            decision["cash"],
+            decision["reason"],
         )
         if warning:
             write_status("error", warning)

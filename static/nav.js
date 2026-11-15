@@ -1804,6 +1804,14 @@ function uiText(key, vars) {
         if (data.positions_html !== undefined) {
           paintPositions(data);
         }
+        var topBuy = document.getElementById("top-buy");
+        if (topBuy && typeof data.top_buy_html === "string") {
+          var open = topBuy.querySelector("details[open]");
+          topBuy.innerHTML = data.top_buy_html;
+          if (open) {
+            topBuy.querySelector("details").open = true;
+          }
+        }
         document.dispatchEvent(new CustomEvent("prefs-applied", { detail: { key: key, value: stored } }));
       }).catch(function () {
         input.value = previous;

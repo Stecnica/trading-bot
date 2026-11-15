@@ -1,4 +1,4 @@
-"""One decision from the score. The top buy is written. An open lot is sold on a sell side only in profit."""
+"""One decision from the score. At most one lot is bought per cycle while the cash covers it. An open lot is sold on a sell side only in profit."""
 
 import json
 from collections import defaultdict
@@ -6,7 +6,16 @@ from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
 
 from bot_chart_cache import get_bytes as cache_get, put_bytes as cache_put
-from bot_db import connect, fetch_transactions, insert_transaction, latest_prices, load_preferences
+from bot_db import (
+    bot_buys_on,
+    connect,
+    fetch_transactions,
+    insert_transaction,
+    latest_prices,
+    load_preferences,
+    paper_balance,
+    record_decision,
+)
 from bot_i18n import tr
 from bot_logic import money, open_lots, quote_sell, score_exit
 from bot_news import listed_symbols
@@ -15,6 +24,8 @@ from bot_score import BUY, SELL, Book, warm_rsi
 QTY = Decimal("0.00000001")
 BOARD_SIZE = 20
 BOARD_KEY = ("latest",)
+# Candidates kept in one decision row; the rest are only counted.
+LOGGED = 30
 
 
 def score_label(row):
@@ -150,20 +161,112 @@ def load_buy_board():
         return None
 
 
-def top_buys(board, held, count=5):
-    """The next names the bot would buy: BUY side, highest score first, not already owned."""
-    return [row for row in board or [] if row["symbol"] not in held][:count]
-
-
-def _amount_for(budget, price):
+def lot_size(prefs, price):
+    """Quantity one lot buys at price: max_investment / price, down to 8 decimals,
+    or down to whole shares when lot_sizing is whole. None when that is zero."""
     price = money(price)
-    budget = money(budget)
+    budget = money(prefs["max_investment"])
     if price is None or budget is None or price <= 0 or budget <= 0:
-        return None, None
-    amount = (budget / price).quantize(QTY, rounding=ROUND_DOWN)
-    if amount <= 0:
-        return None, None
-    return amount, price
+        return None
+    step = Decimal("1") if prefs.get("lot_sizing") == "whole" else QTY
+    amount = (budget / price).quantize(step, rounding=ROUND_DOWN)
+    return amount if amount > 0 else None
+
+
+def lot_cost(amount, price, fee_rate):
+    """Estimated commission of a buy and the cash it takes: notional plus that commission."""
+    notional = money(amount) * money(price)
+    fees = money(notional * fee_rate) or Decimal("0")
+    return fees, money(notional + fees)
+
+
+def top_buys(board, held, prefs=None, count=5):
+    """The next names the bot would buy: BUY side, highest score first, not already owned,
+    and, with prefs, only names a lot can buy (whole shares skip names priced above the lot)."""
+    rows = []
+    for row in board or []:
+        if row["symbol"] in held:
+            continue
+        if prefs is not None and lot_size(prefs, row["price"]) is None:
+            continue
+        rows.append(row)
+        if len(rows) >= count:
+            break
+    return rows
+
+
+def plan_buy(ranked, held, cash, prefs, buys_today, sold=()):
+    """The one buy of a cycle and why the names ranked before it were passed over. Nothing is written.
+
+    Returns (choice, candidates, reason). reason is bought, daily_cap, no_cash or
+    no_candidate. Each candidate carries symbol, score, side, price and the reason it
+    was skipped: not_buy, held, sold (sold in this cycle), too_expensive (no whole
+    share fits the lot) or no_cash; the chosen one has reason buy. The walk stops at
+    the first score at or under zero: no BUY can follow it.
+    """
+    cap = prefs.get("max_buys_per_day") or 0
+    if cap and buys_today >= cap:
+        return None, [], "daily_cap"
+    candidates = []
+    more = 0
+    short = False
+
+    def note(row, reason, **extra):
+        nonlocal more
+        if len(candidates) >= LOGGED:
+            more += 1
+            return
+        entry = {
+            "symbol": row["symbol"],
+            "score": round(float(row["score"]), 3),
+            "side": row["side"],
+            "price": str(money(row["price"])),
+            "reason": reason,
+        }
+        entry.update(extra)
+        candidates.append(entry)
+
+    for row in ranked:
+        if row["score"] <= 0:
+            break
+        symbol = row["symbol"]
+        if row["side"] != BUY:
+            note(row, "not_buy")
+            continue
+        if symbol in held:
+            note(row, "held")
+            continue
+        if symbol in sold:
+            note(row, "sold")
+            continue
+        amount = lot_size(prefs, row["price"])
+        if amount is None:
+            note(row, "too_expensive")
+            continue
+        price = money(row["price"])
+        fees, total = lot_cost(amount, price, prefs["fee_rate"])
+        if total > cash:
+            short = True
+            note(row, "no_cash", cost=str(total))
+            continue
+        note(row, "buy", amount=str(amount), cost=str(total))
+        choice = {
+            "symbol": symbol,
+            "amount": amount,
+            "price": price,
+            "fees": fees,
+            "cost": total,
+            "score": row["score"],
+            "timestamp": row["timestamp"],
+        }
+        return choice, _counted(candidates, more), "bought"
+    return None, _counted(candidates, more), "no_cash" if short else "no_candidate"
+
+
+def _counted(candidates, more):
+    if more:
+        candidates.append({"more": more})
+    return candidates
 
 
 def score_exits(conn, prefs, ranked, lots, now=None):
@@ -192,22 +295,25 @@ def score_exits(conn, prefs, ranked, lots, now=None):
     return exits
 
 
-def apply_once(conn):
-    """Writes at most one buy, the highest score, and closes the lots the score step lets go.
+def apply_once(conn, sold_before=(), now=None):
+    """Closes the lots the score step lets go, then buys at most one lot.
 
     A lot whose side is sell is sold only at or above the profit threshold. A lot
     held longer than max_hold_days is sold at the latest close at any result.
-    While any lot stays open, nothing is bought. Both rows carry the session
-    date of the bar they priced (midnight) and the rates used;
-    insert_transaction adds the moment of the write.
+    After the sales, plan_buy picks the first BUY name not held and not sold in this
+    cycle (sold_before lists the trailing sales cycle.py made just before) whose lot,
+    commission included, the paper cash covers, unless max_buys_per_day bot buys
+    are already written today. Both rows carry the session date of the bar they
+    priced (midnight) and the rates used; insert_transaction adds the moment of the
+    write. Every call records one row in bot_decisions.
     """
+    now = now or datetime.now()
     prefs = load_preferences(conn)
     ranked = score_book(conn)
     store_buy_board(ranked)
     lots, _unmatched = open_lots(fetch_transactions(conn))
-    held = {lot.asset for lot in lots}
     sold = []
-    exits = score_exits(conn, prefs, ranked, lots)
+    exits = score_exits(conn, prefs, ranked, lots, now)
     for lot, quote, stamp, reason in exits:
         insert_transaction(
             conn,
@@ -224,39 +330,27 @@ def apply_once(conn):
             quote["taxable_gain"],
         )
         sold.append(lot.asset)
-    holding = len(exits) < len(lots)
-    bought = None
-    if holding:
-        return {"bought": bought, "sold": sold}
-    for row in ranked:
-        if row["side"] != BUY or row["symbol"] in held:
-            continue
-        amount, price = _amount_for(prefs["max_investment"], row["price"])
-        if amount is None:
-            continue
-        notional = amount * price
-        fees = money(notional * prefs["fee_rate"]) or Decimal("0")
+    closed = {id(lot) for lot, _quote, _stamp, _reason in exits}
+    held = {lot.asset for lot in lots if id(lot) not in closed}
+    sold_all = list(sold_before) + sold
+    cash = paper_balance(conn, prefs)
+    choice, candidates, reason = plan_buy(
+        ranked, held, cash, prefs, bot_buys_on(conn, now.date()), set(sold_all)
+    )
+    if choice:
         insert_transaction(
             conn,
             "buy",
-            row["symbol"],
-            amount,
-            price,
-            fees,
+            choice["symbol"],
+            choice["amount"],
+            choice["price"],
+            choice["fees"],
             Decimal("0"),
-            row["timestamp"],
+            choice["timestamp"],
             fee_rate=prefs["fee_rate"],
         )
-        bought = {
-            "symbol": row["symbol"],
-            "amount": amount,
-            "price": price,
-            "fees": fees,
-            "score": row["score"],
-            "timestamp": row["timestamp"],
-        }
-        break
-    return {"bought": bought, "sold": sold}
+    record_decision(conn, now, cash, choice, reason, sold_all, candidates)
+    return {"bought": choice, "sold": sold, "cash": cash, "reason": reason, "candidates": candidates}
 
 
 def main():
@@ -283,3 +377,4 @@ if __name__ == "__main__":
     else:
         print("buy none")
     print("sold", ",".join(result["sold"]) or "none")
+    print("cash", result["cash"], "reason", result["reason"])

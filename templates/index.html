@@ -288,6 +288,7 @@
 		.grid-scroll > .grid-table:last-of-type > tbody:last-child > tr:last-child > *,
 		.top-buy > tbody:last-child > tr:last-child > * { border-bottom-width: 0; }
 		.grid-table tr.pos-sub > td { vertical-align: top; }
+		.bot-decisions summary { cursor: pointer; }
 		.grid-table:not(.grid-total) tbody > tr + tr > td {
 			font-size: 0.75rem;
 			font-weight: 300;
@@ -500,6 +501,23 @@
 			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
 		</div>
 	</div>
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.buys_day_title') }}">{{ t('prefs.buys_day') }}</label>
+		<div class="input-group input-group-sm">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
+			<input class="form-control text-center" data-pref="max_buys_per_day" data-saved="{{ prefs.max_buys_per_day }}" title="{{ t('prefs.buys_day_title') }}" value="{{ prefs.max_buys_per_day }}" min="0" max="100" step="1" inputmode="numeric" autocomplete="off">
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+		</div>
+	</div>
+</div>
+<div class="d-flex align-items-start gap-3 text-center">
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.sizing_title') }}">{{ t('prefs.sizing') }}</label>
+		<select class="form-select form-select-sm" data-pref="lot_sizing" data-saved="{{ prefs.lot_sizing }}" title="{{ t('prefs.sizing_title') }}">
+			<option value="fractional"{% if prefs.lot_sizing == 'fractional' %} selected{% endif %}>{{ t('prefs.sizing_fractional') }}</option>
+			<option value="whole"{% if prefs.lot_sizing == 'whole' %} selected{% endif %}>{{ t('prefs.sizing_whole') }}</option>
+		</select>
+	</div>
 	<div class="flex-fill"></div>
 </div>
 <div class="d-flex align-items-start gap-3 text-center">
@@ -706,7 +724,7 @@
 									<button class="btn btn-primary w-100" type="submit" form="buy-form">{{ t('buy.submit') }}</button>
 								</div>
 							</div>
-							{% include "_top_buy.html" %}
+							<div id="top-buy">{% include "_top_buy.html" %}</div>
 							<p class="m-2 border-top pt-2">{{ t('buy.help') }} {{ t('topbuy.help') }}</p>
 						</div>
 					</div>
@@ -1145,7 +1163,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=67) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=68) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

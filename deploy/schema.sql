@@ -64,3 +64,19 @@ CREATE TABLE IF NOT EXISTS asset_class (
     KEY idx_asset_class (classification_code),
     CONSTRAINT fk_asset_class FOREIGN KEY (classification_code) REFERENCES classification (code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bot_decisions (
+    id INT NOT NULL AUTO_INCREMENT,
+    created_at DATETIME NOT NULL,
+    cash_before DECIMAL(18,8) NOT NULL,
+    action VARCHAR(10) NOT NULL,
+    reason VARCHAR(16) NOT NULL,
+    symbol VARCHAR(16) NULL,
+    amount DECIMAL(18,8) NULL,
+    price DECIMAL(18,8) NULL,
+    cost DECIMAL(18,8) NULL,
+    sold VARCHAR(255) NOT NULL DEFAULT '',
+    candidates TEXT NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_decision_time (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

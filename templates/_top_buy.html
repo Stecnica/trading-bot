@@ -1,6 +1,7 @@
 {% from "_grid.html" import grid_cols, grid_sign, symbol with context %}
 <h3 class="h6 mt-3">{{ t('topbuy.title') }}</h3>
-{% if top_buy %}
+<p class="mx-2 mb-2 small text-secondary">{{ t('topbuy.cash', cash=top_buy.cash|px ~ ' ' ~ ('$'|currency), lots=top_buy.lots) }}{% if top_buy.cap %} {{ t('topbuy.cap', done=top_buy.done, cap=top_buy.cap) }}{% endif %}</p>
+{% if top_buy.rows %}
 <table class="table grid-table top-buy">
 	{{ grid_cols([31, 19, 24, 26]) }}
 	<thead>
@@ -11,7 +12,7 @@
 			<th title="{{ t('topbuy.qty_title') }}">{{ t('topbuy.qty') }}</th>
 		</tr>
 	</thead>
-	{% for row in top_buy %}
+	{% for row in top_buy.rows %}
 	<tbody>
 		<tr>
 			<td class="grid-l">{{ symbol(row.symbol) }}</td>
@@ -27,8 +28,24 @@
 	</tbody>
 	{% endfor %}
 </table>
-{% elif top_buy is none %}
+{% elif top_buy.rows is none %}
 <p class="m-2 text-secondary small">{{ t('topbuy.pending') }}</p>
 {% else %}
 <p class="m-2 text-secondary small">{{ t('topbuy.empty') }}</p>
 {% endif %}
+<details class="bot-decisions mx-2 mt-2 small">
+	<summary class="text-secondary">{{ t('decisions.title') }}</summary>
+	{% if decisions %}
+	<ul class="list-unstyled mb-0 mt-1">
+		{% for d in decisions %}
+		<li class="border-top py-1" title="{% for c in d.candidates %}{% if c.more %}+{{ c.more }}{% else %}{{ c.symbol }} {{ '%+.3f'|format(c.score) }} {{ t('reason.' ~ c.reason) if c.reason != 'buy' else t('score.buy') }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}">
+			<span class="text-nowrap">{{ d.created_at|when }}</span> · <span class="text-nowrap">{{ t('decisions.cash', cash=d.cash_before|px) }}</span>
+			{% if d.sold %} · {{ t('decisions.sold', symbols=d.sold|join(', ')) }}{% endif %}
+			· {% if d.action == 'buy' %}{{ t('decisions.buy', symbol=d.symbol, qty=d.amount|qty, price=d.price|px) }}{% else %}{{ t('decisions.none', reason=t('reason.' ~ d.reason)) }}{% endif %}
+		</li>
+		{% endfor %}
+	</ul>
+	{% else %}
+	<p class="mb-0 mt-1 text-secondary">{{ t('decisions.empty') }}</p>
+	{% endif %}
+</details>
