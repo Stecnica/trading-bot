@@ -1695,6 +1695,22 @@ function uiText(key, vars) {
   document.addEventListener("click", closeMenus);
   window.addEventListener("resize", closeMenus);
 
+  /* A glued line ("a · b · c") hides the separator of each part that starts a new line. */
+  function markLineStarts() {
+    document.querySelectorAll(".glue").forEach(function (line) {
+      var above = null;
+      line.querySelectorAll(".glue-part").forEach(function (part) {
+        var box = part.getClientRects()[0];
+        var top = box ? box.top : null;
+        part.classList.toggle("line-start", above !== null && top !== null && top > above + 1);
+        above = top;
+      });
+    });
+  }
+  markLineStarts();
+  window.addEventListener("resize", markLineStarts);
+  document.addEventListener("shown.bs.dropdown", markLineStarts);
+
   function paintPositions(data) {
     var help = document.getElementById("positions-help");
     if (help && data.positions_help) {
@@ -1706,6 +1722,7 @@ function uiText(key, vars) {
     }
     table.innerHTML = data.positions_html;
     table.dispatchEvent(new Event("scroll"));
+    markLineStarts();
   }
 
   function applyAppearance(key, value) {

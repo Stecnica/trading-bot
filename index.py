@@ -269,14 +269,17 @@ def prepare():
 
 @app.template_filter("glue")
 def glue_parts(value):
-    """A "a · b · c" line that wraps only after a separator, never inside a part or before a "·"."""
+    """A "a · b · c" line that wraps only between parts. Each separator opens the part after it,
+    so nav.js can hide the one that lands at the start of a line and no line ends with "·"."""
     if not value:
         return ""
     parts = str(value).split(" · ")
-    return Markup(" ").join(
-        Markup('<span class="text-nowrap">{}{}</span>').format(part, Markup("&nbsp;·") if index < len(parts) - 1 else "")
-        for index, part in enumerate(parts)
+    first = Markup('<span class="text-nowrap glue-part">{}</span>').format(parts[0])
+    rest = (
+        Markup('<span class="text-nowrap glue-part"><span class="glue-sep">·&nbsp;</span>{}</span>').format(part)
+        for part in parts[1:]
     )
+    return Markup('<span class="glue">{}</span>').format(Markup(" ").join([first, *rest]))
 
 
 @app.template_filter("qty")

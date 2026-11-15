@@ -288,6 +288,10 @@
 		.grid-scroll > .grid-table:last-of-type > tbody:last-child > tr:last-child > *,
 		.top-buy > tbody:last-child > tr:last-child > * { border-bottom-width: 0; }
 		.grid-table tr.pos-sub > td { vertical-align: top; }
+		/* Hidden, not removed: removing it could pull the part back onto the line above. */
+		.glue-part.line-start > .glue-sep { visibility: hidden; }
+		/* The face draws a narrow space at sub-line size; the separators need room to read. */
+		.glue { word-spacing: 0.1em; }
 		.bot-decisions summary { cursor: pointer; }
 		.grid-table:not(.grid-total) tbody > tr + tr > td {
 			font-size: 0.75rem;
@@ -1163,7 +1167,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=68) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=69) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

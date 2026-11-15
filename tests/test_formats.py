@@ -47,9 +47,9 @@ def test_no_negative_zero_in_percentages():
     assert format_signed_pct(Decimal("-0.04562")) == "−4.562 %"
 
 
-def test_glued_outcome_wraps_only_after_a_separator():
+def test_glued_outcome_keeps_spaces_and_opens_each_part_with_its_separator():
     html = str(glue_parts("armed · peak 585.300 · 0.000 %"))
-    assert html.count('class="text-nowrap"') == 3
-    assert "&nbsp;·</span> <span" in html
-    assert not html.split("</span> ")[-1].lstrip().startswith("·")
-    assert str(glue_parts("under the threshold")) == '<span class="text-nowrap">under the threshold</span>'
+    assert html.count('class="text-nowrap glue-part"') == 3
+    assert '<span class="text-nowrap glue-part">armed</span> <span class="text-nowrap glue-part"><span class="glue-sep">·&nbsp;</span>peak 585.300</span>' in html
+    assert html.endswith('<span class="glue-sep">·&nbsp;</span>0.000 %</span></span>')
+    assert str(glue_parts("under the threshold")) == '<span class="glue"><span class="text-nowrap glue-part">under the threshold</span></span>'
