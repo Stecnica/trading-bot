@@ -12,7 +12,7 @@ function savePref(fields) {
     body: body.toString()
   }).then(function (response) {
     return response.json().then(function (data) {
-      if (!response.ok) {
+      if (!response.ok || (data && data.ok === false)) {
         throw new Error(data && data.error ? data.error : "prefs");
       }
       return data;

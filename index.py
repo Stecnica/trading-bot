@@ -876,14 +876,16 @@ def chart_hits():
 
 @app.route("/prefs", methods=["POST"])
 def save_prefs():
-    values, error = preference_patch(request.form)
+    clamped = []
+    values, error = preference_patch(request.form, clamped)
     if error:
-        return jsonify(error=error), 400
+        # 200 with ok false: the server replaces the body of any 4xx with its own page.
+        return jsonify(ok=False, error=error)
     conn = connect()
     try:
         save_preferences(conn, values)
         prefs = load_preferences(conn)
-        payload = {"ok": True, "values": values}
+        payload = {"ok": True, "values": values, "clamped": clamped}
         payload["balance"] = format_price(paper_balance(conn, prefs))
         if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours", "max_hold_days", "trail", "sell_delay_score"}.intersection(values):
             rows = position_rows(conn, prefs)

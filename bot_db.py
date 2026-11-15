@@ -483,17 +483,28 @@ def validate_preferences(form):
     return values, None
 
 
-def preference_patch(form):
-    """Validate the posted keys only. Returns (values, error)."""
+def preference_patch(form, clamped=None):
+    """Validate the posted keys only. Returns (values, error).
+
+    A number outside its range is clamped to the nearest bound (and to the step);
+    the names clamped are appended to clamped when a list is given. Unreadable
+    text is an error.
+    """
     values = {}
+
+    if clamped is None:
+        clamped = []
 
     def decimal_value(name, low, high, error):
         try:
             number = Decimal(str(form[name]).strip().replace(",", "."))
         except (ArithmeticError, ValueError):
             return None, tr("prefs.err.numbers")
-        if not (low <= number <= high):
-            return None, tr(error)
+        if not number.is_finite():
+            return None, tr("prefs.err.numbers")
+        if number < low or number > high:
+            number = min(max(number, low), high)
+            clamped.append(name)
         return format(number.normalize(), "f"), None
 
     def int_value(name, low, high, error, step=None):
@@ -501,14 +512,17 @@ def preference_patch(form):
             number = int(str(form[name]).strip())
         except (TypeError, ValueError):
             return None, tr("prefs.err.numbers")
-        if not low <= number <= high or (step and number % step != 0):
-            return None, tr(error)
-        return str(number), None
+        fixed = min(max(number, low), high)
+        if step:
+            fixed = min(max(int(round(fixed / step)) * step, low), high)
+        if fixed != number:
+            clamped.append(name)
+        return str(fixed), None
 
     checks = (
         ("profit_threshold", lambda: decimal_value("profit_threshold", Decimal("0"), Decimal("5"), "prefs.err.profit")),
-        ("max_investment", lambda: decimal_value("max_investment", Decimal("0"), Decimal("1E24"), "prefs.err.invest")),
-        ("initial_capital", lambda: decimal_value("initial_capital", Decimal("0"), Decimal("1E24"), "prefs.err.capital")),
+        ("max_investment", lambda: decimal_value("max_investment", Decimal("1"), Decimal("1E24"), "prefs.err.invest")),
+        ("initial_capital", lambda: decimal_value("initial_capital", Decimal("1"), Decimal("1E24"), "prefs.err.capital")),
         ("fee_rate", lambda: decimal_value("fee_rate", Decimal("0"), Decimal("0.1"), "prefs.err.fee")),
         ("tax_rate", lambda: decimal_value("tax_rate", Decimal("0"), Decimal("0.5"), "prefs.err.tax")),
         ("stable_band", lambda: decimal_value("stable_band", Decimal("0"), Decimal("0.2"), "prefs.err.band")),
@@ -528,10 +542,6 @@ def preference_patch(form):
         stored, error = read()
         if error:
             return None, error
-        if name == "max_investment" and Decimal(stored) <= 0:
-            return None, tr("prefs.err.invest")
-        if name == "initial_capital" and Decimal(stored) <= 0:
-            return None, tr("prefs.err.capital")
         values[name] = stored
     if "focus_asset" in form:
         focus = normalize_ticker(form.get("focus_asset", ""))
