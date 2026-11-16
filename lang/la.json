@@ -261,7 +261,7 @@
   "prefs.save": "Servare optiones",
   "prefs.saving": "Optiones servantur",
   "prefs.saved": "Optiones servatae sunt.",
-  "prefs.foot": "Merces initialis est 0,1%, et vectigal est 26% lucri. Centum nominibus adhibitis, renovatio celerior fit; numerus 500 plura minuta postulare potest.",
+  "prefs.foot": "Merces et vectigal incipiunt ab 0,1% et 26% lucri. Sors: Fracta summam ({investment} $) in quamque sortem ponit; Actiones integrae ad actiones integras deorsum rotundat et nomina sorte cariora praeterit. Emptiones/die: 0 = sine fine. Consilium Massive: Sponte ex clave legitur.",
   "prefs.threshold_title": "Limites lucri neti (0.05 = 5%)",
   "prefs.investment_title": "Summa maxima in una emptione collocanda",
   "prefs.capital_title": "Pecunia paper initialis. Postea a mercatore venire et sola lectio fieri potest.",

@@ -261,7 +261,7 @@
   "prefs.save": "Enregistrer les préférences",
   "prefs.saving": "Enregistrement des préférences",
   "prefs.saved": "Préférences enregistrées.",
-  "prefs.foot": "La commission initiale est de 0,1 % et la taxe s'élève à 26 % du gain. Avec 100 noms, la mise à jour est plus rapide ; 500 peut prendre plusieurs minutes.",
+  "prefs.foot": "La commission et la taxe partent de 0,1 % et de 26 % du gain. Lot : Fractionnaire place l'investissement ({investment} $) dans chaque lot ; Actions entières arrondit aux actions entières inférieures et ignore les titres plus chers que le lot. Achats/jour : 0 = sans limite. Offre Massive : Automatique la lit dans la clé.",
   "prefs.threshold_title": "Seuil de profit net (0,05 = 5 %)",
   "prefs.investment_title": "Investissement maximal par achat",
   "prefs.capital_title": "Budget paper de départ. Plus tard il pourra venir du courtier et devenir en lecture seule.",

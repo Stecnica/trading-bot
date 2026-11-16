@@ -1,7 +1,13 @@
 {% from "_grid.html" import grid_cols, grid_sign, currency_head, head, symbol with context %}
 {% if positions %}
+{# The sell column is rendered only while a lot can be sold, so an empty one takes no width. #}
+{% set selling = positions|selectattr('ready')|list|length > 0 %}
 <table class="table grid-table">
+	{% if selling %}
 	{{ grid_cols([22, 5, 12, 15, 15, 17, 14], [18, 15, 21, 21, 25, 0, 0]) }}
+	{% else %}
+	{{ grid_cols([25, 6, 14, 17, 18, 20], [18, 15, 21, 21, 25, 0]) }}
+	{% endif %}
 	<thead>
 		<tr>
 			<th class="grid-l">{{ head('positions.symbol') }}</th>
@@ -10,7 +16,7 @@
 			<th>{{ head('positions.cost') }}</th>
 			<th title="{{ t('positions.now_title') }}">{{ head('positions.now') }}</th>
 			<th title="{{ t('positions.profit_title') }}">{{ head('positions.profit') }}</th>
-			<th class="m-hide"><span class="visually-hidden">{{ t('positions.sell') }}</span></th>
+			{% if selling %}<th class="m-hide"><span class="visually-hidden">{{ t('positions.sell') }}</span></th>{% endif %}
 		</tr>
 	</thead>
 	{% for row in positions %}
@@ -22,7 +28,7 @@
 			<td>{{ row.buy_price|px }}</td>
 			<td>{{ row.market_price|px if row.market_price is not none else '—' }}</td>
 			<td class="{{ grid_sign(row.ratio) }}">{{ row.ratio|signed_pct if row.ratio is not none else '—' }}</td>
-			<td class="m-hide">{% if row.ready %}<form method="post" action="{{ url_for('sell') }}" class="m-0"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="lot" value="{{ row.lot_id }}"><button class="btn btn-primary btn-sm" type="submit">{{ t('positions.sell') }}</button></form>{% endif %}</td>
+			{% if selling %}<td class="m-hide">{% if row.ready %}<form method="post" action="{{ url_for('sell') }}" class="m-0"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="lot" value="{{ row.lot_id }}"><button class="btn btn-primary btn-sm" type="submit">{{ t('positions.sell') }}</button></form>{% endif %}</td>{% endif %}
 		</tr>
 		{% if row.ready %}
 		{# Phones: the sell column is gone, the button gets its own row. #}
@@ -36,7 +42,7 @@
 			<td colspan="3"></td>
 			<td>{{ row.market_time|when if row.market_time else '' }}</td>
 			<td>{{ row.outcome|glue }}</td>
-			<td></td>
+			{% if selling %}<td></td>{% endif %}
 		</tr>
 	</tbody>
 	{% endfor %}

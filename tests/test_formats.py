@@ -53,3 +53,27 @@ def test_glued_outcome_keeps_spaces_and_opens_each_part_with_its_separator():
     assert '<span class="text-nowrap glue-part">armed</span> <span class="text-nowrap glue-part"><span class="glue-sep">·&nbsp;</span>peak 585.300</span>' in html
     assert html.endswith('<span class="glue-sep">·&nbsp;</span>0.000 %</span></span>')
     assert str(glue_parts("under the threshold")) == '<span class="glue"><span class="text-nowrap glue-part">under the threshold</span></span>'
+
+
+def _positions_html(ready):
+    from datetime import datetime
+
+    from flask import render_template
+
+    from index import app
+
+    row = {
+        "lot_id": 7, "asset": "CLX", "currency": "$", "amount": Decimal("9.13575735"),
+        "buy_price": Decimal("109.46"), "market_price": Decimal("110.19"),
+        "market_time": datetime(2026, 11, 16), "bought_at": datetime(2026, 11, 13),
+        "ratio": Decimal("0.004"), "ready": ready, "outcome": "below", "score": None, "score_detail": None,
+    }
+    with app.test_request_context("/"):
+        return render_template("_positions.html", positions=[row], csrf="x")
+
+
+def test_positions_sell_column_only_while_a_lot_can_be_sold():
+    idle = _positions_html(False)
+    assert idle.count("<col ") == 6 and "phone-sell" not in idle and 'name="lot"' not in idle
+    ready = _positions_html(True)
+    assert ready.count("<col ") == 7 and ready.count('name="lot"') == 2 and "phone-sell" in ready

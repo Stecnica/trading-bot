@@ -261,7 +261,7 @@
   "prefs.save": "Einstellungen speichern",
   "prefs.saving": "Einstellungen werden gespeichert",
   "prefs.saved": "Einstellungen gespeichert.",
-  "prefs.foot": "Die anfängliche Provision beträgt 0,1 % und die Steuer 26 % des Gewinns. Mit 100 Namen ist die Aktualisierung kürzer; 500 kann mehrere Minuten dauern.",
+  "prefs.foot": "Provision und Steuer beginnen bei 0,1 % und 26 % des Gewinns. Los: Gebrochen investiert den Betrag ({investment} $) in jedes Los; Ganze Aktien rundet auf ganze Aktien ab und überspringt Titel, die teurer als das Los sind. Käufe/Tag: 0 = ohne Limit. Massive-Tarif: Automatisch liest ihn aus dem Schlüssel.",
   "prefs.threshold_title": "Nettogewinnschwelle (0,05 = 5 %)",
   "prefs.investment_title": "Maximale Investition pro Kauf",
   "prefs.capital_title": "Startbudget für Paper-Trading. Später kann es vom Broker kommen und schreibgeschützt werden.",

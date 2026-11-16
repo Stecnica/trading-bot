@@ -261,7 +261,7 @@
   "prefs.save": "Salva preferenze",
   "prefs.saving": "Salvo le preferenze",
   "prefs.saved": "Preferenze salvate.",
-  "prefs.foot": "La commissione iniziale è 0,1% e l'imposta 26% del guadagno. Con 100 titoli l'aggiornamento è più corto; 500 può richiedere diversi minuti.",
+  "prefs.foot": "Commissione e imposta partono da 0,1% e 26% del guadagno. Lotto: Frazionario spende l'investimento ({investment} $) in ogni lotto; Azioni intere arrotonda per difetto ad azioni intere e salta i titoli che costano più del lotto. Acquisti/giorno: 0 = nessun limite. Piano Massive: Automatico lo legge dalla chiave.",
   "prefs.threshold_title": "Soglia di profitto netto (0.05 = 5%)",
   "prefs.investment_title": "Investimento massimo per acquisto",
   "prefs.capital_title": "Budget paper iniziale. In seguito potrà arrivare dal broker e diventare in sola lettura.",

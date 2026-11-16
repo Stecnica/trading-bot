@@ -551,7 +551,7 @@
 		<input class="form-control form-control-sm text-end" data-paper-balance title="{{ t('prefs.balance_title') }}" value="{{ paper_balance|px }}" readonly tabindex="-1">
 	</div>
 </div>
-<p class="small text-secondary mb-0">{{ t('prefs.foot') }}</p>
+<p class="small text-secondary mb-0">{{ t('prefs.foot', investment='%g'|format(prefs.max_investment|float)) }}</p>
 {% endmacro %}
 {% macro appearance_fields() %}
 <h3 class="h6 mb-0">{{ t('prefs.appearance') }}</h3>

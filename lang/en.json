@@ -261,7 +261,7 @@
   "prefs.save": "Save preferences",
   "prefs.saving": "Saving preferences",
   "prefs.saved": "Preferences saved.",
-  "prefs.foot": "The initial commission is 0.1% and the tax is 26% of the gain. With 100 names the update is shorter; 500 can take several minutes.",
+  "prefs.foot": "Commission and tax start at 0.1% and 26% of the gain. Lot: Fractional spends the investment ({investment} $) on each lot; Whole shares rounds it down to whole shares and skips names priced above it. Buys/day: 0 = no limit. Massive plan: Automatic reads it from the key.",
   "prefs.threshold_title": "Net profit threshold (0.05 = 5%)",
   "prefs.investment_title": "Maximum investment per buy",
   "prefs.capital_title": "Starting paper budget. Later this can come from the broker and become read-only.",

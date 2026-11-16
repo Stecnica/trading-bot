@@ -261,7 +261,7 @@
   "prefs.save": "Guardar preferencias",
   "prefs.saving": "Guardando preferencias",
   "prefs.saved": "Preferencias guardadas.",
-  "prefs.foot": "La comisión inicial es del 0,1 % y el impuesto es del 26 % de la ganancia. Con 100 nombres, la actualización es más rápida; 500 puede tardar varios minutos.",
+  "prefs.foot": "La comisión y el impuesto parten del 0,1 % y del 26 % de la ganancia. Lote: Fraccionario invierte la inversión ({investment} $) en cada lote; Acciones enteras redondea hacia abajo a acciones enteras y salta los valores más caros que el lote. Compras/día: 0 = sin límite. Plan de Massive: Automático lo lee de la clave.",
   "prefs.threshold_title": "Umbral de beneficio neto (0,05 = 5 %)",
   "prefs.investment_title": "Inversión máxima por compra",
   "prefs.capital_title": "Presupuesto paper inicial. Más adelante puede venir del broker y ser de solo lectura.",
