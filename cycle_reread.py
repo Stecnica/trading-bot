@@ -15,8 +15,9 @@ install_import_path()
 import socket
 
 from bot_config import LOCK_PATH, get_logger
-from bot_db import connect, cycle_running, ensure_schema, write_status
+from bot_db import connect, cycle_running, ensure_schema, load_preferences, write_status
 from bot_massive import reread_stored_sessions
+from bot_plan import current_plan
 
 log = get_logger()
 
@@ -38,7 +39,8 @@ def main():
             write_status("running", message)
             log.info(message)
 
-        stored, warning = reread_stored_sessions(conn, progress)
+        plan = current_plan(load_preferences(conn))
+        stored, warning = reread_stored_sessions(conn, progress, throttle=plan["throttle"])
         if warning:
             write_status("error", warning)
             log.warning("reread incomplete, bars %s", stored)

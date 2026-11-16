@@ -39,6 +39,7 @@ PAGE_VIEWS = ("volume", "history")
 VOLUME_ORDERS = ("rank", "volume")
 VOLUME_SCOPES = ("all", "sector")
 LOT_SIZINGS = ("fractional", "whole")
+MASSIVE_PLANS = ("auto", "basic", "starter", "developer", "advanced")
 # Automatic: light by day and dark in the evening, on the local clock.
 DAY_START = 7
 DAY_END = 19
@@ -66,6 +67,7 @@ DEFAULTS = {
     "sell_delay_score": "0.2",
     "lot_sizing": "fractional",
     "max_buys_per_day": "0",
+    "massive_plan": "auto",
     "notice_seconds": "8",
     "volume_class": "",
     "volume_order": "rank",
@@ -100,6 +102,7 @@ PREF_LABELS = {
     "sell_delay_score": "Score that keeps an armed lot",
     "lot_sizing": "Lot quantity: fractional (max investment / price) or whole shares",
     "max_buys_per_day": "Bot buys per day (0 = no limit)",
+    "massive_plan": "Massive plan: auto detects it from the key; a named plan overrides the detection",
     "notice_seconds": "Message seconds",
     "min_side": "Shorter side of a block, in the 16×9 frame. Below this the block is left out. A lower value keeps more blocks.",
     "volume_divide": "On keeps the shorter ratio when two contiguous blocks have two arrangements. Off keeps the first arrangement.",
@@ -145,6 +148,7 @@ def ensure_schema(conn):
             trade_count INT NULL,
             bar_ms BIGINT NULL,
             otc TINYINT(1) NULL,
+            live TINYINT(1) NOT NULL DEFAULT 0,
             PRIMARY KEY (id),
             UNIQUE KEY uniq_asset_ts (asset_name, timestamp),
             KEY idx_history_timestamp (timestamp)
@@ -222,6 +226,8 @@ def ensure_schema(conn):
         additions.append("ADD COLUMN bar_ms BIGINT NULL")
     if "otc" not in columns:
         additions.append("ADD COLUMN otc TINYINT(1) NULL")
+    if "live" not in columns:
+        additions.append("ADD COLUMN live TINYINT(1) NOT NULL DEFAULT 0")
     if additions:
         cur.execute("ALTER TABLE market_history " + ", ".join(additions))
     cur.execute("SHOW INDEX FROM market_history WHERE Key_name = 'uniq_asset_ts'")
@@ -269,11 +275,22 @@ def ensure_schema(conn):
             cost DECIMAL(18,8) NULL,
             sold VARCHAR(255) NOT NULL DEFAULT '',
             candidates TEXT NOT NULL,
+            price_source VARCHAR(8) NULL,
+            price_at DATETIME NULL,
             PRIMARY KEY (id),
             KEY idx_decision_time (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """
     )
+    cur.execute("SHOW COLUMNS FROM bot_decisions")
+    decision_columns = {row[0] for row in cur.fetchall()}
+    decision_additions = [
+        f"ADD COLUMN {name} {kind}"
+        for name, kind in (("price_source", "VARCHAR(8) NULL"), ("price_at", "DATETIME NULL"))
+        if name not in decision_columns
+    ]
+    if decision_additions:
+        cur.execute("ALTER TABLE bot_decisions " + ", ".join(decision_additions))
     cur.close()
     conn.commit()
     backfill_transaction_rates(conn)
@@ -420,6 +437,7 @@ def interpret(raw):
         "sell_delay_score": _decimal_between(raw.get("sell_delay_score"), Decimal("-1"), Decimal("1"), "0.2"),
         "lot_sizing": raw.get("lot_sizing") if raw.get("lot_sizing") in LOT_SIZINGS else "fractional",
         "max_buys_per_day": _int_between(raw.get("max_buys_per_day"), 0, 100, 0),
+        "massive_plan": raw.get("massive_plan") if raw.get("massive_plan") in MASSIVE_PLANS else "auto",
         "notice_seconds": _int_between(raw.get("notice_seconds"), 3, 30, 8),
         "volume_order": raw.get("volume_order") if raw.get("volume_order") in VOLUME_ORDERS else "rank",
         "volume_scope": raw.get("volume_scope") if raw.get("volume_scope") in VOLUME_SCOPES else "sector",
@@ -588,6 +606,7 @@ def preference_patch(form, clamped=None):
         ("volume_divide", ("off", "on"), "prefs.err.limits"),
         ("volume_scale", ("off", "on"), "prefs.err.limits"),
         ("lot_sizing", LOT_SIZINGS, "prefs.err.limits"),
+        ("massive_plan", MASSIVE_PLANS, "prefs.err.limits"),
     )
     for name, allowed, error in enums:
         if name not in form:
@@ -621,8 +640,8 @@ def upsert_bars(conn, rows):
     sql = """
         INSERT INTO market_history
             (asset_name, timestamp, price, open_price, high_price, low_price, volume,
-             vwap, trade_count, bar_ms, otc)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             vwap, trade_count, bar_ms, otc, live)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             price = VALUES(price),
             open_price = VALUES(open_price),
@@ -630,9 +649,10 @@ def upsert_bars(conn, rows):
             low_price = VALUES(low_price),
             volume = VALUES(volume),
             vwap = COALESCE(VALUES(vwap), vwap),
-            trade_count = COALESCE(VALUES(trade_count), trade_count),
-            bar_ms = COALESCE(VALUES(bar_ms), bar_ms),
-            otc = COALESCE(VALUES(otc), otc)
+            trade_count = IF(VALUES(live) = 1, trade_count, COALESCE(VALUES(trade_count), trade_count)),
+            bar_ms = IF(VALUES(live) = 1, VALUES(bar_ms), COALESCE(VALUES(bar_ms), bar_ms)),
+            otc = COALESCE(VALUES(otc), otc),
+            live = VALUES(live)
     """
     payload = [
         (
@@ -647,6 +667,7 @@ def upsert_bars(conn, rows):
             row.get("trade_count"),
             row.get("bar_ms"),
             row.get("otc"),
+            row.get("live", 0),
         )
         for row in rows
     ]
@@ -824,11 +845,50 @@ def list_assets(conn):
     return names
 
 
+def live_days(conn):
+    """Recent sessions that still hold provisional bars from the intraday snapshot."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT DISTINCT DATE(timestamp) FROM market_history
+        WHERE timestamp >= NOW() - INTERVAL 14 DAY AND live = 1
+        """
+    )
+    days = {_as_day(row[0]) for row in cur.fetchall()}
+    cur.close()
+    return days
+
+
+def drop_live_bars(conn, day):
+    """Provisional bars of a published session that the daily file did not replace."""
+    start = datetime(day.year, day.month, day.day)
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM market_history WHERE timestamp >= %s AND timestamp < %s AND live = 1",
+        (start, start + timedelta(days=1)),
+    )
+    count = cur.rowcount
+    conn.commit()
+    cur.close()
+    return count
+
+
+def _as_day(value):
+    return value.date() if isinstance(value, datetime) else value
+
+
+def price_moment(market):
+    """When a stored price was seen: the snapshot moment for a provisional bar, else None."""
+    if not market or not market.get("live") or not market.get("bar_ms"):
+        return None
+    return datetime.fromtimestamp(int(market["bar_ms"]) / 1000).replace(microsecond=0)
+
+
 def latest_prices(conn):
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """
-        SELECT h.asset_name, h.timestamp, h.price
+        SELECT h.asset_name, h.timestamp, h.price, h.bar_ms, h.live
         FROM market_history h
         INNER JOIN (
             SELECT asset_name, MAX(timestamp) AS ts
@@ -879,14 +939,16 @@ def paper_balance(conn, prefs):
     return paper_cash_balance(fetch_transactions(conn), prefs["initial_capital"])
 
 
-def record_decision(conn, when, cash, choice, reason, sold, candidates):
-    """One row per cycle: the cash before the buy, the sales, the names considered and what was done."""
+def record_decision(conn, when, cash, choice, reason, sold, candidates, source=None, priced_at=None):
+    """One row per cycle: the cash before the buy, the sales, the names considered, what was done,
+    and the prices it read: source live (intraday snapshot) or close (daily bar) and their moment."""
     cur = conn.cursor()
     cur.execute(
         """
         INSERT INTO bot_decisions
-            (created_at, cash_before, action, reason, symbol, amount, price, cost, sold, candidates)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (created_at, cash_before, action, reason, symbol, amount, price, cost, sold, candidates,
+             price_source, price_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             when.replace(microsecond=0),
@@ -899,6 +961,8 @@ def record_decision(conn, when, cash, choice, reason, sold, candidates):
             money(choice["cost"]) if choice else None,
             ",".join(sold)[:255],
             json.dumps(candidates, separators=(",", ":")),
+            source,
+            priced_at,
         ),
     )
     conn.commit()
@@ -923,7 +987,8 @@ def recent_decisions(conn, limit=5):
     try:
         cur.execute(
             """
-            SELECT created_at, cash_before, action, reason, symbol, amount, price, cost, sold, candidates
+            SELECT created_at, cash_before, action, reason, symbol, amount, price, cost, sold, candidates,
+                   price_source, price_at
             FROM bot_decisions ORDER BY created_at DESC, id DESC LIMIT %s
             """,
             (int(limit),),
@@ -1315,6 +1380,7 @@ def threshold_review(conn, prefs, lots=None, scores=None, now=None):
                 "drop": peak_drop(peak, quote["price"]),
                 "score": score,
                 "reason": trail_exit(quote, peak, score, prefs),
+                "moment": price_moment(market),
             }
         )
     return review
@@ -1355,7 +1421,7 @@ def sell_ready_lots(conn, prefs, scores=None, sold_out=None):
             quote["price"],
             quote["fees"],
             quote["taxes"],
-            now.replace(microsecond=0),
+            item["moment"] or now.replace(microsecond=0),
             lot.currency,
             quote["fee_rate"],
             quote["tax_rate"],

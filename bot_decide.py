@@ -14,6 +14,7 @@ from bot_db import (
     latest_prices,
     load_preferences,
     paper_balance,
+    price_moment,
     record_decision,
 )
 from bot_i18n import tr
@@ -91,14 +92,19 @@ def scores_for(conn, symbols):
 
 
 def score_book(conn):
-    """Last sixteen closes for each listed name. The reading is the close."""
+    """Last sixteen closes for each listed name. The reading is the close; during the session
+    the newest one is today's provisional bar, the delayed price of the snapshot.
+
+    Each row carries price, timestamp (the session date of a daily bar, the price moment of a
+    provisional one, which is also the fill time) and source: close or live.
+    """
     universe = listed_symbols()
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT asset_name, timestamp, price
+        SELECT asset_name, timestamp, price, bar_ms, live
         FROM (
-            SELECT asset_name, timestamp, price,
+            SELECT asset_name, timestamp, price, bar_ms, live,
                    ROW_NUMBER() OVER (PARTITION BY asset_name ORDER BY timestamp DESC) AS n
             FROM market_history
         ) t
@@ -107,21 +113,23 @@ def score_book(conn):
         """
     )
     series = defaultdict(list)
-    for asset, stamp, price in cur:
+    for asset, stamp, price, bar_ms, live in cur:
         if universe and asset not in universe:
             continue
-        series[asset].append((stamp, price))
+        series[asset].append({"timestamp": stamp, "price": price, "bar_ms": bar_ms, "live": live})
     cur.close()
     book = Book()
     rows = []
     for asset, bars in series.items():
         row = None
-        for _stamp, price in bars:
-            row = book.update(asset, price)
+        for bar in bars:
+            row = book.update(asset, bar["price"])
         if row is None:
             continue
-        row["timestamp"] = bars[-1][0]
-        row["price"] = bars[-1][1]
+        moment = price_moment(bars[-1])
+        row["timestamp"] = moment or bars[-1]["timestamp"]
+        row["price"] = bars[-1]["price"]
+        row["source"] = "live" if moment else "close"
         rows.append(row)
     rows.sort(key=lambda item: item["score"], reverse=True)
     return rows
@@ -258,6 +266,7 @@ def plan_buy(ranked, held, cash, prefs, buys_today, sold=()):
             "cost": total,
             "score": row["score"],
             "timestamp": row["timestamp"],
+            "source": row.get("source", "close"),
         }
         return choice, _counted(candidates, more), "bought"
     return None, _counted(candidates, more), "no_cash" if short else "no_candidate"
@@ -285,7 +294,7 @@ def score_exits(conn, prefs, ranked, lots, now=None):
             market = latest.get(lot.asset)
             if not market:
                 continue
-            price, stamp = market["price"], market["timestamp"]
+            price, stamp = market["price"], price_moment(market) or market["timestamp"]
         quote = quote_sell(lot, price, prefs["fee_rate"], prefs["tax_rate"])
         if quote is None:
             continue
@@ -303,9 +312,10 @@ def apply_once(conn, sold_before=(), now=None):
     After the sales, plan_buy picks the first BUY name not held and not sold in this
     cycle (sold_before lists the trailing sales cycle.py made just before) whose lot,
     commission included, the paper cash covers, unless max_buys_per_day bot buys
-    are already written today. Both rows carry the session date of the bar they
-    priced (midnight) and the rates used; insert_transaction adds the moment of the
-    write. Every call records one row in bot_decisions.
+    are already written today. Both rows carry the time of the price they used: the
+    session date (midnight) of a daily bar, or the moment of the delayed snapshot
+    price; and the rates used. insert_transaction adds the moment of the write. Every
+    call records one row in bot_decisions, with the source and moment of its prices.
     """
     now = now or datetime.now()
     prefs = load_preferences(conn)
@@ -349,8 +359,29 @@ def apply_once(conn, sold_before=(), now=None):
             choice["timestamp"],
             fee_rate=prefs["fee_rate"],
         )
-    record_decision(conn, now, cash, choice, reason, sold_all, candidates)
-    return {"bought": choice, "sold": sold, "cash": cash, "reason": reason, "candidates": candidates}
+    source, priced_at = decision_prices(ranked, choice)
+    record_decision(conn, now, cash, choice, reason, sold_all, candidates, source, priced_at)
+    return {
+        "bought": choice,
+        "sold": sold,
+        "cash": cash,
+        "reason": reason,
+        "candidates": candidates,
+        "source": source,
+        "priced_at": priced_at,
+    }
+
+
+def decision_prices(ranked, choice=None):
+    """Source and moment of the prices a decision read: the bought name's own, else the newest
+    snapshot price when the ranking holds any, else the newest daily bar."""
+    if choice:
+        return choice.get("source", "close"), choice["timestamp"]
+    live = [row["timestamp"] for row in ranked if row.get("source") == "live"]
+    if live:
+        return "live", max(live)
+    closes = [row["timestamp"] for row in ranked if row.get("timestamp")]
+    return ("close", max(closes)) if closes else (None, None)
 
 
 def main():
@@ -378,3 +409,4 @@ if __name__ == "__main__":
         print("buy none")
     print("sold", ",".join(result["sold"]) or "none")
     print("cash", result["cash"], "reason", result["reason"])
+    print("prices", result["source"], result["priced_at"])

@@ -1,14 +1,15 @@
-"""Daily sessions from Massive, one call for the whole US market."""
+"""Daily sessions from Massive, one call for the whole US market, and during the session
+one snapshot call for the delayed price of every name."""
 
-import time
-from datetime import date, datetime, timedelta
+import time as clock
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from massive import RESTClient
 from massive.exceptions import AuthError, BadResponse
 
 from bot_config import PRIVATE, get_logger
-from bot_db import quantize_volume, upsert_bars
+from bot_db import drop_live_bars, live_days, quantize_volume, upsert_bars
 from bot_logic import money
 from bot_market import candidate_symbols
 
@@ -16,15 +17,19 @@ log = get_logger()
 
 NEW_YORK = ZoneInfo("America/New_York")
 HISTORY_DAYS = 731
+# Stocks Basic allows 5 calls a minute; the paid plans have no cap.
 PAUSE_SECONDS = 13
 FULL_SESSION = 480
 ENOUGH = 400
 SESSIONS_PATH = PRIVATE / "massive_sessions.txt"
 CLOSED_PATH = PRIVATE / "massive_closed_dates.txt"
+OPEN = time(9, 30)
+CLOSE = time(16, 0)
 
 
-def update_from_massive(conn, on_progress, max_dates=None):
-    """Fill sessions that are already closed. The free plan does not publish the current day."""
+def update_from_massive(conn, on_progress, max_dates=None, throttle=True):
+    """Fill sessions that are already closed, and replace the provisional bars of a closed day.
+    throttle waits PAUSE_SECONDS between calls, for the Basic cap."""
     secret = _api_key()
     wanted = set(candidate_symbols(500))
     end = last_completed_session()
@@ -37,8 +42,8 @@ def update_from_massive(conn, on_progress, max_dates=None):
     client = RESTClient(api_key=secret, retries=0, connect_timeout=15, read_timeout=90)
     stored = 0
     for index, day in enumerate(chosen):
-        if index:
-            time.sleep(PAUSE_SECONDS)
+        if throttle and index:
+            clock.sleep(PAUSE_SECONDS)
         on_progress(f"prices.fetch|{day.isoformat()}|{index + 1}|{len(chosen)}")
         try:
             aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
@@ -68,6 +73,9 @@ def update_from_massive(conn, on_progress, max_dates=None):
             log.warning("massive session %s returned only %s symbols from the list", day.isoformat(), len(rows))
             return stored, f"prices.partial|{day.isoformat()}|{len(rows)}"
         stored += upsert_bars(conn, rows)
+        dropped = drop_live_bars(conn, day)
+        if dropped:
+            log.info("massive session %s: %s provisional bars without a daily bar removed", day.isoformat(), dropped)
         _remember(SESSIONS_PATH, day)
         missing = sorted(wanted - {row["asset_name"] for row in rows})
         log.info(
@@ -81,7 +89,7 @@ def update_from_massive(conn, on_progress, max_dates=None):
     return stored, None
 
 
-def reread_stored_sessions(conn, on_progress):
+def reread_stored_sessions(conn, on_progress, throttle=True):
     """Reread sessions already in the archive and fill the response fields that were discarded."""
     secret = _api_key()
     wanted = set(candidate_symbols(500))
@@ -94,8 +102,8 @@ def reread_stored_sessions(conn, on_progress):
     client = RESTClient(api_key=secret, retries=0, connect_timeout=15, read_timeout=90)
     stored = 0
     for index, day in enumerate(chosen):
-        if index:
-            time.sleep(PAUSE_SECONDS)
+        if throttle and index:
+            clock.sleep(PAUSE_SECONDS)
         on_progress(f"reread.fetch|{day.isoformat()}|{index + 1}|{len(chosen)}")
         try:
             aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
@@ -160,15 +168,114 @@ def last_completed_session(now=None):
     return day
 
 
+def in_session(delay, now=None):
+    """True from the 9:30 open until a feed that is delay late has shown the 16:00 close,
+    on a New York weekday. Holidays pass here; live_rows then finds no price from today."""
+    moment = _new_york(now)
+    if moment.weekday() >= 5:
+        return False
+    opened = datetime.combine(moment.date(), OPEN, NEW_YORK)
+    closed = datetime.combine(moment.date(), CLOSE, NEW_YORK) + delay
+    return opened <= moment < closed
+
+
+def update_live(conn, on_progress, now=None):
+    """One snapshot call during the session: the delayed price of each name becomes today's
+    provisional bar (live = 1), dated at the session like a daily bar, with the price moment
+    in bar_ms. The daily bar replaces it once the session is published.
+
+    Returns (stored, warning, refusal). refusal is plan or rate when Massive turned the
+    call down, else None. Nothing is written when fewer than ENOUGH names have a price
+    from today's session: the cycle then keeps the bars it already has.
+    """
+    from bot_plan import refusal_kind
+
+    secret = _api_key()
+    wanted = set(candidate_symbols(500))
+    client = RESTClient(api_key=secret, retries=0, connect_timeout=15, read_timeout=90)
+    on_progress("prices.live")
+    try:
+        snapshots = client.get_snapshot_all("stocks", include_otc=False)
+    except (AuthError, BadResponse, OSError) as exc:
+        kind = refusal_kind(_quiet(exc, secret))
+        log.warning("massive snapshot rejected: %s", _quiet(exc, secret))
+        if kind in ("plan", "rate"):
+            return 0, None, kind
+        if kind == "auth":
+            return 0, "prices.auth", None
+        return 0, "prices.incomplete", None
+    rows = live_rows(snapshots, wanted, now)
+    if len(rows) < ENOUGH:
+        log.info("massive snapshot: only %s names priced in today's session, daily bars kept", len(rows))
+        return 0, None, None
+    stored = upsert_bars(conn, rows)
+    newest = max(row["bar_ms"] for row in rows)
+    log.info(
+        "massive snapshot: %s names, newest price %s",
+        len(rows),
+        datetime.fromtimestamp(newest / 1000).isoformat(sep=" ", timespec="seconds"),
+    )
+    return stored, None, None
+
+
+def live_rows(snapshots, wanted, now=None):
+    """Bars from snapshot entries whose last update falls inside today's regular session.
+    Price is the day's running close; bar_ms is the moment of that update."""
+    moment = _new_york(now)
+    opened = datetime.combine(moment.date(), OPEN, NEW_YORK)
+    closed = datetime.combine(moment.date(), CLOSE, NEW_YORK) + timedelta(minutes=1)
+    when = datetime(moment.year, moment.month, moment.day)
+    rows = []
+    seen = set()
+    for snap in snapshots or []:
+        symbol = (snap.ticker or "").upper().replace(".", "-")
+        day = snap.day
+        if symbol not in wanted or symbol in seen or day is None or not snap.updated:
+            continue
+        updated = datetime.fromtimestamp(snap.updated / 1e9, NEW_YORK)
+        if not opened <= updated < closed:
+            continue
+        close = money(day.close)
+        if close is None or close <= 0:
+            continue
+        seen.add(symbol)
+        rows.append(
+            {
+                "asset_name": symbol,
+                "timestamp": when,
+                "price": close,
+                "open_price": _optional(day.open),
+                "high_price": _optional(day.high),
+                "low_price": _optional(day.low),
+                "volume": quantize_volume(day.volume),
+                "vwap": _optional(day.vwap),
+                "trade_count": None,
+                "bar_ms": int(snap.updated // 1_000_000),
+                "otc": 0,
+                "live": 1,
+            }
+        )
+    return rows
+
+
+def _new_york(now):
+    """A naive moment is server time, like datetime.now()."""
+    return (now or datetime.now(NEW_YORK)).astimezone(NEW_YORK)
+
+
 def _pending(conn, wanted, end):
     counts = _counts(conn)
     done = _read_dates(SESSIONS_PATH)
     closed = _read_dates(CLOSED_PATH)
+    provisional = live_days(conn)
     start = end - timedelta(days=HISTORY_DAYS)
     pending = []
     day = end
     while day >= start:
-        if day.weekday() < 5 and day not in done and day not in closed and counts.get(day, 0) < FULL_SESSION:
+        if day.weekday() >= 5 or day in closed:
+            day -= timedelta(days=1)
+            continue
+        if day in provisional or (day not in done and counts.get(day, 0) < FULL_SESSION):
             pending.append(day)
         day -= timedelta(days=1)
     return pending

@@ -40,7 +40,8 @@ def _features(closes):
 
 
 def train():
-    """Fit on every close that still has a next one. The newest close is left for prediction."""
+    """Fit on every close that still has a next one. The newest close is left for prediction.
+    Provisional intraday bars are not closes yet and stay out of the fit."""
     import lightgbm as lgb
 
     conn = connect()
@@ -50,6 +51,7 @@ def train():
             """
             SELECT asset_name, price
             FROM market_history
+            WHERE live = 0
             ORDER BY asset_name, timestamp
             """
         )

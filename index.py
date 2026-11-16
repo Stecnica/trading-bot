@@ -66,6 +66,7 @@ from bot_db import (
     read_status,
 )
 from bot_logic import money
+from bot_plan import label_parts
 
 
 def _charts():
@@ -547,6 +548,7 @@ def home():
         positions=positions,
         top_buy=top_buy,
         decisions=decisions,
+        massive=label_parts(),
         transactions=transactions,
         paper_balance=balance,
         assets=assets,

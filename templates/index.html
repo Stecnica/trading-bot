@@ -522,7 +522,24 @@
 			<option value="whole"{% if prefs.lot_sizing == 'whole' %} selected{% endif %}>{{ t('prefs.sizing_whole') }}</option>
 		</select>
 	</div>
-	<div class="flex-fill"></div>
+	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.plan_title') }}">{{ t('prefs.plan') }}</label>
+		<select class="form-select form-select-sm" data-pref="massive_plan" data-saved="{{ prefs.massive_plan }}" title="{{ t('prefs.plan_title') }}">
+			<option value="auto"{% if prefs.massive_plan == 'auto' %} selected{% endif %}>{{ t('prefs.plan_auto') }}</option>
+			{% for name in ('basic', 'starter', 'developer', 'advanced') %}
+			<option value="{{ name }}"{% if prefs.massive_plan == name %} selected{% endif %}>{{ name|capitalize }}</option>
+			{% endfor %}
+		</select>
+		<div class="small text-secondary mt-1 plan-detected"{% if massive.checked %} title="{{ t('prefs.plan_checked', when=massive.checked|when) }}"{% endif %}>
+			{%- if massive.refused -%}
+			{{ t('prefs.plan_refused') }}
+			{%- elif massive.detected -%}
+			{{ t('prefs.plan_detected', plan=massive.detected|capitalize, feed=t('prefs.plan_eod') if massive.detected == 'basic' else (t('prefs.plan_realtime') if massive.real_time else t('prefs.plan_delayed', minutes=15))) }}
+			{%- else -%}
+			{{ t('prefs.plan_none') }}
+			{%- endif -%}
+		</div>
+	</div>
 </div>
 <div class="d-flex align-items-start gap-3 text-center">
 	<div class="flex-fill">

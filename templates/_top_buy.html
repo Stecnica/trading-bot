@@ -42,6 +42,7 @@
 			<span class="text-nowrap">{{ d.created_at|when }}</span> · <span class="text-nowrap">{{ t('decisions.cash', cash=d.cash_before|px) }}</span>
 			{% if d.sold %} · {{ t('decisions.sold', symbols=d.sold|join(', ')) }}{% endif %}
 			· {% if d.action == 'buy' %}{{ t('decisions.buy', symbol=d.symbol, qty=d.amount|qty, price=d.price|px) }}{% else %}{{ t('decisions.none', reason=t('reason.' ~ d.reason)) }}{% endif %}
+			{%- if d.price_source %} · <span class="text-nowrap">{{ t('decisions.price_' ~ d.price_source, when=d.price_at|when) }}</span>{% endif %}
 		</li>
 		{% endfor %}
 	</ul>
