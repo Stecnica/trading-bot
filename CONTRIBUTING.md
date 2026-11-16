@@ -14,7 +14,7 @@ Open the page and choose the new flag. Read Positions, Buy, the volume gear, and
 
 ## The price plan
 
-Continuing is the path. The key in `private/massive_api.env` selects the plan. To let a richer plan through, work in `bot_massive.py`: `update_from_massive` asks for the bars, and `last_completed_session` decides which day that is.
+Continuing is the path. The key in `private/massive_api.env` selects the plan, and `bot_plan.py` detects it once a day; the Massive plan preference overrides it. The behaviour of each plan is the `PLANS` table there: intraday or not, the delay, the throttle. In `bot_massive.py`, `update_from_massive` asks for the closed sessions, `last_completed_session` decides which day that is, and `update_live` reads the intraday snapshot. A change here keeps Basic working: a free key must see end of day, throttled, and no failing intraday call.
 
 Run `python cycle.py` with that key. The new bars belong in `market_history`, and the threshold sale and the score follow them. When the archive holds the longer history, add the matching period values next to `730`.
 

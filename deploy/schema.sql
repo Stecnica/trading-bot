@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS market_history (
     trade_count INT NULL,
     bar_ms BIGINT NULL,
     otc TINYINT(1) NULL,
+    live TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     UNIQUE KEY uniq_asset_ts (asset_name, timestamp),
     KEY idx_history_timestamp (timestamp)
@@ -77,6 +78,8 @@ CREATE TABLE IF NOT EXISTS bot_decisions (
     cost DECIMAL(18,8) NULL,
     sold VARCHAR(255) NOT NULL DEFAULT '',
     candidates TEXT NOT NULL,
+    price_source VARCHAR(8) NULL,
+    price_at DATETIME NULL,
     PRIMARY KEY (id),
     KEY idx_decision_time (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
