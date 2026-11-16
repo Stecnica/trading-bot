@@ -184,6 +184,15 @@ def _new_york(now):
     return (now or datetime.now(NEW_YORK)).astimezone(NEW_YORK)
 
 
+def effective_name(prefs):
+    """The plan a run would follow, from the stored detection only: no call to Massive."""
+    chosen = prefs.get("massive_plan") or "auto"
+    if chosen in PLANS:
+        return chosen
+    detected = read_detection().get("plan")
+    return detected if detected in PLANS else "basic"
+
+
 def label_parts():
     """Values the Operations panel shows next to the preference."""
     stored = read_detection()

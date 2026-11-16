@@ -8,7 +8,10 @@ from zoneinfo import ZoneInfo
 from massive import RESTClient
 from massive.exceptions import AuthError, BadResponse
 
-from bot_config import PRIVATE, get_logger
+import json
+import shutil
+
+from bot_config import BACKFILL_STATUS, PRICES_LOCK, PRIVATE, file_lock, get_logger
 from bot_db import drop_live_bars, live_days, quantize_volume, upsert_bars
 from bot_logic import money
 from bot_market import candidate_symbols
@@ -23,6 +26,14 @@ FULL_SESSION = 480
 ENOUGH = 400
 SESSIONS_PATH = PRIVATE / "massive_sessions.txt"
 CLOSED_PATH = PRIVATE / "massive_closed_dates.txt"
+# How far back each plan serves daily bars. Advanced and Business reach the start of the archive.
+DEPTH_YEARS = {"basic": 2, "starter": 5, "developer": 10}
+ARCHIVE_START = date(2003, 9, 10)
+# A grouped day with fewer tickers than this is not a full market session.
+MARKET_SESSION = 1000
+# The fill stops before the disk holding the database runs this low (bytes).
+MIN_FREE = 300 * 1024 * 1024
+DATA_DIR = "/var/lib/mysql"
 OPEN = time(9, 30)
 CLOSE = time(16, 0)
 
@@ -166,6 +177,143 @@ def last_completed_session(now=None):
     while day.weekday() >= 5:
         day -= timedelta(days=1)
     return day
+
+
+def history_start(plan_name, end):
+    """First day the plan's daily bars reach, counted back from end like Massive does,
+    with a week of margin so the edge of the window is not asked for."""
+    years = DEPTH_YEARS.get(plan_name)
+    if years is None:
+        return ARCHIVE_START
+    try:
+        start = end.replace(year=end.year - years)
+    except ValueError:
+        start = end.replace(year=end.year - years, day=28)
+    return start + timedelta(days=7)
+
+
+def backfill_plan(conn, plan_name, end=None):
+    """Weekdays from history_start to end that are not stored yet, newest first. A day counts as
+    stored when it was fetched before, is a known closed day, or already holds FULL_SESSION names."""
+    end = end or last_completed_session()
+    start = history_start(plan_name, end)
+    counts = _counts(conn)
+    done = _read_dates(SESSIONS_PATH)
+    # A closed day older than every fetched session may be a refusal at the edge of a smaller
+    # plan's window rather than a holiday, so it is asked again.
+    oldest = min(done) if done else end
+    closed = {day for day in _read_dates(CLOSED_PATH) if day >= oldest}
+    days = []
+    day = end
+    while day >= start:
+        if day.weekday() < 5 and day not in done and day not in closed and counts.get(day, 0) < FULL_SESSION:
+            days.append(day)
+        day -= timedelta(days=1)
+    return start, end, days
+
+
+def backfill(conn, plan, on_progress=None, limit=None):
+    """Fill the daily history back to the depth of the plan, one grouped call per missing session.
+
+    Resumable and idempotent: each session is written whole and remembered, so a new run starts
+    from the next missing day. The write of each session takes PRICES_LOCK, which a cycle holds
+    for its whole run. Basic waits PAUSE_SECONDS between calls. A refusal as outside the plan's
+    window ends the fill there: older days are refused too. Progress goes to BACKFILL_STATUS.
+    Returns the final status dict.
+    """
+    secret = _api_key()
+    wanted = set(candidate_symbols(500))
+    start, end, days = backfill_plan(conn, plan["name"])
+    if limit is not None:
+        days = days[:limit]
+    status = {
+        "state": "running",
+        "plan": plan["name"],
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "total": len(days),
+        "done": 0,
+        "rows": 0,
+        "day": None,
+        "reason": None,
+        "started": datetime.now().replace(microsecond=0).isoformat(sep=" "),
+    }
+    write_backfill_status(status)
+    log.info("history fill %s: %s sessions to fetch, %s to %s", plan["name"], len(days), start, end)
+    client = RESTClient(api_key=secret, retries=0, connect_timeout=15, read_timeout=90)
+    for index, day in enumerate(days):
+        free = _free_bytes()
+        if free < MIN_FREE:
+            return _stop(status, "disk", f"{free // 1048576} MB free")
+        if plan["throttle"] and index:
+            clock.sleep(PAUSE_SECONDS)
+        status["day"] = day.isoformat()
+        try:
+            aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
+        except (AuthError, BadResponse, OSError) as exc:
+            kind = _kind(exc, secret)
+            log.warning("history fill %s rejected: %s", day.isoformat(), _quiet(exc, secret))
+            if kind == "plan":
+                status["state"] = "done"
+                status["reason"] = "window"
+                status["start"] = (day + timedelta(days=1)).isoformat()
+                break
+            if kind == "rate" and plan["throttle"]:
+                clock.sleep(60)
+                try:
+                    aggs = client.get_grouped_daily_aggs(day.isoformat(), adjusted=False, include_otc=False)
+                except (AuthError, BadResponse, OSError) as again:
+                    return _stop(status, "rate", _quiet(again, secret))
+            else:
+                return _stop(status, kind, _quiet(exc, secret))
+        if not aggs:
+            _remember(CLOSED_PATH, day)
+        elif len(aggs) < MARKET_SESSION:
+            return _stop(status, "partial", f"{day.isoformat()} {len(aggs)} tickers")
+        else:
+            rows = _rows(aggs, wanted, day)
+            with file_lock(PRICES_LOCK):
+                status["rows"] += upsert_bars(conn, rows)
+            _remember(SESSIONS_PATH, day)
+        status["done"] = index + 1
+        write_backfill_status(status)
+        if on_progress:
+            on_progress(status)
+    else:
+        status["state"] = "done"
+    write_backfill_status(status)
+    log.info("history fill %s %s: %s sessions, %s bars", plan["name"], status["state"], status["done"], status["rows"])
+    return status
+
+
+def _stop(status, reason, detail):
+    status["state"] = "stopped"
+    status["reason"] = reason
+    status["detail"] = detail
+    write_backfill_status(status)
+    log.warning("history fill stopped (%s): %s", reason, detail)
+    return status
+
+
+def _free_bytes():
+    try:
+        return shutil.disk_usage(DATA_DIR).free
+    except OSError:
+        return shutil.disk_usage(PRIVATE).free
+
+
+def read_backfill_status():
+    try:
+        return json.loads(BACKFILL_STATUS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def write_backfill_status(status):
+    status = dict(status, updated=datetime.now().replace(microsecond=0).isoformat(sep=" "))
+    temporary = BACKFILL_STATUS.with_suffix(".tmp")
+    temporary.write_text(json.dumps(status), encoding="utf-8")
+    temporary.replace(BACKFILL_STATUS)
 
 
 def in_session(delay, now=None):

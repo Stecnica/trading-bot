@@ -845,6 +845,15 @@ def list_assets(conn):
     return names
 
 
+def first_session(conn):
+    """Oldest stored bar, or None."""
+    cur = conn.cursor()
+    cur.execute("SELECT MIN(timestamp) FROM market_history WHERE asset_name <> 'test'")
+    row = cur.fetchone()
+    cur.close()
+    return row[0] if row else None
+
+
 def live_days(conn):
     """Recent sessions that still hold provisional bars from the intraday snapshot."""
     cur = conn.cursor()

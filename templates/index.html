@@ -551,6 +551,20 @@
 		<input class="form-control form-control-sm text-end" data-paper-balance title="{{ t('prefs.balance_title') }}" value="{{ paper_balance|px }}" readonly tabindex="-1">
 	</div>
 </div>
+{% if history %}
+<form method="post" action="{{ url_for('start_backfill') }}" data-status="{{ url_for('backfill_status') }}" class="small text-secondary history-fill d-flex flex-wrap align-items-center column-gap-2 mb-2" title="{{ t('history.title', plan=history.plan|capitalize, start=history.target|when) }}">
+	<input type="hidden" name="csrf" value="{{ csrf }}">
+	<span>{{ t('history.range', start=history.first|when) if history.first else t('history.empty') }}</span>
+	{% if history.running %}
+	<span data-backfill-running>{{ history.text }}</span>
+	{% elif history.complete %}
+	<span>{{ t('history.complete', plan=history.plan|capitalize) }}</span>
+	{% else %}
+	{% if history.status.state in ('stopped', 'running') %}<span>{{ history.text }}</span>{% endif %}
+	<button class="btn btn-link btn-sm p-0 align-baseline" type="submit">{{ t('history.fill', plan=history.plan|capitalize, start=history.target|when) }}</button>
+	{% endif %}
+</form>
+{% endif %}
 <p class="small text-secondary mb-0">{{ t('prefs.foot', investment='%g'|format(prefs.max_investment|float)) }}</p>
 {% endmacro %}
 {% macro appearance_fields() %}
@@ -1184,7 +1198,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=69) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=70) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

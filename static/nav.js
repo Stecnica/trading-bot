@@ -1835,4 +1835,18 @@ function uiText(key, vars) {
       });
     });
   });
+
+  var fill = document.querySelector("form.history-fill[data-status]");
+  var progress = document.querySelectorAll("[data-backfill-running]");
+  if (fill && progress.length) {
+    var poll = setInterval(function () {
+      fetch(fill.dataset.status, { headers: { Accept: "application/json" } })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          progress.forEach(function (span) { span.textContent = data.text; });
+          if (!data.running) clearInterval(poll);
+        })
+        .catch(function () {});
+    }, 15000);
+  }
 })();

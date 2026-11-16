@@ -21,15 +21,18 @@ from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_se
 from bot_chart_cache import get_bytes as chart_cache_get, put_bytes as chart_cache_put
 from bot_market import constituents, security_names
 from bot_config import (
+    BACKFILL_LOCK,
     FLASK_SECRET_PATH,
     LOG_PATH,
     MPLCONFIG,
     SITE_PACKAGES,
     WEB,
     get_logger,
+    lock_held,
 )
 from bot_i18n import activate, current, language_for, languages, locales, negotiate, status_text, tr
 from bot_db import (
+    first_session,
     FONT_CHOICES,
     WEIGHT_CHOICES,
     WEIGHT_IDS,
@@ -66,7 +69,8 @@ from bot_db import (
     read_status,
 )
 from bot_logic import money
-from bot_plan import label_parts
+from bot_massive import history_start, last_completed_session, read_backfill_status
+from bot_plan import effective_name, label_parts
 
 
 def _charts():
@@ -510,6 +514,7 @@ def home():
         balance = paper_balance(conn, prefs)
         top_buy = _top_buy(conn, positions, catalog, prefs, balance)
         decisions = recent_decisions(conn)
+        history = _history(conn, prefs)
         assets = list_assets(conn)
         period, days = _span(prefs["history_period"])
         if view == "history":
@@ -549,6 +554,7 @@ def home():
         top_buy=top_buy,
         decisions=decisions,
         massive=label_parts(),
+        history=history,
         transactions=transactions,
         paper_balance=balance,
         assets=assets,
@@ -1058,6 +1064,73 @@ def cycle_sells():
     finally:
         conn.close()
     return redirect(url_for("home", ok=tr("sells.done", sold=sold)))
+
+
+def _history(conn, prefs):
+    """Stored range, the start the plan reaches, and the fill job: running, its progress, how it ended."""
+    plan = effective_name(prefs)
+    end = last_completed_session()
+    status = read_backfill_status()
+    running = lock_held(BACKFILL_LOCK)
+    if status.get("state") == "running" and not running:
+        status = dict(status, state="stopped", reason="interrupted")
+    first = first_session(conn)
+    target = history_start(plan, end)
+    return {
+        "plan": plan,
+        "first": first,
+        "target": datetime.combine(target, datetime.min.time()),
+        "complete": first is not None and first.date() <= target + timedelta(days=7),
+        "running": running,
+        "status": status,
+        "text": _backfill_text(status, running),
+    }
+
+
+@app.route("/backfill", methods=["POST"])
+def start_backfill():
+    if lock_held(BACKFILL_LOCK):
+        return redirect(url_for("home", err=tr("history.busy")))
+    env = os.environ.copy()
+    env["PYTHONPATH"] = SITE_PACKAGES + os.pathsep + env.get("PYTHONPATH", "")
+    env["MPLCONFIGDIR"] = str(MPLCONFIG)
+    log_handle = open(LOG_PATH, "a", encoding="utf-8")
+    subprocess.Popen(
+        [sys.executable, str(WEB / "backfill.py")],
+        cwd=str(WEB),
+        env=env,
+        stdout=log_handle,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    log.info("history fill started")
+    return redirect(url_for("home", ok=tr("history.started")))
+
+
+@app.route("/backfill/status")
+def backfill_status():
+    status = read_backfill_status()
+    running = lock_held(BACKFILL_LOCK)
+    return jsonify(running=running, text=_backfill_text(status, running))
+
+
+def _backfill_text(status, running):
+    """The progress line while the fill runs, else how the last one ended."""
+    if running:
+        return tr("history.running", day=_day_text(status.get("day")), done=status.get("done", 0), total=status.get("total", 0))
+    if status.get("state") == "done":
+        return tr("history.complete", plan=(status.get("plan") or "").capitalize())
+    if status.get("state") in ("stopped", "running"):
+        reason = status.get("reason") if status.get("state") == "stopped" else "interrupted"
+        return tr("history.stopped", reason=tr("history.reason." + (reason or "error")))
+    return ""
+
+
+def _day_text(value):
+    try:
+        return datetime.fromisoformat(value).strftime("%d/%m/%Y")
+    except (TypeError, ValueError):
+        return "—"
 
 
 @app.route("/update", methods=["POST"])

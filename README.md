@@ -166,7 +166,22 @@ Sources:
 
 Individual plans are licensed for personal, non-professional use. Display or redistribution needs Business.
 
-The history buttons stop at two years, which is the Basic window. Longer ranges are not offered until the stored bars cover them. Flat files are not downloaded. The key file can hold extra lines for a later S3 setup; the application reads only `MASSIVE_API_KEY`.
+**Filling the history.** The daily archive can reach as far back as the plan serves bars: Basic 2 years, Starter 5, Developer 10, Advanced and Business back to 10 September 2003. `python backfill.py` fills it, one grouped daily call per missing session, newest first:
+
+```
+python backfill.py --dry-run      # missing sessions, estimated bars, megabytes and minutes, free disk
+python backfill.py                # fill for the plan in use (detected, or the Massive plan preference)
+python backfill.py --plan basic   # the depth of another plan
+python backfill.py --limit 50     # at most 50 sessions
+```
+
+A session already fetched, a known closed day, or a day that holds 480 names is skipped, so the command can be stopped at any point and started again: it continues from the next missing session. One fill runs at a time (`private/backfill.lock`). It writes each session under `private/prices.lock`, which `cycle.py` holds for its whole run, so a fill and a cycle never write together: the fill waits for the cycle, and a cycle waits for at most one session write. On Basic it waits 13 seconds between calls, so two years (about 500 sessions) take about two hours; on the paid plans it does not wait. A refusal as outside the plan's window ends the fill there. It stops with a reason, and resumes on the next start, when the disk under the database has less than 300 MB free, on a call refused for another reason, or on a day with too few tickers to be a full session. Progress is in `private/backfill_status.json` and in the log.
+
+The same job starts from Operations: under the preferences, a grey line gives the oldest stored session and, when the plan reaches further, a **Fill to** link with the date it would reach. While it runs the line shows the session being fetched and the count, refreshed every 15 seconds; afterwards it says whether the history is complete or why the fill stopped. The request only starts `backfill.py` in the background.
+
+Sizes, measured on this archive: about 300 bytes per bar with its indexes, about 470 bars per session. Five years add about 760 sessions (360,000 bars, 100 MB) and take about half an hour on Starter. Ten years add about 280 MB, the full archive about 740 MB; run `--dry-run` first. The score reads only the last 120 calendar days, the Volume chart its own window and a history chart one name, so a deeper archive does not slow the cycle or the page. Older sessions keep only the names of today's list that were trading then. Bars are not adjusted for splits, as in the rest of the archive.
+
+The history buttons stop at two years. Longer ranges are not offered yet, even when the stored bars cover them. Flat files are not downloaded. The key file can hold extra lines for a later S3 setup; the application reads only `MASSIVE_API_KEY`.
 
 The selected list is the S&P 500. A session stores every name on that list that the response contains. The volume chart then keeps the strongest trailing returns inside the chosen sector or group. The ranking reads only the sessions it needs, not the whole archive.
 

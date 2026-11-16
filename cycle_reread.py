@@ -13,8 +13,9 @@ from bot_config import install_import_path
 install_import_path()
 
 import socket
+from contextlib import ExitStack
 
-from bot_config import LOCK_PATH, get_logger
+from bot_config import LOCK_PATH, PRICES_LOCK, file_lock, get_logger
 from bot_db import connect, cycle_running, ensure_schema, load_preferences, write_status
 from bot_massive import reread_stored_sessions
 from bot_plan import current_plan
@@ -29,7 +30,10 @@ def main():
         return 0
     LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
     conn = None
+    held = ExitStack()
     try:
+        # A history fill writes one session at a time under this lock: wait for that write.
+        held.enter_context(file_lock(PRICES_LOCK, timeout=240))
         write_status("running", "reread.running")
         conn = connect()
         ensure_schema(conn)
@@ -55,6 +59,7 @@ def main():
     finally:
         if conn is not None:
             conn.close()
+        held.close()
         try:
             LOCK_PATH.unlink()
         except OSError:

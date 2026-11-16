@@ -1,8 +1,11 @@
 """Paths and database access. Credentials stay in the environment."""
 
+import fcntl
 import logging
 import os
 import sys
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 WEB = Path(__file__).resolve().parent
@@ -11,6 +14,10 @@ PRIVATE = ROOT / "private"
 LOG_PATH = PRIVATE / "trading-bot.log"
 STATUS_PATH = PRIVATE / "cycle_status.json"
 LOCK_PATH = PRIVATE / "cycle.lock"
+# Held by a cycle for its whole run and by the history fill for each write, so the two never write together.
+PRICES_LOCK = PRIVATE / "prices.lock"
+BACKFILL_LOCK = PRIVATE / "backfill.lock"
+BACKFILL_STATUS = PRIVATE / "backfill_status.json"
 UI_PASSWORD_PATH = PRIVATE / "ui_password"
 # Temporary computerUse QA user (qa_cursor). Remove with private/ui_password_qa.
 UI_PASSWORD_QA_PATH = PRIVATE / "ui_password_qa"
@@ -19,6 +26,39 @@ UNIVERSE_CACHE = PRIVATE / "sp500_symbols.txt"
 NAMES_CACHE = PRIVATE / "sp500_names.tsv"
 CLASSES_CACHE = PRIVATE / "sp500_classes.tsv"
 MPLCONFIG = PRIVATE / "mplconfig"
+
+@contextmanager
+def file_lock(path, timeout=None):
+    """Exclusive flock on path. Waits up to timeout seconds (None: as long as it takes) and
+    raises TimeoutError after that. The lock goes away with the process, so a killed job leaves none."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(path, "a", encoding="utf-8")
+    started = time.monotonic()
+    try:
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if timeout is not None and time.monotonic() - started >= timeout:
+                    raise TimeoutError(str(path)) from None
+                time.sleep(0.5)
+        yield
+    finally:
+        handle.close()
+
+
+def lock_held(path):
+    """True when another process holds the flock on path."""
+    if not path.exists():
+        return False
+    with open(path, "a", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+    return False
+
 
 def site_packages():
     chosen = os.environ.get("SITE_PACKAGES")

@@ -25,6 +25,9 @@ from bot_score import BUY, SELL, Book, warm_rsi
 QTY = Decimal("0.00000001")
 BOARD_SIZE = 20
 BOARD_KEY = ("latest",)
+# Calendar days that surely hold the 40 sessions the score reads, so the query does not
+# grow with the depth of the archive.
+WINDOW_DAYS = 120
 # Candidates kept in one decision row; the rest are only counted.
 LOGGED = 30
 
@@ -63,7 +66,7 @@ def scores_for(conn, symbols):
             SELECT asset_name, price,
                    ROW_NUMBER() OVER (PARTITION BY asset_name ORDER BY timestamp DESC) AS n
             FROM market_history
-            WHERE asset_name IN ({marks})
+            WHERE asset_name IN ({marks}) AND timestamp >= NOW() - INTERVAL {WINDOW_DAYS} DAY
         ) ranked
         WHERE n <= 40
         ORDER BY asset_name, n DESC
@@ -107,10 +110,12 @@ def score_book(conn):
             SELECT asset_name, timestamp, price, bar_ms, live,
                    ROW_NUMBER() OVER (PARTITION BY asset_name ORDER BY timestamp DESC) AS n
             FROM market_history
+            WHERE timestamp >= NOW() - INTERVAL %s DAY
         ) t
         WHERE n <= 40
         ORDER BY asset_name, n DESC
-        """
+        """,
+        (WINDOW_DAYS,),
     )
     series = defaultdict(list)
     for asset, stamp, price, bar_ms, live in cur:
