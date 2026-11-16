@@ -84,6 +84,7 @@
   "decisions.buy": "kauft {symbol} {qty} zu {price}",
   "decisions.sold": "verkauft {symbols}",
   "decisions.none": "kein Kauf: {reason}",
+  "decisions.no_cash": "kein Kauf: zu wenig Bargeld für {symbol}, Los {cost}, Bargeld {cash}",
   "decisions.price_live": "Intraday-Kurs {when}",
   "decisions.price_close": "Schluss {when}",
   "reason.not_buy": "kein Kauf-Signal",

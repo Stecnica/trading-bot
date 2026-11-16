@@ -84,6 +84,7 @@
   "decisions.buy": "achète {symbol} {qty} à {price}",
   "decisions.sold": "vend {symbols}",
   "decisions.none": "aucun achat : {reason}",
+  "decisions.no_cash": "aucun achat : trésorerie insuffisante pour {symbol}, lot {cost}, trésorerie {cash}",
   "decisions.price_live": "cours intraday {when}",
   "decisions.price_close": "clôture {when}",
   "reason.not_buy": "pas achat",

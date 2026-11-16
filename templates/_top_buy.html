@@ -41,7 +41,7 @@
 		<li class="border-top py-1" title="{% for c in d.candidates %}{% if c.more %}+{{ c.more }}{% else %}{{ c.symbol }} {{ '%+.3f'|format(c.score) }} {{ t('reason.' ~ c.reason) if c.reason != 'buy' else t('score.buy') }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}">
 			<span class="text-nowrap">{{ d.created_at|when }}</span> · <span class="text-nowrap">{{ t('decisions.cash', cash=d.cash_before|px) }}</span>
 			{% if d.sold %} · {{ t('decisions.sold', symbols=d.sold|join(', ')) }}{% endif %}
-			· {% if d.action == 'buy' %}{{ t('decisions.buy', symbol=d.symbol, qty=d.amount|qty, price=d.price|px) }}{% else %}{{ t('decisions.none', reason=t('reason.' ~ d.reason)) }}{% endif %}
+			· {% if d.action == 'buy' %}{{ t('decisions.buy', symbol=d.symbol, qty=d.amount|qty, price=d.price|px) }}{% elif d.reason == 'no_cash' and d.short_symbol %}{{ t('decisions.no_cash', symbol=d.short_symbol, cost=d.short_cost|px, cash=d.cash_before|px) }}{% else %}{{ t('decisions.none', reason=t('reason.' ~ d.reason)) }}{% endif %}
 			{%- if d.price_source %} · <span class="text-nowrap">{{ t('decisions.price_' ~ d.price_source, when=d.price_at|when) }}</span>{% endif %}
 		</li>
 		{% endfor %}

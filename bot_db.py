@@ -1013,6 +1013,9 @@ def recent_decisions(conn, limit=5):
         except ValueError:
             row["candidates"] = []
         row["sold"] = [item for item in (row["sold"] or "").split(",") if item]
+        tried = next((item for item in row["candidates"] if item.get("reason") == "no_cash"), None)
+        row["short_symbol"] = tried["symbol"] if tried else None
+        row["short_cost"] = tried.get("cost") if tried else None
     return rows
 
 

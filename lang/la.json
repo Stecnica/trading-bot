@@ -84,6 +84,7 @@
   "decisions.buy": "emit {symbol} {qty} pretio {price}",
   "decisions.sold": "vendit {symbols}",
   "decisions.none": "nulla emptio: {reason}",
+  "decisions.no_cash": "nulla emptio: pecunia deest pro {symbol}, sors {cost}, pecunia {cash}",
   "decisions.price_live": "pretium intra diem {when}",
   "decisions.price_close": "clausura {when}",
   "reason.not_buy": "non emendum",

@@ -84,6 +84,7 @@
   "decisions.buy": "compra {symbol} {qty} a {price}",
   "decisions.sold": "vende {symbols}",
   "decisions.none": "nessun acquisto: {reason}",
+  "decisions.no_cash": "nessun acquisto: cassa insufficiente per {symbol}, lotto {cost}, cassa {cash}",
   "decisions.price_live": "prezzo intraday {when}",
   "decisions.price_close": "chiusura {when}",
   "reason.not_buy": "non è buy",

@@ -84,6 +84,7 @@
   "decisions.buy": "buys {symbol} {qty} at {price}",
   "decisions.sold": "sells {symbols}",
   "decisions.none": "no buy: {reason}",
+  "decisions.no_cash": "no buy: not enough cash for {symbol}, lot {cost}, cash {cash}",
   "decisions.price_live": "intraday price {when}",
   "decisions.price_close": "close {when}",
   "reason.not_buy": "not buy",
