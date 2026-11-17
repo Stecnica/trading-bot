@@ -374,19 +374,16 @@
 			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr + tr.phone-sell { display: table-row; }
 			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.phone-sell > td { padding-block: 0 0.5rem; }
 			.slot-only { display: none; }
-			.grid-table tbody > tr:first-child > td.result-cell { white-space: normal; }
-			.pct-pill {
-				display: table;
-				margin: 0 0 0.15rem auto;
-				padding: 0.05rem 0.5rem;
-				border-radius: 999px;
-				color: #fff !important;
-				font-weight: 300;
-				font-size: 0.6875rem;
-				line-height: 1.25;
+			.grid-table tbody > tr:first-child > td.result-cell {
+				position: relative;
+				padding-top: 1.15rem;
 				white-space: nowrap;
 			}
-			.result-cell > .pill-amt { display: block; }
+			.result-cell > .badge {
+				position: absolute;
+				top: 0.12rem;
+				right: 0.15rem;
+			}
 			.pos-pct { display: none; }
 			.chart-toolbar {
 				display: grid !important;
@@ -542,11 +539,8 @@
 			color: var(--bs-secondary-color);
 		}
 		@media (min-width: 576px) {
-			.pct-pill { display: none; }
+			.result-cell > .badge { display: none; }
 		}
-		.pct-pill.gain { background: var(--bs-success); }
-		.pct-pill.loss { background: var(--bs-danger); }
-		.pct-pill.flat { background: var(--bs-secondary); }
 		.pos-net { display: block; font-weight: 200; }
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
@@ -1312,7 +1306,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=74) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=75) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}
