@@ -414,12 +414,15 @@
 				width: 100%;
 				justify-content: space-between;
 			}
+			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child {
+				background-image: radial-gradient(ellipse 160% 100% at 50% 50%, rgba(134, 219, 255, 0.22), #fff 70%);
+				background-repeat: no-repeat;
+			}
 			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child > td {
 				border-bottom: 2px solid #0d6efd;
-				background-image: linear-gradient(90deg, rgba(134, 219, 255, 0.22), #fff);
-			}
-			[data-bs-theme="dark"] .nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child > td {
-				background-image: linear-gradient(90deg, rgba(134, 219, 255, 0.16), var(--bs-body-bg));
+				background-color: transparent;
+				background-image: none;
+				box-shadow: none;
 			}
 			input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
 			select,
@@ -1307,7 +1310,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=71) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=72) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}
