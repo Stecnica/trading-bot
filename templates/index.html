@@ -374,18 +374,6 @@
 			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr + tr.phone-sell { display: table-row; }
 			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.phone-sell > td { padding-block: 0 0.5rem; }
 			.slot-only { display: none; }
-			.grid-table td.result-cell { position: relative; }
-			.result-cell > .badge {
-				position: absolute;
-				top: 0;
-				right: 0;
-				z-index: 1;
-				padding: 0.1em 0.35em;
-				font-size: 0.625rem;
-				font-weight: 400;
-				line-height: 1;
-			}
-			.pos-pct { display: none; }
 			.chart-toolbar {
 				display: grid !important;
 				grid-template-columns: minmax(0, 1fr) auto;
@@ -417,16 +405,6 @@
 				grid-row: 2;
 				width: 100%;
 				justify-content: space-between;
-			}
-			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child {
-				background-image: radial-gradient(ellipse 160% 100% at 50% 50%, rgba(134, 219, 255, 0.22), #fff 70%);
-				background-repeat: no-repeat;
-			}
-			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child > td {
-				border-bottom: 2px solid #0d6efd;
-				background-color: transparent;
-				background-image: none;
-				box-shadow: none;
 			}
 			input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
 			select,
@@ -539,10 +517,30 @@
 			background: rgba(var(--bs-secondary-rgb), 0.16);
 			color: var(--bs-secondary-color);
 		}
-		@media (min-width: 576px) {
-			.result-cell > .badge { display: none; }
+		.grid-table td.result-cell { position: relative; }
+		.result-cell > .badge {
+			position: absolute;
+			top: 0.7rem;
+			right: 0;
+			z-index: 0;
+			padding: 0 0.3em;
+			font-size: 0.5625rem;
+			font-weight: 400;
+			line-height: 1;
 		}
-		.pos-net { display: block; font-weight: 200; }
+		.result-cell > .pill-amt { position: relative; z-index: 1; }
+		.pos-pct { display: none; }
+		.pos-net { font-weight: 200; }
+		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child {
+			background-image: radial-gradient(ellipse 160% 100% at 50% 50%, rgba(134, 219, 255, 0.22), #fff 70%);
+			background-repeat: no-repeat;
+		}
+		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child > td {
+			border-bottom: 2px solid #0d6efd;
+			background-color: transparent;
+			background-image: none;
+			box-shadow: none;
+		}
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
 	</style>
