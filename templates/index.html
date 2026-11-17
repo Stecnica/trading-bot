@@ -243,6 +243,21 @@
 			scrollbar-gutter: stable;
 			border-top: 1px solid var(--bs-border-color);
 		}
+		.nav-panel-grid .grid-foot .total-row {
+			display: flex;
+			justify-content: flex-end;
+			align-items: flex-start;
+			gap: 1.25rem;
+			padding: 0.5rem 0.5rem 0;
+			text-align: right;
+			font-variant-numeric: tabular-nums;
+		}
+		.nav-panel-grid .grid-foot .total-field { flex: 0 0 auto; font-weight: 400; }
+		.nav-panel-grid .grid-foot .total-est {
+			font-size: 0.75rem;
+			font-weight: 300;
+			color: var(--bs-secondary-color);
+		}
 		.nav-panel-grid .grid-scroll > h3 {
 			margin: 1rem 0 0.5rem;
 			font-size: 0.8rem;
@@ -520,12 +535,23 @@
 		.grid-table tbody > tr:first-child > td.result-cell { position: relative; }
 		.result-cell > .badge {
 			position: absolute;
-			top: 0;
+			top: 3em;
 			right: 0;
-			padding: 0 0.3em;
-			font-size: 0.5625rem;
+			font-size: 0.6rem;
 			font-weight: 400;
 			line-height: 1;
+		}
+		@media (max-width: 575.98px) {
+			.result-cell > .badge {
+				position: absolute;
+				top: 2.7em;
+				right: 0.2em;
+				padding: 0.20em 0.15em 0.20em 0.25em;
+				font-size: 0.6rem;
+				font-weight: 400;
+				line-height: 1;
+				z-index: 1;
+			}
 		}
 		.result-cell > .pill-amt { color: var(--bs-body-color); }
 		.pos-pct { display: none; }
@@ -755,7 +781,6 @@
 {% from "_grid.html" import grid_cols, grid_sign, currency_head, head, symbol, pct_pill with context %}
 {% set tx_widths = [19, 4, 9, 11, 15, 15, 14, 13] %}
 {% set tx_phone = [16, 14, 18, 18, 34, 0, 0, 0] %}
-{% set tx_total_phone = [33, 33, 34, 0, 0, 0, 0, 0] %}
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid d-flex flex-wrap">
@@ -995,25 +1020,19 @@
 							</div>
 							<button type="button" class="grid-more" hidden title="{{ t('tx.more') }}" aria-label="{{ t('tx.more') }}">{% include "chevrons-down.svg" %}</button>
 							<div class="grid-foot">
-							<table class="table grid-table grid-total">
-								{{ grid_cols(tx_widths, tx_total_phone) }}
-								<tbody>
-									<tr>
-										<td class="m-hide" colspan="5"></td>
-										<td title="{{ t('tx.total_fees') }}">{{ (transactions.totals.fees if transactions.totals else 0)|px }}</td>
-										<td title="{{ t('tx.total_taxes') }}">{{ (transactions.totals.taxes if transactions.totals else 0)|px }}</td>
-										<td title="{{ t('tx.total_balance') }}" data-paper-balance>{{ paper_balance|px }}</td>
-									</tr>
-									{% if transactions.totals and transactions.totals.est_count %}
-									<tr>
-										<td class="m-hide" colspan="5"></td>
-										<td title="{{ t('tx.est_fees_title') }}">+ ≈ {{ transactions.totals.est_fees|px }}</td>
-										<td title="{{ t('tx.est_taxes_title') }}">+ ≈ {{ transactions.totals.est_taxes|px }}</td>
-										<td></td>
-									</tr>
-									{% endif %}
-								</tbody>
-							</table>
+							<div class="total-row">
+								<div class="total-field" title="{{ t('tx.total_fees') }}">
+									<div>{{ (transactions.totals.fees if transactions.totals else 0)|px }}</div>
+									{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_fees_title') }}">+ ≈ {{ transactions.totals.est_fees|px }}</div>{% endif %}
+								</div>
+								<div class="total-field" title="{{ t('tx.total_taxes') }}">
+									<div>{{ (transactions.totals.taxes if transactions.totals else 0)|px }}</div>
+									{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_taxes_title') }}">+ ≈ {{ transactions.totals.est_taxes|px }}</div>{% endif %}
+								</div>
+								<div class="total-field" title="{{ t('tx.total_balance') }}">
+									<div data-paper-balance>{{ paper_balance|px }}</div>
+								</div>
+							</div>
 							</div>
 							<p class="m-2 border-top pt-2">{{ t('tx.help') }}</p>
 						</div>
