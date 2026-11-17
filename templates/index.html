@@ -517,10 +517,7 @@
 			background: rgba(var(--bs-secondary-rgb), 0.16);
 			color: var(--bs-secondary-color);
 		}
-		.grid-table tbody > tr:first-child > td.result-cell {
-			position: relative;
-			padding-top: calc(0.5rem + 10px);
-		}
+		.grid-table tbody > tr:first-child > td.result-cell { position: relative; }
 		.result-cell > .badge {
 			position: absolute;
 			top: 0;
@@ -530,6 +527,7 @@
 			font-weight: 400;
 			line-height: 1;
 		}
+		.result-cell > .pill-amt { color: var(--bs-body-color); }
 		.pos-pct { display: none; }
 		.pos-net { font-weight: 200; }
 		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child {
@@ -537,10 +535,13 @@
 			background-repeat: no-repeat;
 		}
 		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child > td {
-			border-bottom: 2px solid #0d6efd;
 			background-color: transparent;
 			background-image: none;
 			box-shadow: none;
+		}
+		.nav-panel-grid .grid-table:not(.grid-total) tbody:has(> tr.lot-armed) > tr:last-child > td,
+		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed > td {
+			border-bottom-color: #0d6efd;
 		}
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
@@ -902,7 +903,7 @@
 										<td>{{ row.sell_price|px }}</td>
 										<td class="m-hide">{{ row.fees|px }}</td>
 										<td class="m-hide">{{ row.taxes|px }}</td>
-										<td class="result-cell {{ grid_sign(row.cash) }}" title="{{ t('tx.cash_title') }}">{{ pct_pill(row.ratio) }}<span class="pill-amt">{{ row.cash|signed_px }}</span></td>
+										<td class="result-cell" title="{{ t('tx.cash_title') }}">{{ pct_pill(row.ratio) }}<span class="pill-amt">{{ row.cash|signed_px }}</span></td>
 									</tr>
 									<tr>
 										<td class="grid-l">{{ t('tx.bought_on') }} {{ row.bought_at|when }}</td>
@@ -911,7 +912,7 @@
 										<td>{{ t('tx.proceeds') }} {{ row.proceeds|px }}</td>
 										<td title="{{ t('tx.fee_buy_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.buy_fees|px, rate=('≈ ' if row.estimated else '') ~ row.buy_fee_rate|rate) }}</td>
 										<td title="{{ t('tx.tax_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.tax_of', rate=('≈ ' if row.estimated else '') ~ row.tax_rate|rate, gain=row.taxable_gain|px) }}</td>
-										<td class="{{ grid_sign(row.cash) }}">{{ row.ratio|signed_pct }}</td>
+										<td></td>
 									</tr>
 									<tr>
 										<td class="grid-l"{% if row.recorded_at %} title="{{ t('tx.recorded_at', when=row.recorded_at|when) }}"{% endif %}>{{ t('tx.sold_on') }} {{ row.sold_at|when }}</td>
@@ -950,7 +951,7 @@
 										{% if row.est %}
 										<td class="m-hide" title="{{ t('tx.fees_open_title') }}">≈ {{ row.est.fees|px }}</td>
 										<td class="m-hide" title="{{ t('tx.taxes_open_title') }}">≈ {{ row.est.taxes|px }}</td>
-										<td class="result-cell {{ grid_sign(row.est.net) }}" title="{{ t('tx.cash_open_title') }}">{{ pct_pill(row.est.ratio) }}<span class="pill-amt">{{ row.est.net|signed_px }}</span></td>
+										<td class="result-cell" title="{{ t('tx.cash_open_title') }}">{{ pct_pill(row.est.ratio) }}<span class="pill-amt">{{ row.est.net|signed_px }}</span></td>
 										{% else %}
 										<td class="m-hide" title="{{ t('tx.fee_buy_title') }}">{{ row.fees|px }}</td>
 										<td class="m-hide" title="{{ t('tx.no_price') }}">—</td>
@@ -969,7 +970,7 @@
 										<td title="{{ t('tx.fee_buy_title') }}{% if row.estimated %} — {{ t('tx.rate_estimated') }}{% endif %}">{{ t('tx.fee_line', amount=row.fees|px, rate=('≈ ' if row.estimated else '') ~ row.buy_fee_rate|rate) }}</td>
 										{% if row.est %}
 										<td title="{{ t('tx.taxes_open_title') }}">{{ t('tx.tax_of', rate=row.est.tax_rate|rate, gain=row.est.taxable_gain|px) }}</td>
-										<td class="{{ grid_sign(row.est.net) }}">{{ row.est.ratio|signed_pct }}</td>
+										<td></td>
 										{% else %}
 										<td colspan="2"></td>
 										{% endif %}
@@ -999,15 +1000,9 @@
 								<tbody>
 									<tr>
 										<td class="m-hide" colspan="5"></td>
-										<th title="{{ t('tx.total_fees_title') }}">{{ t('tx.total_fees') }}</th>
-										<th title="{{ t('tx.total_taxes_title') }}">{{ t('tx.total_taxes') }}</th>
-										<th title="{{ t('tx.total_balance_title') }}">{{ t('tx.total_balance') }}</th>
-									</tr>
-									<tr>
-										<td class="m-hide" colspan="5"></td>
-										<td>{{ (transactions.totals.fees if transactions.totals else 0)|px }}</td>
-										<td>{{ (transactions.totals.taxes if transactions.totals else 0)|px }}</td>
-										<td data-paper-balance>{{ paper_balance|px }}</td>
+										<td title="{{ t('tx.total_fees') }}">{{ (transactions.totals.fees if transactions.totals else 0)|px }}</td>
+										<td title="{{ t('tx.total_taxes') }}">{{ (transactions.totals.taxes if transactions.totals else 0)|px }}</td>
+										<td title="{{ t('tx.total_balance') }}" data-paper-balance>{{ paper_balance|px }}</td>
 									</tr>
 									{% if transactions.totals and transactions.totals.est_count %}
 									<tr>
