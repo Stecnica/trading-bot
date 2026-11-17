@@ -28,7 +28,7 @@
   "positions.quantity": "Cantidad",
   "positions.quantity_short": "Cant.",
   "positions.cost": "Precio de coste",
-  "positions.cost_short": "Coste",
+  "positions.cost_short": "Precio",
   "positions.now": "Precio actual",
   "positions.now_short": "Actual",
   "positions.now_title": "Último precio guardado. Debajo, su fecha.",

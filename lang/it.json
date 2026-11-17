@@ -28,7 +28,7 @@
   "positions.quantity": "Quantità",
   "positions.quantity_short": "Qtà",
   "positions.cost": "Prezzo di carico",
-  "positions.cost_short": "Carico",
+  "positions.cost_short": "Prezzo",
   "positions.now": "Prezzo ora",
   "positions.now_short": "Ora",
   "positions.now_title": "Ultimo prezzo salvato. Sotto, la sua data.",

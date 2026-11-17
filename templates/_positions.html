@@ -13,9 +13,9 @@
 			<th class="grid-l">{{ head('positions.symbol') }}</th>
 			{{ currency_head() }}
 			<th>{{ head('positions.quantity') }}</th>
-			<th>{{ head('positions.cost') }}</th>
+			<th title="{{ t('positions.cost') }}">{{ t('positions.cost_short') }}</th>
 			<th title="{{ t('positions.now_title') }}">{{ head('positions.now') }}</th>
-			<th title="{{ t('positions.profit_title') }}">{{ head('positions.profit') }}</th>
+			<th title="{{ t('positions.profit') }}">{{ t('positions.profit_short') }}</th>
 			{% if selling %}<th class="m-hide"><span class="visually-hidden">{{ t('positions.sell') }}</span></th>{% endif %}
 		</tr>
 	</thead>

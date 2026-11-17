@@ -28,7 +28,7 @@
   "positions.quantity": "Quantité",
   "positions.quantity_short": "Qté",
   "positions.cost": "Prix de revient",
-  "positions.cost_short": "Revient",
+  "positions.cost_short": "Prix",
   "positions.now": "Prix actuel",
   "positions.now_short": "Actuel",
   "positions.now_title": "Dernier prix enregistré. En dessous, sa date.",

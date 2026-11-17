@@ -374,15 +374,16 @@
 			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr + tr.phone-sell { display: table-row; }
 			.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.phone-sell > td { padding-block: 0 0.5rem; }
 			.slot-only { display: none; }
-			.grid-table tbody > tr:first-child > td.result-cell {
-				position: relative;
-				padding-top: 1.15rem;
-				white-space: nowrap;
-			}
+			.grid-table td.result-cell { position: relative; }
 			.result-cell > .badge {
 				position: absolute;
-				top: 0.12rem;
-				right: 0.15rem;
+				top: 0;
+				right: 0;
+				z-index: 1;
+				padding: 0.1em 0.35em;
+				font-size: 0.625rem;
+				font-weight: 400;
+				line-height: 1;
 			}
 			.pos-pct { display: none; }
 			.chart-toolbar {

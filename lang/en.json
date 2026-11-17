@@ -28,7 +28,7 @@
   "positions.quantity": "Quantity",
   "positions.quantity_short": "Qty",
   "positions.cost": "Cost price",
-  "positions.cost_short": "Cost",
+  "positions.cost_short": "Price",
   "positions.now": "Price now",
   "positions.now_short": "Now",
   "positions.now_title": "Latest stored price. Below, its date.",
