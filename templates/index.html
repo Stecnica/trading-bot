@@ -517,18 +517,19 @@
 			background: rgba(var(--bs-secondary-rgb), 0.16);
 			color: var(--bs-secondary-color);
 		}
-		.grid-table td.result-cell { position: relative; }
+		.grid-table tbody > tr:first-child > td.result-cell {
+			position: relative;
+			padding-top: calc(0.5rem + 10px);
+		}
 		.result-cell > .badge {
 			position: absolute;
-			top: 0.7rem;
+			top: 0;
 			right: 0;
-			z-index: 0;
 			padding: 0 0.3em;
 			font-size: 0.5625rem;
 			font-weight: 400;
 			line-height: 1;
 		}
-		.result-cell > .pill-amt { position: relative; z-index: 1; }
 		.pos-pct { display: none; }
 		.pos-net { font-weight: 200; }
 		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child {
