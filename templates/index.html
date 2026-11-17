@@ -311,7 +311,7 @@
 			word-spacing: 0.1em;
 			position: absolute;
 			right: 1.5em;
-			margin-top: .5em;
+			top: 1.15em;
 		}
 		.bot-decisions summary { cursor: pointer; }
 		.grid-table:not(.grid-total) tbody > tr + tr > td {
@@ -538,11 +538,12 @@
 			background: rgba(var(--bs-secondary-rgb), 0.16);
 			color: var(--bs-secondary-color);
 		}
-		.grid-table tbody > tr:first-child > td.result-cell { position: relative; }
+		.grid-table tbody > tr:first-child > td.result-cell { position: relative; z-index: 2; }
 		.result-cell > .badge {
 			position: absolute;
 			top: 3em;
 			right: 0;
+			z-index: 1;
 			font-size: 0.6rem;
 			font-weight: 400;
 			line-height: 1;
@@ -562,18 +563,21 @@
 		.result-cell > .pill-amt { color: var(--bs-body-color); }
 		.pos-pct { display: none; }
 		.pos-net { font-weight: 200; }
-		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child {
+		/* The wash belongs to the whole lot, title row and the row attached under it. */
+		.nav-panel-grid .grid-table:not(.grid-total) tbody:has(> tr.lot-armed) {
 			background-image: radial-gradient(ellipse 160% 100% at 50% 50%, rgba(134, 219, 255, 0.22), #fff 70%);
 			background-repeat: no-repeat;
 		}
-		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed:first-child > td {
+		.nav-panel-grid .grid-table:not(.grid-total) tbody:has(> tr.lot-armed) > tr > td {
 			background-color: transparent;
 			background-image: none;
 			box-shadow: none;
 		}
-		.nav-panel-grid .grid-table:not(.grid-total) tbody:has(> tr.lot-armed) > tr:last-child > td,
-		.nav-panel-grid .grid-table:not(.grid-total) tbody > tr.lot-armed > td {
-			border-bottom-color: #0d6efd;
+		/* Phones keep the ordinary row border: colouring every cell there draws a blue line through the row. */
+		@media (min-width: 576px) {
+			.nav-panel-grid .grid-table:not(.grid-total) tbody:has(> tr.lot-armed) > tr:last-child > td {
+				border-bottom-color: #0d6efd;
+			}
 		}
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
@@ -786,7 +790,7 @@
 {% endmacro %}
 {% from "_grid.html" import grid_cols, grid_sign, currency_head, head, symbol, pct_pill with context %}
 {% set tx_widths = [19, 4, 9, 11, 15, 15, 14, 13] %}
-{% set tx_phone = [16, 14, 18, 18, 34, 0, 0, 0] %}
+{% set tx_phone = [18, 16, 22, 22, 22, 0, 0, 0] %}
 	<header class="sticky-top">
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid d-flex flex-wrap">

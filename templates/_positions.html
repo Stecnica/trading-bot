@@ -4,9 +4,9 @@
 {% set selling = positions|selectattr('ready')|list|length > 0 %}
 <table class="table grid-table">
 	{% if selling %}
-	{{ grid_cols([22, 5, 12, 15, 15, 17, 14], [16, 13, 18, 18, 35, 0, 0]) }}
+	{{ grid_cols([22, 5, 12, 15, 15, 17, 14], [20, 16, 22, 22, 20, 0, 0]) }}
 	{% else %}
-	{{ grid_cols([25, 6, 14, 17, 18, 20], [16, 13, 18, 18, 35, 0]) }}
+	{{ grid_cols([25, 6, 14, 17, 18, 20], [20, 16, 22, 22, 20, 0]) }}
 	{% endif %}
 	<thead>
 		<tr>
