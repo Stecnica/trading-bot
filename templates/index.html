@@ -303,10 +303,16 @@
 		.grid-scroll > .grid-table:last-of-type > tbody:last-child > tr:last-child > *,
 		.top-buy > tbody:last-child > tr:last-child > * { border-bottom-width: 0; }
 		.grid-table tr.pos-sub > td { vertical-align: top; }
+		.grid-table tr.pos-sub > td:has(> .glue) { position: relative; }
 		/* Hidden, not removed: removing it could pull the part back onto the line above. */
 		.glue-part.line-start > .glue-sep { visibility: hidden; }
 		/* The face draws a narrow space at sub-line size; the separators need room to read. */
-		.glue { word-spacing: 0.1em; }
+		.glue {
+			word-spacing: 0.1em;
+			position: absolute;
+			right: 1.5em;
+			margin-top: .5em;
+		}
 		.bot-decisions summary { cursor: pointer; }
 		.grid-table:not(.grid-total) tbody > tr + tr > td {
 			font-size: 0.75rem;
