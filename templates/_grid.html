@@ -8,4 +8,4 @@
 {% set caption = (asset ~ ' - ' ~ company) if company else asset %}
 <button type="button" class="sym-btn" data-chart-asset="{{ asset }}" aria-label="{{ caption }}" title="{{ caption }}">{{ asset }}</button>
 {% endmacro %}
-{% macro net_badge(ratio) %}<td class="phone-col">{% if ratio is none %}—{% else %}<span class="pct-badge {% if ratio > 0 %}gain{% elif ratio < 0 %}loss{% else %}flat{% endif %}">{{ ratio|abs_pct }}</span>{% endif %}</td>{% endmacro %}
+{% macro pct_pill(ratio) %}{% if ratio is not none %}<span class="pct-pill {% if ratio > 0 %}gain{% elif ratio < 0 %}loss{% else %}flat{% endif %}">{{ ratio|abs_pct }}</span>{% endif %}{% endmacro %}

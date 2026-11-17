@@ -1270,6 +1270,7 @@ def position_rows(conn, prefs):
                 "market_price": None if market is None else Decimal(str(market["price"])),
                 "market_time": None if market is None else market["timestamp"],
                 "ratio": ratio,
+                "net": None if quote is None else money(quote["proceeds"] - quote["cost"]),
                 "ready": ready,
                 "armed": peak is not None,
                 "outcome": outcome,
