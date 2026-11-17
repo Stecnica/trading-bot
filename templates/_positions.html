@@ -21,7 +21,7 @@
 	</thead>
 	{% for row in positions %}
 	<tbody{% if row.ready %} class="table-success"{% endif %}>
-		<tr>
+		<tr{% if row.armed %} class="lot-armed"{% endif %}>
 			<td class="grid-l"{% if row.score_detail %} title="{{ row.score_detail }}"{% endif %}>{{ symbol(row.asset) }}</td>
 			<td class="grid-l m-hide" title="{{ row.currency }}">{{ row.currency|currency }}</td>
 			<td title="{{ row.amount|qty_full }}">{{ row.amount|qty }}</td>

@@ -1236,21 +1236,21 @@ def position_rows(conn, prefs):
             and ratio >= prefs["profit_threshold"]
             and not stale
         )
+        peak = None
+        if lot.timestamp is not None:
+            peak = armed_peak(
+                lot,
+                closes_since(conn, lot.asset, lot.timestamp),
+                prefs["fee_rate"],
+                prefs["tax_rate"],
+                prefs["profit_threshold"],
+            )
         if market is None:
             outcome = tr("positions.no_price")
         elif stale:
             outcome = tr("positions.stale")
         elif ready:
             outcome = tr("positions.ready")
-            peak = None
-            if lot.timestamp is not None:
-                peak = armed_peak(
-                    lot,
-                    closes_since(conn, lot.asset, lot.timestamp),
-                    prefs["fee_rate"],
-                    prefs["tax_rate"],
-                    prefs["profit_threshold"],
-                )
             if peak is not None:
                 outcome = tr(
                     "positions.armed",
@@ -1271,6 +1271,7 @@ def position_rows(conn, prefs):
                 "market_time": None if market is None else market["timestamp"],
                 "ratio": ratio,
                 "ready": ready,
+                "armed": peak is not None,
                 "outcome": outcome,
             }
         )

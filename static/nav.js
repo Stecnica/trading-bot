@@ -39,6 +39,19 @@ function uiText(key, vars) {
   return text;
 }
 
+function chartCaption(asset) {
+  if (!chartCaption.names) {
+    var node = document.getElementById("security-names");
+    try {
+      chartCaption.names = node ? JSON.parse(node.textContent) : {};
+    } catch (error) {
+      chartCaption.names = {};
+    }
+  }
+  var name = chartCaption.names[asset];
+  return name ? asset + " - " + name : asset;
+}
+
 (function () {
   var root = document.documentElement;
   if (root.getAttribute("data-theme") !== "auto") {
@@ -1405,7 +1418,8 @@ function uiText(key, vars) {
         return;
       }
       event.preventDefault();
-      openPeek(button.getAttribute("data-chart-asset"), button.getAttribute("aria-label"));
+      var asset = button.getAttribute("data-chart-asset");
+      openPeek(asset, chartCaption(asset));
     });
     /* A click on the backdrop closes the preview. */
     peek.addEventListener("click", function (event) {
@@ -1436,7 +1450,7 @@ function uiText(key, vars) {
     var buyPeek = document.querySelector("#buy-peek [data-chart-asset]");
     if (buySelect && buyPeek) {
       buySelect.addEventListener("change", function () {
-        var label = uiText("chart.open", { asset: buySelect.value });
+        var label = chartCaption(buySelect.value);
         buyPeek.setAttribute("data-chart-asset", buySelect.value);
         buyPeek.setAttribute("aria-label", label);
         buyPeek.setAttribute("title", label);

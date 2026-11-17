@@ -315,6 +315,14 @@ def format_pct(value):
     return f"{Decimal(str(value)) * 100:.3f} %"
 
 
+@app.template_filter("abs_pct")
+def format_abs_pct(value):
+    if value is None:
+        return "—"
+    number = (Decimal(str(value)) * 100).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    return f"{abs(number):.3f} %"
+
+
 @app.template_filter("signed_pct")
 def format_signed_pct(value):
     if value is None:
@@ -511,6 +519,13 @@ def home():
         positions = position_rows(conn, prefs)
         _attach_score(conn, positions)
         transactions = recent_transactions(conn, prefs)
+        armed_ids = {row["lot_id"] for row in positions if row.get("armed")}
+        threshold = prefs["profit_threshold"]
+        for row in transactions["open"]:
+            row["armed"] = row["buy_id"] in armed_ids
+        for row in transactions["closed"]:
+            ratio = row.get("ratio")
+            row["reached"] = ratio is not None and ratio >= threshold
         balance = paper_balance(conn, prefs)
         top_buy = _top_buy(conn, positions, catalog, prefs, balance)
         decisions = recent_decisions(conn)
@@ -559,6 +574,7 @@ def home():
         paper_balance=balance,
         assets=assets,
         asset_options=asset_options,
+        names=catalog,
         status=status,
         running=running,
         sync_notice=sync_notice,
@@ -963,12 +979,16 @@ def save_prefs():
                 "_top_buy.html",
                 top_buy=_top_buy(conn, rows, security_names(), prefs, paper_balance(conn, prefs)),
                 decisions=recent_decisions(conn),
+                names=security_names(),
             )
         if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours", "max_hold_days", "trail", "sell_delay_score"}.intersection(values):
             rows = position_rows(conn, prefs)
             _attach_score(conn, rows)
             payload["positions_html"] = render_template(
-                "_positions.html", positions=rows, csrf=session.get("csrf", "")
+                "_positions.html",
+                positions=rows,
+                csrf=session.get("csrf", ""),
+                names=security_names(),
             )
             payload["positions_help"] = tr(
                 "positions.help",

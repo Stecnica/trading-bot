@@ -3,4 +3,9 @@
 {% macro grid_sign(value) %}{% if value is not none and value > 0 %}text-success{% elif value is not none and value < 0 %}text-danger{% endif %}{% endmacro %}
 {% macro currency_head() %}<th class="grid-l m-hide" title="{{ t('tx.currency') }}"><span class="grid-icon" aria-hidden="true">{% include "coins.svg" %}</span><span class="visually-hidden">{{ t('tx.currency') }}</span></th>{% endmacro %}
 {% macro head(key) %}<span class="lbl-full">{{ t(key) }}</span><span class="lbl-short">{{ t(key ~ '_short') }}</span>{% endmacro %}
-{% macro symbol(asset) %}<button type="button" class="sym-btn" data-chart-asset="{{ asset }}" aria-label="{{ t('chart.open', asset=asset) }}" title="{{ t('chart.open', asset=asset) }}">{{ asset }}</button>{% endmacro %}
+{% macro symbol(asset) %}
+{% set company = names.get(asset) if names is mapping else none %}
+{% set caption = (asset ~ ' - ' ~ company) if company else asset %}
+<button type="button" class="sym-btn" data-chart-asset="{{ asset }}" aria-label="{{ caption }}" title="{{ caption }}">{{ asset }}</button>
+{% endmacro %}
+{% macro net_badge(ratio) %}<td class="phone-col">{% if ratio is none %}—{% else %}<span class="pct-badge {% if ratio > 0 %}gain{% elif ratio < 0 %}loss{% else %}flat{% endif %}">{{ ratio|abs_pct }}</span>{% endif %}</td>{% endmacro %}
