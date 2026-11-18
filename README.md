@@ -1,8 +1,8 @@
 # Trading bot
 
-Version 0.1.0.
+Version 0.2.0.
 
-[![Version](https://img.shields.io/github/v/tag/Stecnica/trading-bot)](https://github.com/Stecnica/trading-bot/releases/tag/v0.1.0) [![Tests](https://img.shields.io/github/actions/workflow/status/Stecnica/trading-bot/tests.yml?branch=main)](https://github.com/Stecnica/trading-bot/actions/workflows/tests.yml)
+[![Version](https://img.shields.io/github/v/tag/Stecnica/trading-bot)](https://github.com/Stecnica/trading-bot/releases/tag/v0.2.0) [![Tests](https://img.shields.io/github/actions/workflow/status/Stecnica/trading-bot/tests.yml?branch=main)](https://github.com/Stecnica/trading-bot/actions/workflows/tests.yml)
 
 A paper-trading application for one US equity list. It stores daily prices, records buys, and records a sale when the net profit of an open lot reaches the configured threshold. Prices come from [Massive](https://massive.com/stocks). Orders are not sent to a broker: a buy or a sale is a row in the database.
 
