@@ -182,6 +182,13 @@ def test_open_lot_estimate_matches_the_sale_quote_sell_would_record():
     assert row["est"]["fees"] == money(row["fees"] + quote["fees"])
     assert views["totals"]["est_fees"] == quote["fees"]
     assert views["totals"]["fees"] == row["fees"]
+    opened = views["totals"]["columns"]["open"]
+    assert opened["price"] == Decimal("671.64")
+    assert opened["cost"] == row["cost"]
+    assert opened["fees"] == row["est"]["fees"]
+    assert opened["taxes"] == quote["taxes"]
+    assert opened["cash"] == row["est"]["net"]
+    assert opened["est_rows"] == opened["rows"] == 1
     assert paper_cash_balance([buy], "10000") == Decimal("10000") + row["cash"]
 
 
@@ -207,6 +214,21 @@ def test_partial_sale_splits_taxable_gain_and_totals_cover_both_sides():
     assert taxable_gains_by_sale(txs) == {3: Decimal("24.665")}
     assert views["totals"]["fees"] == Decimal("0.39")
     assert views["totals"]["taxes"] == Decimal("3")
+    closed_sum = views["totals"]["columns"]["closed"]
+    assert closed_sum["qty"] == Decimal("3")
+    assert closed_sum["buy"] == Decimal("105")
+    assert closed_sum["sell"] == Decimal("120")
+    assert closed_sum["fees"] == Decimal("0.335")
+    assert closed_sum["taxes"] == Decimal("3")
+    assert closed_sum["cash"] == Decimal("21.665")
+    open_sum = views["totals"]["columns"]["open"]
+    assert open_sum["qty"] == Decimal("1")
+    assert open_sum["price"] == Decimal("55")
+    assert open_sum["cost"] == Decimal("55.055")
+    assert open_sum["fees"] == Decimal("0.055")
+    assert open_sum["taxes"] is None
+    assert open_sum["cash"] is None
+    assert open_sum["est_rows"] == 0
 
 
 def test_lot_without_currency_uses_the_stored_symbol():
