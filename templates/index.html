@@ -62,9 +62,15 @@
 		.brand-menu .icon-btn {
 			--bs-btn-padding-x: 0;
 			--bs-btn-padding-y: 0;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
 			width: 2rem;
 			height: 2rem;
+			padding: 0;
+			line-height: 1;
 		}
+		.brand-menu .icon-btn .flag-icon { margin: 0; }
 		.navbar .flag-icon { vertical-align: middle; }
 		.lang-menu { max-height: min(70vh, 24rem); overflow: auto; }
 		.navbar .icon-btn {
@@ -825,7 +831,7 @@
 									</button>
 								</form>
 								<button class="btn btn-outline-secondary icon-btn" type="button" id="lingua-toggle" aria-expanded="false" aria-controls="lingua-list" title="{{ t('nav.language_current', name=language.name) }}" aria-label="{{ t('nav.language_current', name=language.name) }}">
-									<span class="flag-icon flag-icon-{{ language.flag }} m-1" aria-hidden="true"></span>
+									<span class="flag-icon flag-icon-{{ language.flag }}" aria-hidden="true"></span>
 								</button>
 								<form method="post" action="{{ url_for('logout') }}" class="m-0">
 									<input type="hidden" name="csrf" value="{{ csrf }}">
