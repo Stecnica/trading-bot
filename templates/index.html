@@ -478,6 +478,16 @@
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 			gap: 0.25rem 1rem !important;
 		}
+		@media (max-width: 575.98px) {
+			#stats.stats-grid {
+				display: grid !important;
+				grid-template-columns: repeat(5, minmax(0, 5fr));
+				padding-left: .5rem;
+				padding-right: .5rem;
+				gap: 0.2rem 0.35rem !important;
+			}
+			#stats.stats-grid > div { font-size: 0.75rem; }
+		}
 		.pref-gear {
 			--bs-btn-padding-x: 0;
 			--bs-btn-padding-y: 0;
@@ -1252,7 +1262,7 @@
 					</select>
 					</div>
 					<div class="flex-grow-1"></div>
-					<div id="stats" class="d-flex flex-wrap align-items-start justify-content-end gap-3 text-end px-3 py-1" data-stats="{{ url_for('chart_stats') }}"{% if view == 'history' %} data-loaded{% endif %} aria-live="polite">
+					<div id="stats" class="d-flex flex-wrap align-items-start justify-content-end gap-3 text-end py-1" data-stats="{{ url_for('chart_stats') }}"{% if view == 'history' %} data-loaded{% endif %} aria-live="polite">
 					<div>
 						<div class="form-label">{{ t('history.change') }}</div>
 						<div class="fw-semibold {{ 'text-success' if stats.tone == 'success' else 'text-danger' if stats.tone == 'danger' else 'text-body' }}" data-stat="change">{{ stats.change }}</div>
