@@ -47,12 +47,23 @@
 			justify-content: center;
 		}
 		.navbar .btn-nav-menu { --bs-btn-bg: rgba(0, 0, 0, 0.1); }
-		.navbar .brand-list {
+		.navbar .brand-list,
+		.navbar .brand-mark {
 			border: 0;
 			background: transparent;
 			box-shadow: none;
 			padding-left: 0;
 			padding-right: 0;
+		}
+		.navbar .brand-mark { padding: 0; line-height: 0; }
+		.navbar .brand-mark:hover,
+		.navbar .brand-mark:focus { background: transparent; }
+		.brand-menu { min-width: 0; }
+		.brand-menu .icon-btn {
+			--bs-btn-padding-x: 0;
+			--bs-btn-padding-y: 0;
+			width: 2rem;
+			height: 2rem;
 		}
 		.navbar .flag-icon { vertical-align: middle; }
 		.lang-menu { max-height: min(70vh, 24rem); overflow: auto; }
@@ -795,9 +806,43 @@
 		<nav class="navbar navbar-expand navbar-dark bg-primary position-relative z-2">
 			<div class="container-fluid d-flex flex-wrap">
 				<div class="d-flex align-items-center flex-shrink-0 mb-2 mb-md-0">
-					<a class="navbar-brand" href="{{ url_for('home', view='volume') }}" aria-label="Trading bot">
-						<img src="{{ url_for('static', filename='icona.png') }}" alt="" width="32" height="32">
-					</a>
+					<div class="dropdown">
+						<button class="navbar-brand brand-mark" type="button" id="brand-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Trading bot">
+							<img src="{{ url_for('static', filename='icona.png') }}" alt="" width="32" height="32">
+						</button>
+						<div class="dropdown-menu brand-menu" aria-labelledby="brand-toggle">
+							<div class="d-flex align-items-center gap-2 p-2">
+								<form method="post" action="{{ url_for('refresh') }}" class="m-0">
+									<input type="hidden" name="csrf" value="{{ csrf }}">
+									<button class="btn btn-outline-secondary icon-btn{% if running %} spin{% endif %}" type="submit" title="{{ t('nav.refresh') }}" aria-label="{{ t('nav.refresh') }}" {% if running %}disabled{% endif %}>
+										<span aria-hidden="true">{% include "refresh-cw.svg" %}</span>
+									</button>
+								</form>
+								<form method="post" action="{{ url_for('cycle_sells') }}" class="m-0">
+									<input type="hidden" name="csrf" value="{{ csrf }}">
+									<button class="btn btn-outline-secondary icon-btn" type="submit" title="{{ t('nav.sells') }}" aria-label="{{ t('nav.sells') }}" {% if running %}disabled{% endif %}>
+										<span aria-hidden="true">{% include "list-checks.svg" %}</span>
+									</button>
+								</form>
+								<button class="btn btn-outline-secondary icon-btn" type="button" id="lingua-toggle" aria-expanded="false" aria-controls="lingua-list" title="{{ t('nav.language_current', name=language.name) }}" aria-label="{{ t('nav.language_current', name=language.name) }}">
+									<span class="flag-icon flag-icon-{{ language.flag }} m-1" aria-hidden="true"></span>
+								</button>
+								<form method="post" action="{{ url_for('logout') }}" class="m-0">
+									<input type="hidden" name="csrf" value="{{ csrf }}">
+									<button class="btn btn-outline-secondary icon-btn" type="submit" title="{{ t('nav.logout') }}" aria-label="{{ t('nav.logout') }}">
+										<span aria-hidden="true">{% include "log-out.svg" %}</span>
+									</button>
+								</form>
+							</div>
+							<ul class="lang-menu list-unstyled mb-0" id="lingua-list" hidden>
+								<li><h6 class="dropdown-header">{{ t('nav.language') }}</h6></li>
+								<li><hr class="dropdown-divider"></li>
+								{% for item in languages %}
+								<li><a class="dropdown-item d-flex align-items-center{% if lang == item.code %} active{% endif %}" href="{{ url_for('home', lang=item.code) }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a></li>
+								{% endfor %}
+							</ul>
+						</div>
+					</div>
 					<span class="navbar-brand pt-2 pb-0 me-1">Trading bot</span>
 					<div class="dropdown">
 						<button class="navbar-brand brand-list pt-2 pb-0" type="button" data-bs-toggle="dropdown" aria-expanded="false">S&amp;P500</button>
@@ -808,20 +853,6 @@
 					</div>
 				</div>
 				<div class="d-flex flex-grow-1 flex-wrap align-items-end justify-content-end gap-2">
-					<div class="flex-grow-1" style="max-width:1vw;"></div>
-					<form method="post" action="{{ url_for('refresh') }}">
-						<input type="hidden" name="csrf" value="{{ csrf }}">
-						<button class="btn btn-outline-light icon-btn{% if running %} spin{% endif %}" type="submit" title="{{ t('nav.refresh') }}" aria-label="{{ t('nav.refresh') }}" {% if running %}disabled{% endif %}>
-							<span aria-hidden="true">{% include "refresh-cw.svg" %}</span>
-						</button>
-					</form>
-					<form method="post" action="{{ url_for('cycle_sells') }}">
-						<input type="hidden" name="csrf" value="{{ csrf }}">
-						<button class="btn btn-outline-light icon-btn" type="submit" title="{{ t('nav.sells') }}" aria-label="{{ t('nav.sells') }}" {% if running %}disabled{% endif %}>
-							<span aria-hidden="true">{% include "list-checks.svg" %}</span>
-						</button>
-					</form>
-					<div class="flex-grow-1" style="max-width:1vw;"></div>
 					<div class="dropdown">
 						<button class="btn btn-outline-light btn-nav-menu" type="button" id="posizioni-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false">{{ t('nav.positions') }}</button>
 						<div class="dropdown-menu dropdown-menu-end nav-panel nav-panel-wide nav-panel-grid p-3" aria-labelledby="posizioni-toggle" hidden>
@@ -1047,26 +1078,6 @@
 							<p class="m-2 border-top pt-2">{{ t('tx.help') }}</p>
 						</div>
 					</div>
-					<div class="flex-grow-1" style="max-width:1vw;"></div>
-					<div class="dropdown">
-						<button class="btn btn-outline-light btn-nav-menu icon-btn" type="button" id="lingua-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="{{ t('nav.language_current', name=language.name) }}" aria-label="{{ t('nav.language_current', name=language.name) }}">
-							<span class="flag-icon flag-icon-{{ language.flag }} m-1" aria-hidden="true"></span>
-						</button>
-						<ul class="dropdown-menu dropdown-menu-end lang-menu" aria-labelledby="lingua-toggle">
-							<li><h6 class="dropdown-header">{{ t('nav.language') }}</h6></li>
-							<li><hr class="dropdown-divider"></li>
-							{% for item in languages %}
-							<li><a class="dropdown-item d-flex align-items-center{% if lang == item.code %} active{% endif %}" href="{{ url_for('home', lang=item.code) }}"><span class="flag-icon flag-icon-{{ item.flag }} me-2" aria-hidden="true"></span>{{ item.name }}</a></li>
-							{% endfor %}
-						</ul>
-					</div>
-					<div class="flex-grow-1" style="max-width:1vw;"></div>
-					<form method="post" action="{{ url_for('logout') }}">
-						<input type="hidden" name="csrf" value="{{ csrf }}">
-						<button class="btn btn-outline-light btn-nav-menu icon-btn" type="submit" title="{{ t('nav.logout') }}" aria-label="{{ t('nav.logout') }}">
-							<span aria-hidden="true">{% include "log-out.svg" %}</span>
-						</button>
-					</form>
 				</div>
 			</div>
 		</nav>

@@ -255,6 +255,32 @@ function chartCaption(asset) {
     });
   });
 
+  /* The language list lives in the logo menu. A second Bootstrap dropdown would close this one. */
+  var langToggle = document.getElementById("lingua-toggle");
+  var langList = document.getElementById("lingua-list");
+  var brandToggle = document.getElementById("brand-toggle");
+  function shutLangList() {
+    if (!langToggle || !langList) {
+      return;
+    }
+    langList.setAttribute("hidden", "");
+    langToggle.setAttribute("aria-expanded", "false");
+  }
+  if (brandToggle) {
+    brandToggle.addEventListener("hidden.bs.dropdown", shutLangList);
+  }
+  if (langToggle && langList) {
+    langToggle.addEventListener("click", function () {
+      var open = langList.hasAttribute("hidden");
+      if (open) {
+        langList.removeAttribute("hidden");
+      } else {
+        langList.setAttribute("hidden", "");
+      }
+      langToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+
   var volumeControls = document.getElementById("volume-controls");
   var volumeMap = document.getElementById("volume-map");
   var volumeCaption = document.getElementById("volume-caption");
