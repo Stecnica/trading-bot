@@ -68,7 +68,7 @@ from bot_db import (
     write_status,
     read_status,
 )
-from bot_logic import money
+from bot_logic import money, sells_at_threshold
 from bot_massive import history_start, last_completed_session, read_backfill_status
 from bot_plan import effective_name, label_parts
 
@@ -980,6 +980,18 @@ def chart_hits():
     return response
 
 
+def _positions_help(prefs):
+    text = tr("positions.help", threshold=format_pct(prefs["profit_threshold"]))
+    if sells_at_threshold(prefs):
+        return text + tr("positions.help_now")
+    return text + tr(
+        "positions.help_trail",
+        delay=prefs["sell_delay_score"],
+        trail=format_pct(prefs["trail"]),
+        days=prefs["max_hold_days"],
+    )
+
+
 @app.route("/prefs", methods=["POST"])
 def save_prefs():
     clamped = []
@@ -1001,7 +1013,7 @@ def save_prefs():
                 decisions=recent_decisions(conn),
                 names=security_names(),
             )
-        if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours", "max_hold_days", "trail", "sell_delay_score"}.intersection(values):
+        if {"profit_threshold", "fee_rate", "tax_rate", "max_price_age_hours", "max_hold_days", "trail", "sell_delay_score", "sell_at_threshold"}.intersection(values):
             rows = position_rows(conn, prefs)
             _attach_score(conn, rows)
             payload["positions_html"] = render_template(
@@ -1010,15 +1022,7 @@ def save_prefs():
                 csrf=session.get("csrf", ""),
                 names=security_names(),
             )
-            payload["positions_help"] = tr(
-                "positions.help",
-                threshold=format_pct(prefs["profit_threshold"]),
-            ) + tr(
-                "positions.help_trail",
-                delay=prefs["sell_delay_score"],
-                trail=format_pct(prefs["trail"]),
-                days=prefs["max_hold_days"],
-            )
+            payload["positions_help"] = _positions_help(prefs)
     finally:
         conn.close()
     log.info("preferences updated")

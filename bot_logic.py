@@ -167,6 +167,27 @@ def peak_drop(peak, price):
     return (peak - money(price)) / peak
 
 
+def sells_at_threshold(prefs):
+    """True when a lot is sold the moment its net profit reaches the threshold."""
+    return prefs.get("sell_at_threshold") == "on"
+
+
+def threshold_exit(quote, peak, score, prefs):
+    """Why this quote sells the lot, or None to keep it.
+
+    With the flag on, the only sale is a net ratio already at the threshold.
+    The price age, the peak, the score and the trail are not consulted, and a
+    ratio under the threshold sells nothing.
+    """
+    if sells_at_threshold(prefs):
+        if quote is None or quote.get("ratio") is None:
+            return None
+        if quote["ratio"] >= prefs["profit_threshold"]:
+            return "threshold"
+        return None
+    return trail_exit(quote, peak, score, prefs)
+
+
 def trail_exit(quote, peak, score, prefs):
     """Why an armed lot is sold now, or None to keep it.
 
@@ -200,7 +221,11 @@ def score_exit(lot, quote, score_says_sell, prefs, now):
 
     A sell signal closes the lot only in profit, at or above the threshold.
     Past max_hold_days the lot closes at any result.
+    With the threshold flag on, this step sells nothing: the other step already
+    sold every lot whose net profit is at the threshold.
     """
+    if sells_at_threshold(prefs):
+        return None
     if held_too_long(lot, now, prefs["max_hold_days"]):
         return "max_hold"
     if not score_says_sell or quote is None or quote["ratio"] is None:

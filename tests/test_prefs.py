@@ -43,6 +43,17 @@ def test_unreadable_text_is_still_an_error():
     assert values is None and error
 
 
+def test_threshold_flag_is_on_or_off():
+    from bot_db import interpret
+
+    assert _patch(sell_at_threshold="on") == ({"sell_at_threshold": "on"}, None, [])
+    assert _patch(sell_at_threshold="off")[0] == {"sell_at_threshold": "off"}
+    values, error, _clamped = _patch(sell_at_threshold="maybe")
+    assert values is None and error
+    assert interpret({})["sell_at_threshold"] == "off"
+    assert interpret({"sell_at_threshold": "on"})["sell_at_threshold"] == "on"
+
+
 def test_history_drawing_defaults_to_vector():
     from bot_db import interpret
 

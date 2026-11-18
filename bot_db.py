@@ -10,7 +10,7 @@ import mysql.connector
 
 from bot_config import LOCK_PATH, STATUS_PATH, db_config, get_logger
 from bot_i18n import tr
-from bot_logic import CURRENCY, armed_peak, money, peak_drop, trail_exit, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale, transaction_column_sums
+from bot_logic import CURRENCY, armed_peak, money, peak_drop, threshold_exit, sells_at_threshold, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale, transaction_column_sums
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -65,6 +65,7 @@ DEFAULTS = {
     "max_hold_days": "120",
     "trail": "0.03",
     "sell_delay_score": "0.2",
+    "sell_at_threshold": "off",
     "lot_sizing": "fractional",
     "max_buys_per_day": "0",
     "massive_plan": "auto",
@@ -100,6 +101,7 @@ PREF_LABELS = {
     "max_hold_days": "Days after which a lot is sold at any result",
     "trail": "Drop from the peak that sells an armed lot (0.03 = 3%)",
     "sell_delay_score": "Score that keeps an armed lot",
+    "sell_at_threshold": "Sell as soon as the net profit reaches the threshold; the price age is ignored and nothing under the threshold is sold",
     "lot_sizing": "Lot quantity: fractional (max investment / price) or whole shares",
     "max_buys_per_day": "Bot buys per day (0 = no limit)",
     "massive_plan": "Massive plan: auto detects it from the key; a named plan overrides the detection",
@@ -435,6 +437,7 @@ def interpret(raw):
         "max_hold_days": _int_between(raw.get("max_hold_days"), 1, 3650, 120),
         "trail": _decimal_between(raw.get("trail"), Decimal("0"), Decimal("0.5"), "0.03"),
         "sell_delay_score": _decimal_between(raw.get("sell_delay_score"), Decimal("-1"), Decimal("1"), "0.2"),
+        "sell_at_threshold": raw.get("sell_at_threshold") if raw.get("sell_at_threshold") in ("off", "on") else "off",
         "lot_sizing": raw.get("lot_sizing") if raw.get("lot_sizing") in LOT_SIZINGS else "fractional",
         "max_buys_per_day": _int_between(raw.get("max_buys_per_day"), 0, 100, 0),
         "massive_plan": raw.get("massive_plan") if raw.get("massive_plan") in MASSIVE_PLANS else "auto",
@@ -605,6 +608,7 @@ def preference_patch(form, clamped=None):
         ("volume_scope", VOLUME_SCOPES, "prefs.err.limits"),
         ("volume_divide", ("off", "on"), "prefs.err.limits"),
         ("volume_scale", ("off", "on"), "prefs.err.limits"),
+        ("sell_at_threshold", ("off", "on"), "prefs.err.limits"),
         ("lot_sizing", LOT_SIZINGS, "prefs.err.limits"),
         ("massive_plan", MASSIVE_PLANS, "prefs.err.limits"),
     )
@@ -1235,11 +1239,12 @@ def position_rows(conn, prefs):
             stale = age > max_age
             quote = quote_sell(lot, market["price"], prefs["fee_rate"], prefs["tax_rate"])
         ratio = None if quote is None else quote["ratio"]
+        ignore_age = sells_at_threshold(prefs)
         ready = (
             quote is not None
             and ratio is not None
             and ratio >= prefs["profit_threshold"]
-            and not stale
+            and (ignore_age or not stale)
         )
         peak = None
         if lot.timestamp is not None:
@@ -1252,11 +1257,11 @@ def position_rows(conn, prefs):
             )
         if market is None:
             outcome = tr("positions.no_price")
-        elif stale:
+        elif stale and not ignore_age:
             outcome = tr("positions.stale")
         elif ready:
             outcome = tr("positions.ready")
-            if peak is not None:
+            if peak is not None and not ignore_age:
                 outcome = tr(
                     "positions.armed",
                     peak=f"{peak:.3f}",
@@ -1288,8 +1293,8 @@ def sell_open_lot(conn, prefs, lot_id):
     """Paper-sell one open lot by buy transaction id.
 
     Same quote_sell + insert_transaction path as automatic sales. Refuses a
-    missing or stale market price. Returns (asset, None) on success, or
-    (None, catalog key) on refusal.
+    missing price, and a stale one while the threshold flag is off. Returns
+    (asset, None) on success, or (None, catalog key) on refusal.
     """
     try:
         lot_id = int(lot_id)
@@ -1304,7 +1309,7 @@ def sell_open_lot(conn, prefs, lot_id):
         return None, "sell.no_price"
     now = datetime.now()
     max_age = prefs["max_price_age_hours"] * 3600
-    if (now - market["timestamp"]).total_seconds() > max_age:
+    if not sells_at_threshold(prefs) and (now - market["timestamp"]).total_seconds() > max_age:
         return None, "sell.stale"
     quote = quote_sell(lot, market["price"], prefs["fee_rate"], prefs["tax_rate"])
     if quote is None:
@@ -1371,7 +1376,7 @@ def threshold_review(conn, prefs, lots=None, scores=None, now=None):
         market = prices.get(lot.asset)
         if not market:
             continue
-        if (now - market["timestamp"]).total_seconds() > max_age:
+        if not sells_at_threshold(prefs) and (now - market["timestamp"]).total_seconds() > max_age:
             log.info("keeping %s: price from %s is too old", lot.asset, market["timestamp"])
             continue
         quote = quote_sell(lot, market["price"], prefs["fee_rate"], prefs["tax_rate"])
@@ -1398,7 +1403,7 @@ def threshold_review(conn, prefs, lots=None, scores=None, now=None):
                 "peak": peak,
                 "drop": peak_drop(peak, quote["price"]),
                 "score": score,
-                "reason": trail_exit(quote, peak, score, prefs),
+                "reason": threshold_exit(quote, peak, score, prefs),
                 "moment": price_moment(market),
             }
         )
@@ -1406,13 +1411,15 @@ def threshold_review(conn, prefs, lots=None, scores=None, now=None):
 
 
 def sell_ready_lots(conn, prefs, scores=None, sold_out=None):
-    """Sells the armed lots the trailing rule lets go. Returns the number of sales.
+    """Sells the lots the exit rule lets go. Returns the number of sales.
 
-    A lot is armed once a close since the buy brought its net ratio to the
-    threshold. It is kept while the score stays at or above sell_delay_score
-    and the close is less than trail under the peak since arming; it is sold
-    when either fails or when the ratio falls back to the threshold. The symbols
-    sold are appended to sold_out when a list is given.
+    With the threshold flag on, a lot is sold when its net profit is already
+    at the threshold, however old the price, and kept when it is under it.
+    Otherwise a lot is armed once a close since the buy brought its net ratio
+    to the threshold. It is kept while the score stays at or above
+    sell_delay_score and the close is less than trail under the peak since
+    arming; it is sold when either fails or when the ratio falls back to the
+    threshold. The symbols sold are appended to sold_out when a list is given.
     """
     lots, unmatched = open_lots(fetch_transactions(conn))
     if unmatched > 0:

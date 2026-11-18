@@ -644,6 +644,20 @@
 		}
 		.volume-group { width: 16rem; max-width: 100%; flex: 0 0 auto; }
 		.form-label { margin-bottom: .15rem; }
+		.pref-flag {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-height: calc(1.5em + .5rem + 2px);
+			padding-left: 0;
+		}
+		.pref-flag .form-check-input {
+			float: none;
+			margin: 0;
+			width: 2.25rem;
+			height: 1.15rem;
+			cursor: pointer;
+		}
 	</style>
 </head>
 <body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}">
@@ -677,11 +691,17 @@
 		</div>
 	</div>
 	<div class="flex-fill">
+		<label class="form-label" title="{{ t('prefs.sell_at_title') }}">{{ t('prefs.sell_at') }}</label>
+		<div class="pref-flag form-check form-switch">
+			<input class="form-check-input" type="checkbox" role="switch" data-pref="sell_at_threshold" data-saved="{{ prefs.sell_at_threshold }}" title="{{ t('prefs.sell_at_title') }}"{% if prefs.sell_at_threshold == 'on' %} checked{% endif %}>
+		</div>
+	</div>
+	<div class="flex-fill" data-age-field>
 		<label class="form-label" title="{{ t('prefs.age_title') }}">{{ t('prefs.age') }}</label>
 		<div class="input-group input-group-sm">
-			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−">−</button>
-			<input class="form-control text-center" data-pref="max_price_age_hours" data-saved="{{ prefs.max_price_age_hours }}" title="{{ t('prefs.age_title') }}" value="{{ prefs.max_price_age_hours }}" min="1" max="720" step="1" inputmode="numeric" autocomplete="off">
-			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+">+</button>
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="-1" aria-label="−"{% if prefs.sell_at_threshold == 'on' %} disabled{% endif %}>−</button>
+			<input class="form-control text-center" data-pref="max_price_age_hours" data-saved="{{ prefs.max_price_age_hours }}" title="{{ t('prefs.age_title') }}" value="{{ prefs.max_price_age_hours }}" min="1" max="720" step="1" inputmode="numeric" autocomplete="off"{% if prefs.sell_at_threshold == 'on' %} disabled{% endif %}>
+			<button class="btn btn-outline-primary" type="button" data-pref-step data-dir="1" aria-label="+"{% if prefs.sell_at_threshold == 'on' %} disabled{% endif %}>+</button>
 		</div>
 	</div>
 </div>
@@ -925,7 +945,7 @@
 							{% include "_positions.html" %}
 							</div>
 							<button type="button" class="grid-more" hidden title="{{ t('tx.more') }}" aria-label="{{ t('tx.more') }}">{% include "chevrons-down.svg" %}</button>
-							<p class="m-2 border-top pt-2" id="positions-help">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}{{ t('positions.help_trail', delay=prefs.sell_delay_score, trail=prefs.trail|pct, days=prefs.max_hold_days) }}</p>
+							<p class="m-2 border-top pt-2" id="positions-help">{{ t('positions.help', threshold=prefs.profit_threshold|pct) }}{% if prefs.sell_at_threshold == 'on' %}{{ t('positions.help_now') }}{% else %}{{ t('positions.help_trail', delay=prefs.sell_delay_score, trail=prefs.trail|pct, days=prefs.max_hold_days) }}{% endif %}</p>
 						</div>
 					</div>
 					<div class="dropdown">
@@ -1430,7 +1450,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=76) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=77) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

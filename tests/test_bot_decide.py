@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from bot_decide import score_exits
-from bot_logic import armed_peak, open_lots, quote_sell, score_exit, trail_exit
+from bot_logic import armed_peak, open_lots, quote_sell, score_exit, threshold_exit, trail_exit
 from bot_score import BUY, HOLD, SELL
 
 NOW = datetime(2026, 11, 16, 15, 0)
@@ -138,6 +138,19 @@ def test_zero_trail_sells_at_the_first_close_over_the_threshold():
     peak = armed_peak(lot, closes, prefs["fee_rate"], prefs["tax_rate"], prefs["profit_threshold"])
     quote = quote_sell(lot, "110", prefs["fee_rate"], prefs["tax_rate"])
     assert trail_exit(quote, peak, 0.9, prefs) == "trail"
+
+
+def test_at_threshold_sells_at_once_and_keeps_what_is_under_it():
+    prefs = dict(PREFS, sell_at_threshold="on")
+    lot = _lot()
+    above = quote_sell(lot, "110", prefs["fee_rate"], prefs["tax_rate"])
+    under = quote_sell(lot, "103", prefs["fee_rate"], prefs["tax_rate"])
+    loss = quote_sell(lot, "80", prefs["fee_rate"], prefs["tax_rate"])
+    assert threshold_exit(above, None, None, prefs) == "threshold"
+    assert threshold_exit(under, None, 0.1, prefs) is None
+    assert threshold_exit(loss, None, None, prefs) is None
+    assert score_exit(lot, above, True, prefs, NOW) is None
+    assert score_exit(_lot(days=200), loss, False, prefs, NOW) is None
 
 
 def test_armed_lot_under_zero_is_kept():

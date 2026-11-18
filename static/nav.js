@@ -1857,11 +1857,39 @@ function chartCaption(asset) {
     });
   });
 
+  function ageLocked() {
+    var boxes = document.querySelectorAll("[data-pref='sell_at_threshold']");
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].checked) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function applyAgeLock() {
+    var locked = ageLocked();
+    document.querySelectorAll("[data-age-field]").forEach(function (field) {
+      field.querySelectorAll("input, button").forEach(function (node) {
+        node.disabled = locked;
+      });
+    });
+  }
+
   document.querySelectorAll("[data-pref]").forEach(function (input) {
     input.addEventListener("change", function () {
       var key = input.getAttribute("data-pref");
       var previous = input.getAttribute("data-saved");
-      var value = String(input.value).trim().replace(",", ".");
+      var box = input.type === "checkbox";
+      var value = box ? (input.checked ? "on" : "off") : String(input.value).trim().replace(",", ".");
+      if (box) {
+        document.querySelectorAll("[data-pref='" + key + "']").forEach(function (other) {
+          other.checked = input.checked;
+        });
+        if (key === "sell_at_threshold") {
+          applyAgeLock();
+        }
+      }
       if (value === previous) {
         return;
       }
@@ -1870,11 +1898,19 @@ function chartCaption(asset) {
       savePref(fields).then(function (data) {
         var stored = String(data.values[key]);
         document.querySelectorAll("[data-pref='" + key + "']").forEach(function (other) {
+          if (other.type === "checkbox") {
+            other.checked = stored === "on";
+            other.setAttribute("data-saved", stored);
+            return;
+          }
           var places = other.getAttribute("data-decimals");
           var shown = places !== null && stored !== "" && !isNaN(Number(stored)) ? Number(stored).toFixed(Number(places)) : stored;
           other.value = shown;
           other.setAttribute("data-saved", shown);
         });
+        if (key === "sell_at_threshold") {
+          applyAgeLock();
+        }
         applyAppearance(key, stored);
         if (data.balance !== undefined && data.balance !== null) {
           var shown = String(data.balance);
@@ -1899,10 +1935,23 @@ function chartCaption(asset) {
         }
         document.dispatchEvent(new CustomEvent("prefs-applied", { detail: { key: key, value: stored } }));
       }).catch(function () {
-        input.value = previous;
+        if (box) {
+          input.checked = previous === "on";
+          document.querySelectorAll("[data-pref='" + key + "']").forEach(function (other) {
+            if (other.type === "checkbox") {
+              other.checked = previous === "on";
+            }
+          });
+          if (key === "sell_at_threshold") {
+            applyAgeLock();
+          }
+        } else {
+          input.value = previous;
+        }
       });
     });
   });
+  applyAgeLock();
 
   var fill = document.querySelector("form.history-fill[data-status]");
   var progress = document.querySelectorAll("[data-backfill-running]");
