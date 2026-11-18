@@ -663,7 +663,7 @@
 		.pref-sell-row .input-group .form-control { padding-left: .15rem; padding-right: .15rem; }
 	</style>
 </head>
-<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}">
+<body class="{{ 'bg-body' if theme == 'dark' else 'bg-light' }}"{% if session_user and not can_write %} data-view-only{% endif %}>
 {% macro operation_fields() %}
 <h3 class="h6 mb-0">{{ t('prefs.operations') }}</h3>
 <div class="d-flex align-items-start gap-3 text-center">
@@ -909,6 +909,9 @@
 									</button>
 								</form>
 							</div>
+							{% if session_user and not can_write %}
+							<p class="small text-secondary px-2 mb-1">{{ session_user }} · {{ t('nav.view_only') }}</p>
+							{% endif %}
 							<ul class="lang-menu list-unstyled mb-0" id="lingua-list" hidden>
 								<li><h6 class="dropdown-header">{{ t('nav.language') }}</h6></li>
 								<li><hr class="dropdown-divider"></li>
@@ -1453,7 +1456,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=77) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=78) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}

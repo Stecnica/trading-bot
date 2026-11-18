@@ -1952,6 +1952,23 @@ function chartCaption(asset) {
     });
   });
   applyAgeLock();
+  if (document.body.hasAttribute("data-view-only")) {
+    document.querySelectorAll("form").forEach(function (form) {
+      var action = form.getAttribute("action") || "";
+      if (action.indexOf("/exit") !== -1) {
+        return;
+      }
+      form.querySelectorAll("button, input, select, textarea").forEach(function (node) {
+        if (node.name === "csrf") {
+          return;
+        }
+        node.disabled = true;
+      });
+    });
+    document.querySelectorAll("[form='buy-form'], [data-pref], [data-pref-step], [data-divide], [data-scale]").forEach(function (node) {
+      node.disabled = true;
+    });
+  }
 
   var fill = document.querySelector("form.history-fill[data-status]");
   var progress = document.querySelectorAll("[data-backfill-running]");

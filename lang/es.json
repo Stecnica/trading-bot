@@ -8,6 +8,8 @@
   "auth.unconfigured": "El inicio de sesión no está configurado.",
   "auth.lockout": "Demasiados intentos. Vuelva a intentarlo en {minutes} minutos.",
   "auth.bad": "Credenciales no válidas.",
+  "auth.view_only": "Esta cuenta puede mirar, no modificar.",
+  "nav.view_only": "solo lectura",
   "csrf.bad": "Solicitud no válida. Recargue la página.",
   "nav.positions": "Posiciones",
   "nav.buy": "Comprar",

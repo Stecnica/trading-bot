@@ -21,6 +21,9 @@ BACKFILL_STATUS = PRIVATE / "backfill_status.json"
 UI_PASSWORD_PATH = PRIVATE / "ui_password"
 # Temporary computerUse QA user (qa_cursor). Remove with private/ui_password_qa.
 UI_PASSWORD_QA_PATH = PRIVATE / "ui_password_qa"
+# View-only account. The hash is the password file; the readable copy stays beside it.
+UI_PASSWORD_LEONARDO_PATH = PRIVATE / "ui_password_leonardobot"
+AUDIT_LOG_PATH = PRIVATE / "access.log"
 FLASK_SECRET_PATH = PRIVATE / "flask_secret"
 UNIVERSE_CACHE = PRIVATE / "sp500_symbols.txt"
 NAMES_CACHE = PRIVATE / "sp500_names.tsv"

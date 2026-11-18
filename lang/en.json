@@ -8,6 +8,8 @@
   "auth.unconfigured": "Sign-in is not configured.",
   "auth.lockout": "Too many attempts. Try again in {minutes} minutes.",
   "auth.bad": "Invalid credentials.",
+  "auth.view_only": "This account can look, not change.",
+  "nav.view_only": "view only",
   "csrf.bad": "Invalid request. Reload the page.",
   "nav.positions": "Positions",
   "nav.buy": "Buy",

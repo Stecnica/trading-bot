@@ -8,6 +8,8 @@
   "auth.unconfigured": "Ingressus nondum configuratus est.",
   "auth.lockout": "Nimii conatus facti sunt. Rursus conare post {minutes} minuta.",
   "auth.bad": "Notae authenticae invalidae.",
+  "auth.view_only": "Hic usor spectare potest, non mutare.",
+  "nav.view_only": "solum lectio",
   "csrf.bad": "Postulatio invalida. Paginam renova.",
   "nav.positions": "Positiones",
   "nav.buy": "Emere",

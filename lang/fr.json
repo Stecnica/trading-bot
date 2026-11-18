@@ -8,6 +8,8 @@
   "auth.unconfigured": "La connexion n'est pas configurée.",
   "auth.lockout": "Trop de tentatives. Réessayez dans {minutes} minutes.",
   "auth.bad": "Identifiants invalides.",
+  "auth.view_only": "Ce compte peut regarder, pas modifier.",
+  "nav.view_only": "lecture seule",
   "csrf.bad": "Requête invalide. Rechargez la page.",
   "nav.positions": "Positions",
   "nav.buy": "Achat",

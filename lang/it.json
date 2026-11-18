@@ -8,6 +8,8 @@
   "auth.unconfigured": "Accesso non configurato.",
   "auth.lockout": "Troppi tentativi. Riprova tra {minutes} minuti.",
   "auth.bad": "Credenziali non valide.",
+  "auth.view_only": "Questo account può guardare, non modificare.",
+  "nav.view_only": "sola lettura",
   "csrf.bad": "Richiesta non valida. Ricarica la pagina.",
   "nav.positions": "Posizioni",
   "nav.buy": "Acquisto",

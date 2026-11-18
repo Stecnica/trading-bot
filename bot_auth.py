@@ -1,4 +1,4 @@
-"""Session login: hashed password, attempt lock. Sign-out is only the exit action."""
+"""Session login: hashed password, attempt lock, view-only accounts. Sign-out is only the exit action."""
 
 import fcntl
 import hashlib
@@ -6,14 +6,17 @@ import hmac
 import json
 import os
 import time
+from datetime import datetime
+from pathlib import Path
 
-from bot_config import PRIVATE, UI_PASSWORD_PATH, UI_PASSWORD_QA_PATH, get_logger
+from bot_config import AUDIT_LOG_PATH, PRIVATE, UI_PASSWORD_LEONARDO_PATH, UI_PASSWORD_PATH, UI_PASSWORD_QA_PATH, get_logger
 from bot_i18n import tr
 
 log = get_logger()
 
 USERNAME = "bot"
 QA_USERNAME = "qa_cursor"
+VIEW_USERNAME = "leonardobot"
 MAX_FAILS = 5
 LOCK_SECONDS = 15 * 60
 ATTEMPTS_PATH = PRIVATE / "login_attempts.json"
@@ -21,59 +24,122 @@ SCRYPT_N = 2**14
 SCRYPT_R = 8
 SCRYPT_P = 1
 
-# username -> password file (primary + optional temporary QA)
-_USER_FILES = {
-    USERNAME: UI_PASSWORD_PATH,
-    QA_USERNAME: UI_PASSWORD_QA_PATH,
+# username -> (role, password file). view can open the pages and cannot change them.
+_USERS = {
+    USERNAME: ("write", UI_PASSWORD_PATH),
+    QA_USERNAME: ("write", UI_PASSWORD_QA_PATH),
+    VIEW_USERNAME: ("view", UI_PASSWORD_LEONARDO_PATH),
 }
+# Flask endpoint names that change the book, the preferences, or a running job.
+WRITE_ENDPOINTS = frozenset({
+    "save_prefs",
+    "buy",
+    "sell",
+    "cycle_sells",
+    "start_backfill",
+    "refresh",
+    "volume_view",
+})
+JSON_ENDPOINTS = frozenset({"save_prefs", "volume_view"})
 
 
 def ensure_password_hash():
     """If a password file still holds clear text, replace it with the hash.
 
-    Returns True when the primary `bot` hash is ready. QA file is hashed too
-    when present; a missing QA file is fine (that user simply cannot sign in).
+    Returns True when the primary `bot` hash is ready. The other files are
+    hashed too when present; a missing file means that user cannot sign in.
     """
     primary_ok = _ensure_file_hash(UI_PASSWORD_PATH)
-    if UI_PASSWORD_QA_PATH.exists():
-        _ensure_file_hash(UI_PASSWORD_QA_PATH)
+    for _role, path in _USERS.values():
+        if path != UI_PASSWORD_PATH and path.exists():
+            _ensure_file_hash(path)
     return primary_ok
+
+
+def role_of(username):
+    row = _USERS.get((username or "").strip())
+    return row[0] if row else ""
+
+
+def can_write(session):
+    return session.get("role") == "write"
+
+
+def viewer_refused(role, method, endpoint):
+    """True when this request would change something a view account must not touch."""
+    return role != "write" and method == "POST" and endpoint in WRITE_ENDPOINTS
 
 
 def authenticate(username, password, ip):
     """Returns (ok, message). The message is empty when sign-in succeeded."""
+    name = (username or "").strip()
     if not ensure_password_hash():
+        record(name, ip, "login", "unconfigured")
         return False, tr("auth.unconfigured")
     locked, wait = _locked(ip)
     if locked:
         minutes = max(1, int((wait + 59) // 60))
         log.info("login locked from %s for %s minutes", ip, minutes)
+        record(name, ip, "login", "locked")
         return False, tr("auth.lockout", minutes=minutes)
-    ok = _password_matches(username, password)
+    ok = _password_matches(name, password)
     if not ok:
         fails = _register_failure(ip)
         log.info("login failed from %s, attempt %s", ip, fails)
+        record(name, ip, "login", "failed")
         return False, tr("auth.bad")
     _clear_failures(ip)
-    log.info("login succeeded from %s user=%s", ip, username)
+    log.info("login succeeded from %s user=%s", ip, name)
+    record(name, ip, "login", "ok")
     return True, ""
 
 
 def session_alive(session):
     if not session.get("auth"):
         return False
+    if session.get("user") not in _USERS:
+        return False
     session.permanent = True
     return True
 
 
-def stamp_session(session):
+def stamp_session(session, username):
+    name = (username or "").strip()
     now = time.time()
     session.clear()
     session.permanent = True
     session["auth"] = 1
+    session["user"] = name
+    session["role"] = role_of(name)
     session["auth_at"] = now
     session["last_seen"] = now
     session["csrf"] = os.urandom(16).hex()
+
+
+def record(user, ip, action, result, detail="", path=None):
+    """Append one access or operation. The password is never written."""
+    target = Path(path) if path else AUDIT_LOG_PATH
+    text = str(detail or "")
+    if "password" in text.lower():
+        text = ""
+    row = {
+        "t": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "user": str(user or "")[:80],
+        "ip": str(ip or ""),
+        "action": str(action or ""),
+        "result": str(result or ""),
+        "detail": text[:300],
+    }
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "a", encoding="utf-8") as handle:
+            os.chmod(target, 0o600)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+            handle.flush()
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        log.warning("access log not written")
 
 
 def _ensure_file_hash(path):
@@ -97,7 +163,8 @@ def _ensure_file_hash(path):
 
 def _password_matches(username, password):
     name = username or ""
-    path = _USER_FILES.get(name)
+    row = _USERS.get(name)
+    path = row[1] if row else None
     if path is None:
         # Unknown user: still burn a scrypt against primary salt shape if possible,
         # otherwise a dummy, so timing stays closer across usernames.

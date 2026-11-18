@@ -8,6 +8,8 @@
   "auth.unconfigured": "Die Anmeldung ist nicht eingerichtet.",
   "auth.lockout": "Zu viele Versuche. Versuchen Sie es in {minutes} Minuten erneut.",
   "auth.bad": "Ungültige Zugangsdaten.",
+  "auth.view_only": "Dieses Konto kann nur sehen, nicht ändern.",
+  "nav.view_only": "nur lesen",
   "csrf.bad": "Ungültige Anfrage. Laden Sie die Seite neu.",
   "nav.positions": "Positionen",
   "nav.buy": "Kaufen",

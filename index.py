@@ -14,10 +14,20 @@ from bot_config import install_import_path
 install_import_path()
 
 from markupsafe import Markup
-from flask import Flask, Response, abort, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, abort, g, jsonify, redirect, render_template, request, session, url_for
 from jinja2 import ChoiceLoader, FileSystemLoader
 
-from bot_auth import authenticate, ensure_password_hash, session_alive, stamp_session
+from bot_auth import (
+    JSON_ENDPOINTS,
+    WRITE_ENDPOINTS,
+    authenticate,
+    can_write,
+    ensure_password_hash,
+    record,
+    session_alive,
+    stamp_session,
+    viewer_refused,
+)
 from bot_chart_cache import get_bytes as chart_cache_get, put_bytes as chart_cache_put
 from bot_market import constituents, security_names
 from bot_config import (
@@ -197,11 +207,53 @@ def guard():
     if request.method == "POST" and not _csrf_ok():
         abort(400, tr("csrf.bad"))
     _ensure_csrf()
+    if request.method == "POST" and request.endpoint in WRITE_ENDPOINTS | {"logout"}:
+        g.audit_action = request.endpoint
+        g.audit_detail = _audit_detail()
+        g.audit_user = session.get("user")
+    if viewer_refused(session.get("role"), request.method, request.endpoint):
+        g.audit_result = "refused"
+        if request.endpoint in JSON_ENDPOINTS:
+            # 200 with ok false: the server replaces the body of any 4xx with its own page.
+            return jsonify(ok=False, error=tr("auth.view_only"))
+        return redirect(url_for("home", err=tr("auth.view_only")))
     prepare()
+
+
+def _audit_detail():
+    """What the operation asked for. The csrf token stays out of the log."""
+    form = request.form
+    if request.endpoint == "buy":
+        return f"{form.get('asset', '')} qty={form.get('amount', '')}"
+    if request.endpoint == "sell":
+        return f"lot={form.get('lot', '')}"
+    if request.endpoint in {"save_prefs", "volume_view"}:
+        return " ".join(f"{key}={form.get(key)}" for key in form if key != "csrf")
+    return ""
+
+
+def _response_rejected(response):
+    if response.status_code >= 400:
+        return True
+    if response.status_code in (301, 302, 303, 307, 308):
+        return "err=" in (response.headers.get("Location") or "")
+    return False
 
 
 @app.after_request
 def harden(response):
+    action = getattr(g, "audit_action", None)
+    if action:
+        result = getattr(g, "audit_result", None)
+        if result is None:
+            result = "rejected" if _response_rejected(response) else "ok"
+        record(
+            getattr(g, "audit_user", None) or session.get("user"),
+            _client_ip(),
+            action,
+            result,
+            getattr(g, "audit_detail", ""),
+        )
     response.headers["Strict-Transport-Security"] = "max-age=15552000"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -239,7 +291,7 @@ def login():
         )
         if ok:
             destination = _safe_next(request.form.get("next"))
-            stamp_session(session)
+            stamp_session(session, request.form.get("username", ""))
             return redirect(destination, code=303)
     _ensure_csrf()
     coming = request.form.get("next") if request.method == "POST" else request.args.get("next")
@@ -253,8 +305,17 @@ def login():
 
 @app.route("/exit", methods=["POST"])
 def logout():
+    g.audit_user = session.get("user")
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.context_processor
+def inject_account():
+    return {
+        "can_write": can_write(session),
+        "session_user": session.get("user") or "",
+    }
 
 
 def prepare():

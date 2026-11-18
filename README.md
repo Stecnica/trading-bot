@@ -94,7 +94,7 @@ Point the call at the broker's paper account. It is the same API with a separate
 
 With a live session from Advanced or Business, and with the broker accepting the write, the crontab and OpenClaw act on the preferences: the threshold, the commission, the tax, the maximum investment, the lot sizing, the buys per day, the trail, the keep score, the maximum days, and the score.
 
-Sign in with `POST /login` (`username`, `password`, `csrf`). The username is `bot`. The password is the single line in `private/ui_password`. The first successful check replaces that line with a scrypt hash. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /exit`. Five failed attempts lock the application for 15 minutes.
+Sign in with `POST /login` (`username`, `password`, `csrf`). `bot` can change the book. `leonardobot` can open the pages and nothing else: buys, sales, preferences, the volume controls, the update, the sell rule and the history fill are refused. Each password is one scrypt line in `private/`, `ui_password` for `bot` and `ui_password_leonardobot` for the view account. A clear copy of the view password is `private/leonardobot.password`. The first successful check replaces a clear password line with its hash. Sign-ins and those operations are appended to `private/access.log`. The session cookie lasts about a year and is refreshed on each request. Sign out is `POST /exit`. Five failed attempts lock the application for 15 minutes.
 
 Every POST carries the `csrf` value from the page. After sign-in the routes are:
 
