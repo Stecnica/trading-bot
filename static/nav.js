@@ -680,6 +680,9 @@ function chartCaption(asset) {
           if (token !== volumeToken) {
             return;
           }
+          if (!data || data.ok === false || data.sessions == null || data.count == null) {
+            throw new Error("volume");
+          }
           volumeSessions.value = String(data.sessions);
           volumeTitles.value = String(data.count);
           applyClass(data.group || "");
@@ -1955,7 +1958,8 @@ function chartCaption(asset) {
   if (document.body.hasAttribute("data-view-only")) {
     document.querySelectorAll("form").forEach(function (form) {
       var action = form.getAttribute("action") || "";
-      if (action.indexOf("/exit") !== -1) {
+      var method = (form.getAttribute("method") || "").toLowerCase();
+      if (method === "dialog" || action.indexOf("/exit") !== -1) {
         return;
       }
       form.querySelectorAll("button, input, select, textarea").forEach(function (node) {
@@ -1965,7 +1969,7 @@ function chartCaption(asset) {
         node.disabled = true;
       });
     });
-    document.querySelectorAll("[form='buy-form'], [data-pref], [data-pref-step], [data-divide], [data-scale]").forEach(function (node) {
+    document.querySelectorAll("#volume-controls button, #volume-controls input, #volume-controls select, [form='buy-form'], [data-pref], [data-pref-step], [data-divide], [data-scale], [data-chart], [data-period], [data-render]").forEach(function (node) {
       node.disabled = true;
     });
   }
