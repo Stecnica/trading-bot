@@ -1675,6 +1675,10 @@ function chartCaption(asset) {
       if (!tile || !volumeMap.contains(tile)) {
         return;
       }
+      if (document.body.hasAttribute("data-view-only")) {
+        tile.setAttribute("data-chart-asset", tile.getAttribute("data-asset"));
+        return;
+      }
       openVolumeTile(tile.getAttribute("data-asset"));
     });
   }
