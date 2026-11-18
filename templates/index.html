@@ -264,16 +264,6 @@
 			scrollbar-gutter: stable;
 			border-top: 1px solid var(--bs-border-color);
 		}
-		.nav-panel-grid .grid-foot .total-row {
-			display: flex;
-			justify-content: flex-end;
-			align-items: flex-start;
-			gap: 1.25rem;
-			padding: 0.5rem 0.5rem 0;
-			text-align: right;
-			font-variant-numeric: tabular-nums;
-		}
-		.nav-panel-grid .grid-foot .total-field { flex: 0 0 auto; font-weight: 400; }
 		.nav-panel-grid .grid-foot .total-est {
 			font-size: 0.75rem;
 			font-weight: 300;
@@ -1081,19 +1071,39 @@
 							</div>
 							<button type="button" class="grid-more" hidden title="{{ t('tx.more') }}" aria-label="{{ t('tx.more') }}">{% include "chevrons-down.svg" %}</button>
 							<div class="grid-foot">
-							<div class="total-row">
-								<div class="total-field" title="{{ t('tx.total_fees') }}">
-									<div>{{ (transactions.totals.fees if transactions.totals else 0)|px }}</div>
-									{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_fees_title') }}">+ ≈ {{ transactions.totals.est_fees|px }}</div>{% endif %}
-								</div>
-								<div class="total-field" title="{{ t('tx.total_taxes') }}">
-									<div>{{ (transactions.totals.taxes if transactions.totals else 0)|px }}</div>
-									{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_taxes_title') }}">+ ≈ {{ transactions.totals.est_taxes|px }}</div>{% endif %}
-								</div>
-								<div class="total-field" title="{{ t('tx.total_balance') }}">
-									<div data-paper-balance>{{ paper_balance|px }}</div>
-								</div>
-							</div>
+							<table class="table grid-table grid-total">
+								{{ grid_cols(tx_widths, tx_phone) }}
+								<tbody>
+									<tr>
+										<td></td>
+										<td class="m-hide"></td>
+										<td></td>
+										<td>
+											<div class="d-sm-none" title="{{ t('tx.total_fees') }}">
+												<div>{{ (transactions.totals.fees if transactions.totals else 0)|px2 }}</div>
+												{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_fees_title') }}">+ ≈ {{ transactions.totals.est_fees|px2 }}</div>{% endif %}
+											</div>
+										</td>
+										<td>
+											<div class="d-sm-none" title="{{ t('tx.total_taxes') }}">
+												<div>{{ (transactions.totals.taxes if transactions.totals else 0)|px2 }}</div>
+												{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_taxes_title') }}">+ ≈ {{ transactions.totals.est_taxes|px2 }}</div>{% endif %}
+											</div>
+										</td>
+										<td class="m-hide" title="{{ t('tx.total_fees') }}">
+											<div>{{ (transactions.totals.fees if transactions.totals else 0)|px2 }}</div>
+											{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_fees_title') }}">+ ≈ {{ transactions.totals.est_fees|px2 }}</div>{% endif %}
+										</td>
+										<td class="m-hide" title="{{ t('tx.total_taxes') }}">
+											<div>{{ (transactions.totals.taxes if transactions.totals else 0)|px2 }}</div>
+											{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_taxes_title') }}">+ ≈ {{ transactions.totals.est_taxes|px2 }}</div>{% endif %}
+										</td>
+										<td title="{{ t('tx.total_balance') }}">
+											<div data-paper-balance>{{ paper_balance|px2 }}</div>
+										</td>
+									</tr>
+								</tbody>
+							</table>
 							</div>
 							<p class="m-2 border-top pt-2">{{ t('tx.help') }}</p>
 						</div>

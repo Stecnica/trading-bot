@@ -308,6 +308,13 @@ def format_price(value):
     return f"{Decimal(str(value)):.3f}"
 
 
+@app.template_filter("px2")
+def format_price_2(value):
+    if value is None:
+        return "—"
+    return f"{Decimal(str(value)):.2f}"
+
+
 @app.template_filter("pct")
 def format_pct(value):
     if value is None:
