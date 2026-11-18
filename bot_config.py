@@ -29,6 +29,10 @@ UNIVERSE_CACHE = PRIVATE / "sp500_symbols.txt"
 NAMES_CACHE = PRIVATE / "sp500_names.tsv"
 CLASSES_CACHE = PRIVATE / "sp500_classes.tsv"
 MPLCONFIG = PRIVATE / "mplconfig"
+# The client root is immutable, so matplotlib cannot create ~/.config there.
+# LightGBM imports matplotlib during the cycle, before the chart module runs.
+os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG))
+MPLCONFIG.mkdir(parents=True, exist_ok=True)
 
 @contextmanager
 def file_lock(path, timeout=None):
