@@ -12,7 +12,7 @@ English is the default language. Every other language is a file in `lang/`.
 
 ## What you see
 
-The page is a bar and two tabs. The icon links home. The title is the words Trading bot followed by the selected list, `S&P500`. Opening that word shows the entry and a disabled line, `next idea...`. The pictures below are the light theme.
+The page is a bar and two tabs. The icon opens the account menu. The title is the words Trading bot followed by the selected list, `S&P500`. Opening that word shows the entry and a disabled line, `next idea...`. The pictures below are the light theme.
 
 ![All](static/screenshot/Volume%20All.png)
 
@@ -44,7 +44,7 @@ Net profit subtracts the sale commission and the tax on the gain from the procee
 
 **Transactions** has two tables on the same columns, Closed and Open lots, and a totals row under them. A closed row is one sale paired with the FIFO buy it closed: symbol, currency, quantity, buy and sell price, commissions, taxes, and the net result. Under it are the buy and sale dates, the cost and the net proceeds, the buy and sale commission each with its rate, the tax rate, and the margin in percent. An open row is a lot still held: price, cost (the notional, quantity times price, plus the buy commission), and, at the latest stored price with the current rates, the commissions (the buy paid plus the sale it would pay now), the tax and the net result a sale would give. Under it, the buy commission and the sale commission each with its rate, and the tax rate with the gain it would apply to. Those estimates are marked ≈ and do not enter Total Balance, which counts an open lot at its cost. The totals are the commissions and taxes the rows record as paid, under them what the open lots would add if sold now, and Total Balance. When the lots do not fit, the list scrolls above the totals and a chevron shows that more rows follow. Quantities and amounts show three decimals; the full quantity is the tooltip. A lot bought or sold by the cycle on a daily close carries the date of that session, without an hour; one priced on an intraday snapshot carries the moment of that price. Rows written before rates were stored carry the current preference rates, marked as estimated. A sale is the same table with type `sell`. The picture predates the current layout.
 
-The update button is `POST /update`. It starts `cycle.py`: download missing closed sessions, then apply the sell rule. The checklist button is `POST /cycle`. It runs only the sell rule. **Preferences** and **Sign out** are in the main menu, shown open in `static/screenshot/Menu.png`. The language menu is the flag button just before it, shown open in `static/screenshot/Languages.png`: English, Español, Français, Italiano, Latina.
+The icon’s menu holds four controls, shown open in `static/screenshot/Menu.png`. The update button is `POST /update`. It starts `cycle.py`: download missing closed sessions, then apply the sell rule. The checklist button is `POST /cycle`. It runs only the sell rule. The flag opens the language list in that same menu, shown open in `static/screenshot/Languages.png`: English, Deutsch, Español, Français, Italiano, Latina. Sign out is `POST /exit`. Preferences stay on the gear of each panel.
 
 ![Preferences](static/screenshot/Preferences.png)
 
@@ -114,7 +114,7 @@ Two agents can be signed in at the same time. They do not share a session. The p
 
 ## Languages
 
-Each valid JSON file in `lang/` is one language, and the language menu lists it. A file that does not parse, or whose name is not a language code, is left out. The file name is the code, for example `en.json`. `language.name` in the file is the name shown beside the flag, written in that language. The default is English. The application does not follow `Accept-Language`. `?lang=` followed by a code that has a file selects it and stores the `lang` cookie for one year. The same menu is the flag at the top right of the sign-in card. Status written by a running update is a catalog key, so the same status file is shown in the language of the reader. An older status that is already a sentence is shown as stored.
+Each valid JSON file in `lang/` is one language, and the language menu lists it. A file that does not parse, or whose name is not a language code, is left out. The file name is the code, for example `en.json`. `language.name` in the file is the name shown beside the flag, written in that language. The default is English. The application does not follow `Accept-Language`. `?lang=` followed by a code that has a file selects it and stores the `lang` cookie for one year. The sign-in card keeps its own flag at the top right. Status written by a running update is a catalog key, so the same status file is shown in the language of the reader. An older status that is already a sentence is shown as stored.
 
 Period buttons are built from five abbreviations in the active language file: `period.abbr.day`, `period.abbr.week`, `period.abbr.month`, `period.abbr.year`, and `period.abbr.start`. The buttons are one day, one week, one month, three months, six months, the start-of-year abbreviation, one year, and two years. The values posted with the chart stay `1`, `7`, `30`, `90`, `180`, `ytd`, `365`, `730`.
 
