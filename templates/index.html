@@ -372,14 +372,31 @@
 			.grid-table:not(.grid-total) tbody > tr + tr > td { font-size: 0.75rem; }
 			.buy-grid .form-label { font-size: 0.875rem; }
 		}
-		/* Buy: four equal tracks sized for a 12-digit value; Symbol spans two. Two tracks on phones. */
+		/* Numeric fields are five sixths of the equal column that used to fill
+		   this row. Symbol, above, and Record buy, below, take the width that
+		   leaves. Phones go back to two equal tracks. */
 		.buy-grid {
-			display: grid;
-			grid-template-columns: repeat(4, minmax(0, calc(12ch + 1.5rem + 2px)));
+			display: flex;
+			flex-wrap: wrap;
+			align-items: flex-end;
 			gap: 0.75rem 0.5rem;
-			align-items: end;
 		}
-		.buy-grid > :first-child { grid-column: span 2; }
+		.buy-grid > * {
+			flex: 0 1 calc((100% - 1.5rem) / 4 * 5 / 6);
+			max-width: calc((100% - 1.5rem) / 4 * 5 / 6);
+			min-width: 0;
+		}
+		.buy-grid > :first-child,
+		.buy-grid > :last-child {
+			flex: 1 1 0;
+			max-width: none;
+		}
+		.buy-grid > .buy-break {
+			flex: 1 0 100%;
+			max-width: none;
+			height: 0;
+			margin: -0.375rem 0;
+		}
 		.buy-grid .form-label { font-weight: 400; }
 		.buy-grid .form-control { font-weight: 200; }
 		.lbl-short { display: none; }
@@ -405,7 +422,13 @@
 		}
 		.symbol-chart::backdrop { background: rgba(0, 0, 0, 0.35); }
 		@media (max-width: 575.98px) {
-			.buy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+			.buy-grid {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+			.buy-grid > :first-child { grid-column: span 2; }
+			.buy-grid > * { max-width: none; }
+			.buy-break { display: none; }
 			.nav-panel.p-3 { padding: 0.75rem !important; }
 			/* Phones: one main value per column; sub-lines, currency, per-row fees and taxes are left out. */
 			.grid-table col[style*="--m"] { width: var(--m) !important; }
@@ -946,6 +969,7 @@
 									<label class="form-label" for="buy-invest" title="{{ t('prefs.investment_title') }}">{{ t('prefs.investment') }}</label>
 									<input class="form-control text-end" id="buy-invest" data-pref="max_investment" data-saved="{{ prefs.max_investment|px }}" data-decimals="3" title="{{ t('prefs.investment_title') }}" value="{{ prefs.max_investment|px }}" inputmode="decimal" autocomplete="off">
 								</div>
+								<div class="buy-break" aria-hidden="true"></div>
 								<div>
 									<label class="form-label" for="buy-price">{{ t('buy.price') }}</label>
 									<input class="form-control text-end" id="buy-price" name="price" form="buy-form" inputmode="decimal" min="0" max="1000000000" placeholder="{{ t('buy.price_ph') }}">
