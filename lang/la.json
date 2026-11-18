@@ -98,6 +98,8 @@
   "tx.help": "Quaeque venditio cum sorte FIFO quam clausit coniungitur. Margo netta est commissionibus et vectigali contra sumptum. Quisque versus suas rationes servat. In sortibus apertis valores signo ≈ notati aestimationes sunt ultimo pretio et rationibus hodiernis; neque in summis solutis neque in saldo toto sunt.",
   "tx.closed": "Clausae (emptio ↔ venditio)",
   "tx.open": "Sortes apertae",
+  "tx.sum_closed": "Clausae",
+  "tx.sum_open": "Apertae",
   "tx.symbol": "Symbolum",
   "tx.symbol_short": "Symb.",
   "tx.currency": "Moneta",

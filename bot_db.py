@@ -10,7 +10,7 @@ import mysql.connector
 
 from bot_config import LOCK_PATH, STATUS_PATH, db_config, get_logger
 from bot_i18n import tr
-from bot_logic import CURRENCY, armed_peak, money, peak_drop, trail_exit, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale
+from bot_logic import CURRENCY, armed_peak, money, peak_drop, trail_exit, one_day_floor, open_lots, quote_sell, fifo_transaction_views, paper_cash_balance, taxable_gains_by_sale, transaction_column_sums
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -931,7 +931,8 @@ def recent_transactions(conn, prefs, limit=20):
 
     limit applies to closed slices (newest first). Open lots are all returned,
     each valued at the latest stored price with the current fee and tax rates.
-    Totals cover every transaction, not only the slices shown.
+    Paid fees, taxes and the sale estimates cover every transaction. The column
+    sums cover the rows this panel shows.
     """
     views = fifo_transaction_views(
         fetch_transactions(conn),
@@ -940,7 +941,11 @@ def recent_transactions(conn, prefs, limit=20):
         prefs["tax_rate"],
     )
     closed = list(reversed(views["closed"]))[: int(limit)]
-    return {"closed": closed, "open": views["open"], "totals": views["totals"]}
+    totals = dict(views["totals"])
+    # The column sums follow the rows on screen. Paid fees, taxes and the
+    # estimates stay the whole ledger, including closed slices past the limit.
+    totals["columns"] = transaction_column_sums(closed, views["open"])
+    return {"closed": closed, "open": views["open"], "totals": totals}
 
 
 def paper_balance(conn, prefs):

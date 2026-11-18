@@ -363,6 +363,19 @@ def format_signed_price(value):
     return text
 
 
+@app.template_filter("signed_px2")
+def format_signed_price_2(value):
+    if value is None:
+        return "—"
+    number = Decimal(str(value))
+    text = f"{abs(number):.2f}"
+    if number > 0:
+        return "+" + text
+    if number < 0:
+        return "−" + text
+    return text
+
+
 _CURRENCY_SYMBOLS = {
     "USD": "$",
     "EUR": "€",

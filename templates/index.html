@@ -333,15 +333,12 @@
 		.grid-table.grid-total :is(th, td) {
 			text-align: right;
 			border-bottom-width: 0;
+			font-variant-numeric: tabular-nums;
 		}
+		.grid-table.grid-total td.grid-l { text-align: left; white-space: normal; }
 		.grid-table.grid-total tr:first-child > * { padding-top: 0.5rem; }
 		.grid-table.grid-total tr:last-child > * { padding-bottom: 0; }
 		.grid-table.grid-total td { font-weight: 400; }
-		.grid-table.grid-total tr:nth-child(n+3) > td {
-			font-size: 0.75rem;
-			font-weight: 300;
-			color: var(--bs-secondary-color);
-		}
 		@media (max-width: 960px) {
 			.grid-table :is(th, td) {
 				padding-inline: 0.25rem;
@@ -349,8 +346,7 @@
 			}
 			.grid-table :is(th, td):first-child { padding-left: 0.5rem; }
 			.grid-table :is(th, td):last-child { padding-right: 0.5rem; }
-			.grid-table:not(.grid-total) tbody > tr + tr > td,
-			.grid-table.grid-total tr:nth-child(n+3) > td { font-size: 0.75rem; }
+			.grid-table:not(.grid-total) tbody > tr + tr > td { font-size: 0.75rem; }
 			.buy-grid .form-label { font-size: 0.875rem; }
 		}
 		/* Buy: four equal tracks sized for a 12-digit value; Symbol spans two. Two tracks on phones. */
@@ -1074,22 +1070,38 @@
 							<table class="table grid-table grid-total">
 								{{ grid_cols(tx_widths, tx_phone) }}
 								<tbody>
+									{% if transactions.closed and transactions.totals and transactions.totals.columns %}
+									{% set col = transactions.totals.columns.closed %}
+									<tr>
+										<td class="grid-l" title="{{ t('tx.closed') }}">{{ t('tx.sum_closed') }}</td>
+										<td class="m-hide"></td>
+										<td title="{{ t('tx.quantity') }}">{{ col.qty|px2 }}</td>
+										<td title="{{ t('tx.buy_side_title') }}">{{ col.buy|px2 }}</td>
+										<td title="{{ t('tx.sell_side_title') }}">{{ col.sell|px2 }}</td>
+										<td class="m-hide" title="{{ t('tx.fees_title') }}">{{ col.fees|px2 }}</td>
+										<td class="m-hide" title="{{ t('tx.taxes_title') }}">{{ col.taxes|px2 }}</td>
+										<td title="{{ t('tx.cash_title') }}">{{ col.cash|signed_px2 }}</td>
+									</tr>
+									{% endif %}
+									{% if transactions.open and transactions.totals and transactions.totals.columns %}
+									{% set col = transactions.totals.columns.open %}
+									<tr>
+										<td class="grid-l" title="{{ t('tx.open') }}">{{ t('tx.sum_open') }}</td>
+										<td class="m-hide"></td>
+										<td title="{{ t('tx.quantity') }}">{{ col.qty|px2 }}</td>
+										<td title="{{ t('tx.price') }}">{{ col.price|px2 }}</td>
+										<td title="{{ t('tx.cost_title') }}">{{ col.cost|px2 }}</td>
+										<td class="m-hide" title="{{ t('tx.fees_open_title') }}">{% if col.est_rows == col.rows and col.rows %}≈ {% endif %}{{ col.fees|px2 }}</td>
+										<td class="m-hide" title="{{ t('tx.taxes_open_title') }}">{% if col.taxes is not none %}{% if col.est_rows == col.rows and col.rows %}≈ {% endif %}{{ col.taxes|px2 }}{% else %}—{% endif %}</td>
+										<td title="{{ t('tx.cash_open_title') }}">{{ col.cash|signed_px2 }}</td>
+									</tr>
+									{% endif %}
 									<tr>
 										<td></td>
 										<td class="m-hide"></td>
 										<td></td>
-										<td>
-											<div class="d-sm-none" title="{{ t('tx.total_fees') }}">
-												<div>{{ (transactions.totals.fees if transactions.totals else 0)|px2 }}</div>
-												{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_fees_title') }}">+ ≈ {{ transactions.totals.est_fees|px2 }}</div>{% endif %}
-											</div>
-										</td>
-										<td>
-											<div class="d-sm-none" title="{{ t('tx.total_taxes') }}">
-												<div>{{ (transactions.totals.taxes if transactions.totals else 0)|px2 }}</div>
-												{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_taxes_title') }}">+ ≈ {{ transactions.totals.est_taxes|px2 }}</div>{% endif %}
-											</div>
-										</td>
+										<td></td>
+										<td></td>
 										<td class="m-hide" title="{{ t('tx.total_fees') }}">
 											<div>{{ (transactions.totals.fees if transactions.totals else 0)|px2 }}</div>
 											{% if transactions.totals and transactions.totals.est_count %}<div class="total-est" title="{{ t('tx.est_fees_title') }}">+ ≈ {{ transactions.totals.est_fees|px2 }}</div>{% endif %}

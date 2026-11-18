@@ -98,6 +98,8 @@
   "tx.help": "Chaque vente est associée au lot FIFO qu'elle a clôturé. La marge est nette de commissions et d'impôt face au coût de portage. Chaque ligne garde ses taux. Sur les lots ouverts, les valeurs marquées ≈ sont des estimations au dernier prix et aux taux actuels ; elles n'entrent ni dans les totaux payés ni dans le solde total.",
   "tx.closed": "Clôturées (achat ↔ vente)",
   "tx.open": "Lots ouverts",
+  "tx.sum_closed": "Clôturées",
+  "tx.sum_open": "Ouverts",
   "tx.symbol": "Symbole",
   "tx.symbol_short": "Symbole",
   "tx.currency": "Devise",

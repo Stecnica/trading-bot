@@ -98,6 +98,8 @@
   "tx.help": "Each sale is paired with the FIFO buy lot it closed. Margin is net of commissions and tax against carrying cost. Each row keeps its own rates. On open lots the values marked ≈ are estimates at the latest price and current rates; they are not in the paid totals nor in Total Balance.",
   "tx.closed": "Closed (buy ↔ sell)",
   "tx.open": "Open lots",
+  "tx.sum_closed": "Closed",
+  "tx.sum_open": "Open",
   "tx.symbol": "Symbol",
   "tx.symbol_short": "Symbol",
   "tx.currency": "Currency",

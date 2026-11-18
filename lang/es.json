@@ -98,6 +98,8 @@
   "tx.help": "Cada venta se empareja con el lote FIFO que cerró. El margen es neto de comisiones e impuestos frente al coste de carga. Cada fila conserva sus tasas. En los lotes abiertos los valores con ≈ son estimaciones al último precio y a las tasas actuales; no entran en los totales pagados ni en el saldo total.",
   "tx.closed": "Cerradas (compra ↔ venta)",
   "tx.open": "Lotes abiertos",
+  "tx.sum_closed": "Cerradas",
+  "tx.sum_open": "Abiertos",
   "tx.symbol": "Símbolo",
   "tx.symbol_short": "Símbolo",
   "tx.currency": "Moneda",

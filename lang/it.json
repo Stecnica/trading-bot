@@ -98,6 +98,8 @@
   "tx.help": "Ogni vendita è abbinata al lotto FIFO che ha chiuso. Il margine è netto di commissioni e tasse rispetto al costo di carico. Ogni riga conserva le sue aliquote. Sui lotti aperti i valori con ≈ sono stime all'ultimo prezzo e alle aliquote attuali; non entrano nei totali pagati né nel saldo totale.",
   "tx.closed": "Chiuse (acquisto ↔ vendita)",
   "tx.open": "Lotti aperti",
+  "tx.sum_closed": "Chiuse",
+  "tx.sum_open": "Aperti",
   "tx.symbol": "Titolo",
   "tx.symbol_short": "Titolo",
   "tx.currency": "Valuta",

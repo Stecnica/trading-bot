@@ -225,7 +225,8 @@ def fifo_transaction_views(transactions, prices=None, fee_rate=None, tax_rate=No
     now: the sale commission, the buy plus that sale commission, the tax on the
     unrealized gain, and the net result. Totals fees and taxes are what the stored
     rows charged; est_fees and est_taxes add up those estimates. They are not cash
-    and never enter paper_cash_balance.
+    and never enter paper_cash_balance. columns sums the figure each column shows
+    on these rows.
     """
     buckets = {}
     order = []
@@ -361,8 +362,50 @@ def fifo_transaction_views(transactions, prices=None, fee_rate=None, tax_rate=No
         "est_fees": money(sum((r["est"]["sell_fees"] for r in opens if r["est"]), zero)),
         "est_taxes": money(sum((r["est"]["taxes"] for r in opens if r["est"]), zero)),
         "est_count": sum(1 for r in opens if r["est"]),
+        "columns": transaction_column_sums(closed, opens),
     }
     return {"closed": closed, "open": opens, "totals": totals}
+
+
+def _sum_money(values):
+    total = Decimal("0")
+    for value in values:
+        if value is not None:
+            total += value
+    return money(total)
+
+
+def transaction_column_sums(closed, opens):
+    """Sum of the number each column shows, for the rows passed in.
+
+    Closed: quantity, buy price, sell price, commissions, taxes, net result.
+    Open: quantity, buy price, cost, and the commissions, taxes and net the row
+    prints (the estimate when the lot has one, otherwise the paid buy commission
+    and no tax or result). A sum of prices is the sum of those unit prices.
+    """
+    closed = list(closed or [])
+    opens = list(opens or [])
+    priced = [row for row in opens if row.get("est")]
+    return {
+        "closed": {
+            "qty": _sum_money(row["qty"] for row in closed),
+            "buy": _sum_money(row["buy_price"] for row in closed),
+            "sell": _sum_money(row["sell_price"] for row in closed),
+            "fees": _sum_money(row["fees"] for row in closed),
+            "taxes": _sum_money(row["taxes"] for row in closed),
+            "cash": _sum_money(row["cash"] for row in closed),
+        },
+        "open": {
+            "qty": _sum_money(row["qty"] for row in opens),
+            "price": _sum_money(row["buy_price"] for row in opens),
+            "cost": _sum_money(row["cost"] for row in opens),
+            "fees": _sum_money(row["est"]["fees"] if row.get("est") else row["fees"] for row in opens),
+            "taxes": _sum_money(row["est"]["taxes"] for row in priced) if priced else None,
+            "cash": _sum_money(row["est"]["net"] for row in priced) if priced else None,
+            "rows": len(opens),
+            "est_rows": len(priced),
+        },
+    }
 
 
 def taxable_gains_by_sale(transactions):

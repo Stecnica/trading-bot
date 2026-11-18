@@ -98,6 +98,8 @@
   "tx.help": "Jeder Verkauf ist dem FIFO-Lot zugeordnet, das er geschlossen hat. Die Marge ist netto nach Provisionen und Steuer gegenüber den Tragkosten. Jede Zeile behält ihre Sätze. Bei offenen Lots sind die mit ≈ markierten Werte Schätzungen zum letzten Preis und zu den aktuellen Sätzen; sie zählen weder zu den gezahlten Summen noch zum Gesamtsaldo.",
   "tx.closed": "Geschlossen (Kauf ↔ Verkauf)",
   "tx.open": "Offene Lots",
+  "tx.sum_closed": "Geschlossen",
+  "tx.sum_open": "Offen",
   "tx.symbol": "Symbol",
   "tx.symbol_short": "Symbol",
   "tx.currency": "Währung",
