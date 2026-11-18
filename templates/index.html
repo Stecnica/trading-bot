@@ -192,6 +192,10 @@
 			position: relative;
 			z-index: 1030;
 		}
+		/* A short landscape screen: the bar scrolls away, so a drag up gives the chart the height. */
+		@media (max-height: 500px) {
+			header.sticky-top { position: static; }
+		}
 		.tab-content,
 		#volume-map,
 		#chart-svg {
