@@ -228,6 +228,27 @@ function chartCaption(asset) {
     });
   });
 
+  /* The closed-lots total stays out of the footer until its heading is clicked. */
+  document.querySelectorAll(".tx-sum-toggle").forEach(function (button) {
+    var row = document.getElementById(button.getAttribute("aria-controls"));
+    if (!row) {
+      return;
+    }
+    button.addEventListener("click", function () {
+      var show = row.hasAttribute("hidden");
+      if (show) {
+        row.removeAttribute("hidden");
+      } else {
+        row.setAttribute("hidden", "");
+      }
+      button.setAttribute("aria-expanded", show ? "true" : "false");
+      var menu = button.closest(".nav-panel-grid");
+      if (menu) {
+        gridMore(menu);
+      }
+    });
+  });
+
   document.querySelectorAll(".navbar [data-bs-toggle='dropdown']").forEach(function (button) {
     button.addEventListener("show.bs.dropdown", function () {
       var menu = button.nextElementSibling;
@@ -249,6 +270,13 @@ function chartCaption(asset) {
       }
       clearPanelPlace(menu);
       if (menu && menu.classList.contains("nav-panel")) {
+        menu.querySelectorAll(".tx-sum-toggle").forEach(function (toggle) {
+          toggle.setAttribute("aria-expanded", "false");
+          var row = document.getElementById(toggle.getAttribute("aria-controls"));
+          if (row) {
+            row.setAttribute("hidden", "");
+          }
+        });
         menu.setAttribute("hidden", "");
         menu.style.removeProperty("display");
       }

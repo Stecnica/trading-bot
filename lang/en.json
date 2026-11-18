@@ -100,6 +100,7 @@
   "tx.open": "Open lots",
   "tx.sum_closed": "Closed",
   "tx.sum_open": "Open",
+  "tx.show_closed_sum": "Show or hide the closed totals",
   "tx.symbol": "Symbol",
   "tx.symbol_short": "Symbol",
   "tx.currency": "Currency",

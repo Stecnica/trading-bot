@@ -100,6 +100,7 @@
   "tx.open": "Lots ouverts",
   "tx.sum_closed": "Clôturées",
   "tx.sum_open": "Ouverts",
+  "tx.show_closed_sum": "Afficher ou masquer les totaux des clôturées",
   "tx.symbol": "Symbole",
   "tx.symbol_short": "Symbole",
   "tx.currency": "Devise",

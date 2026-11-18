@@ -100,6 +100,7 @@
   "tx.open": "Sortes apertae",
   "tx.sum_closed": "Clausae",
   "tx.sum_open": "Apertae",
+  "tx.show_closed_sum": "Summas clausarum ostende aut cela",
   "tx.symbol": "Symbolum",
   "tx.symbol_short": "Symb.",
   "tx.currency": "Moneta",

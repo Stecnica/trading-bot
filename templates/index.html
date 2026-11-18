@@ -339,6 +339,29 @@
 		.grid-table.grid-total tr:first-child > * { padding-top: 0.5rem; }
 		.grid-table.grid-total tr:last-child > * { padding-bottom: 0; }
 		.grid-table.grid-total td { font-weight: 400; }
+		.grid-table.grid-total tr[hidden] { display: none; }
+		.tx-sum-toggle {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.35rem;
+			border: 0;
+			background: none;
+			padding: 0;
+			font: inherit;
+			color: inherit;
+			cursor: pointer;
+			text-align: left;
+		}
+		.tx-sum-toggle::after {
+			content: "";
+			border: solid currentColor;
+			border-width: 0 0.11em 0.11em 0;
+			padding: 0.18em;
+			transform: translateY(-0.1em) rotate(45deg);
+		}
+		.tx-sum-toggle[aria-expanded="true"]::after {
+			transform: translateY(0.1em) rotate(-135deg);
+		}
 		@media (max-width: 960px) {
 			.grid-table :is(th, td) {
 				padding-inline: 0.25rem;
@@ -950,7 +973,7 @@
 							<div class="grid-scroll">
 							{% if transactions.closed or transactions.open %}
 							{% if transactions.closed %}
-							<h3 class="h6">{{ t('tx.closed') }}</h3>
+							<h3 class="h6"><button type="button" class="tx-sum-toggle" aria-expanded="false" aria-controls="tx-closed-sum" title="{{ t('tx.show_closed_sum') }}">{{ t('tx.closed') }}</button></h3>
 							<table class="table grid-table">
 								{{ grid_cols(tx_widths, tx_phone) }}
 								<thead>
@@ -1072,7 +1095,7 @@
 								<tbody>
 									{% if transactions.closed and transactions.totals and transactions.totals.columns %}
 									{% set col = transactions.totals.columns.closed %}
-									<tr>
+									<tr id="tx-closed-sum" hidden>
 										<td class="grid-l" title="{{ t('tx.closed') }}">{{ t('tx.sum_closed') }}</td>
 										<td class="m-hide"></td>
 										<td title="{{ t('tx.quantity') }}">{{ col.qty|px2 }}</td>
@@ -1383,7 +1406,7 @@
 	"preview.alert": t("preview.alert")
 }|tojson }}</script>
 <script src="{{ url_for('static', filename='bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='nav.js', v=75) }}"></script>
+<script src="{{ url_for('static', filename='nav.js', v=76) }}"></script>
 {% if request.args.get('preview') == 'messages' %}
 <script src="{{ url_for('static', filename='preview.js', v=4) }}"></script>
 {% endif %}
